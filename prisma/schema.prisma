@@ -1,0 +1,428 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// =============================================================================
+// RÔLES & UTILISATEURS
+// =============================================================================
+
+enum Role {
+  PARTICULIER
+  PRESTATAIRE
+  ADMIN
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  role         Role
+  emailVerified Boolean @default(false) @map("email_verified")
+  fcmToken     String?  @map("fcm_token") @db.Text
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  particulier   Particulier?
+  prestataire   Prestataire?
+  notifications Notification[]
+
+  @@map("users")
+}
+
+// =============================================================================
+// PROFILS
+// =============================================================================
+
+model Particulier {
+  id        String   @id @default(cuid())
+  userId    String   @unique @map("user_id")
+  nom       String
+  prenom    String
+  telephone String?
+  adresse   String?
+  latitude  Decimal? @db.Decimal(10, 7)
+  longitude Decimal? @db.Decimal(10, 7)
+  avatarUrl String?  @map("avatar_url")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  prestations Prestation[]
+  avis        AvisPrestataire[]
+
+  @@map("particuliers")
+}
+
+model Prestataire {
+  id                 String   @id @default(cuid())
+  userId             String   @unique @map("user_id")
+  nom                String   // nom du prestataire ou de l'entreprise
+  telephone          String?
+  adresse            String?  @db.Text
+  bio                String?  @db.Text
+  avatarUrl          String?  @map("avatar_url")
+  zoneIntervention   String[] @map("zone_intervention") // ex: ["75001", "75002", "92"] ou villes
+  latitude           Decimal? @db.Decimal(10, 7)
+  longitude          Decimal? @db.Decimal(10, 7)
+  actif              Boolean  @default(true)
+  statutVerification StatutVerificationPrestataire @default(NON_VERIFIE) @map("statut_verification")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  user               User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  servicesProposes   PrestataireService[]
+  prestations        Prestation[]
+  documents          PrestataireDocument[]
+  avis               AvisPrestataire[]
+  abonnements        Abonnement[]
+  photos             PrestatairePhoto[]
+  wallet             Wallet?
+  withdrawalRequests WithdrawalRequest[]
+
+  @@map("prestataires")
+}
+
+// =============================================================================
+// OFFRES & ABONNEMENTS (prestataires)
+// =============================================================================
+
+model Offre {
+  id          String   @id @default(cuid())
+  code        String   @unique // ex: "mensuel", "trimestriel", "annuel"
+  libelle     String
+  description String?  @db.Text
+  prix        Decimal  @db.Decimal(10, 2) // en FCFA ou unité choisie
+  dureeMois   Int      @map("duree_mois") // 1, 3, 12, etc.
+  actif       Boolean  @default(true)
+  ordre       Int      @default(0)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  abonnements Abonnement[]
+  walletTransactions WalletTransaction[]
+
+  @@map("offres")
+}
+
+enum StatutAbonnement {
+  ACTIF
+  EXPIRE
+  ANNULE
+}
+
+model Abonnement {
+  id            String           @id @default(cuid())
+  prestataireId String           @map("prestataire_id")
+  offreId       String           @map("offre_id")
+  dateDebut     DateTime         @map("date_debut") @db.Date
+  dateFin       DateTime         @map("date_fin") @db.Date
+  statut        StatutAbonnement @default(ACTIF)
+  createdAt     DateTime         @default(now()) @map("created_at")
+  updatedAt     DateTime         @updatedAt @map("updated_at")
+
+  prestataire Prestataire @relation(fields: [prestataireId], references: [id], onDelete: Cascade)
+  offre       Offre       @relation(fields: [offreId], references: [id], onDelete: Restrict)
+  walletTransactions WalletTransaction[]
+
+  @@index([prestataireId])
+  @@index([statut])
+  @@index([dateFin])
+  @@map("abonnements")
+}
+
+// Statut global de vérification d'un prestataire en fonction de ses documents
+enum StatutVerificationPrestataire {
+  NON_VERIFIE   // vient de s'inscrire, pas encore déposé les docs
+  EN_ATTENTE    // docs déposés, en attente de validation admin
+  VERIFIE       // tous les documents obligatoires sont validés
+  REFUSE        // dossier refusé (documents non conformes)
+}
+
+// =============================================================================
+// DOCUMENTS OBLIGATOIRES PRESTATAIRES (validation admin)
+// =============================================================================
+
+// Types de documents requis (KBis, assurance RC pro, diplôme, etc.)
+model TypeDocument {
+  id          String   @id @default(cuid())
+  code        String   @unique // ex: "kbis", "assurance_rc_pro", "carte_identite"
+  libelle     String
+  description String?  @db.Text
+  obligatoire Boolean  @default(true)
+  ordre       Int      @default(0) // ordre d'affichage
+  actif       Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  documents PrestataireDocument[]
+
+  @@map("type_documents")
+}
+
+enum StatutDocument {
+  EN_ATTENTE  // déposé, en attente de validation admin
+  VALIDE
+  REFUSE
+}
+
+// Document déposé par un prestataire (fichier + statut de validation par l'admin)
+model PrestataireDocument {
+  id              String         @id @default(cuid())
+  prestataireId   String         @map("prestataire_id")
+  typeDocumentId  String         @map("type_document_id")
+  fichierUrl      String         @map("fichier_url") // URL ou clé de stockage (S3, etc.)
+  nomFichier      String?        @map("nom_fichier") // nom original pour affichage
+  statut          StatutDocument @default(EN_ATTENTE)
+  validePar       String?        @map("valide_par") // userId de l'admin
+  valideAt        DateTime?      @map("valide_at")
+  motifRefus      String?        @map("motif_refus") @db.Text
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+
+  prestataire  Prestataire  @relation(fields: [prestataireId], references: [id], onDelete: Cascade)
+  typeDocument TypeDocument @relation(fields: [typeDocumentId], references: [id], onDelete: Restrict)
+
+  @@unique([prestataireId, typeDocumentId]) // un document par type et par prestataire (dernier dépôt = version courante)
+  @@index([prestataireId])
+  @@index([statut])
+  @@map("prestataire_documents")
+}
+
+// =============================================================================
+// CATALOGUE PHOTOS PRESTATAIRES
+// =============================================================================
+//
+// Photos de réalisations / prestations rattachées au profil du prestataire.
+model PrestatairePhoto {
+  id            String   @id @default(cuid())
+  prestataireId String   @map("prestataire_id")
+  url           String   // URL de la photo (Cloudinary, etc.)
+  titre         String?
+  description   String?  @db.Text
+  ordre         Int      @default(0)
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  prestataire Prestataire @relation(fields: [prestataireId], references: [id], onDelete: Cascade)
+
+  @@index([prestataireId, ordre])
+  @@map("prestataire_photos")
+}
+
+// =============================================================================
+// CATÉGORIES & SERVICES
+// =============================================================================
+
+model Service {
+  id          String   @id @default(cuid())
+  libelle     String
+  slug        String   @unique
+  description String?  @db.Text
+  icone       String?  // nom ou URL de l'icône
+  tarifs      String?  @db.Text // configuration générique de fourchettes de prix (ex: JSON)
+  actif       Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  prestataires PrestataireService[]
+
+  @@map("services")
+}
+
+// Services proposés par un prestataire (tarif, durée, etc.)
+model PrestataireService {
+  id             String   @id @default(cuid())
+  prestataireId  String   @map("prestataire_id")
+  serviceId      String   @map("service_id")
+  tarifHoraire   Decimal? @map("tarif_horaire") @db.Decimal(10, 2) // en €
+  dureeDefautMin Int?     @map("duree_defaut_min") // durée par défaut en minutes
+  description    String?  @db.Text
+  actif          Boolean  @default(true)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  prestataire Prestataire @relation(fields: [prestataireId], references: [id], onDelete: Cascade)
+  service     Service    @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  prestations Prestation[]
+
+  @@unique([prestataireId, serviceId])
+  @@map("prestataire_services")
+}
+
+// =============================================================================
+// PRESTATIONS (demande → acceptation → en cours → terminée → paiement)
+// =============================================================================
+
+enum StatutPrestation {
+  EN_ATTENTE  // créée par le particulier, en attente d'acceptation par le prestataire
+  ACCEPTEE    // acceptée par le prestataire (avant passage en cours)
+  REFUSEE     // refusée par le prestataire
+  EN_COURS    // prestation en cours
+  TERMINEE    // terminée par le prestataire, en attente de paiement
+  ANNULEE
+  PAYEE       // payée par le particulier (prestataire notifié)
+}
+
+// =============================================================================
+// WALLETS & TRANSACTIONS (ledger)
+// =============================================================================
+
+enum WalletType {
+  GENERAL
+  PRESTATAIRE
+}
+
+enum TransactionType {
+  PRESTATION
+  ABONNEMENT
+}
+
+enum WithdrawalMethod {
+  ORANGE_MONEY
+  WAVE
+  FREE_MONEY
+  RIB
+}
+
+enum WithdrawalStatus {
+  EN_ATTENTE
+  TRAITE
+  REFUSE
+}
+
+model Wallet {
+  id            String     @id @default(cuid())
+  type          WalletType
+  prestataireId String?    @unique @map("prestataire_id")
+  balance       Decimal    @default(0) @db.Decimal(14, 2)
+  createdAt     DateTime   @default(now()) @map("created_at")
+  updatedAt     DateTime   @updatedAt @map("updated_at")
+
+  prestataire   Prestataire? @relation(fields: [prestataireId], references: [id], onDelete: Cascade)
+  transactions  WalletTransaction[]
+
+  @@unique([type])
+  @@map("wallets")
+}
+
+model WalletTransaction {
+  id            String          @id @default(cuid())
+  walletId      String          @map("wallet_id")
+  type          TransactionType
+  amount        Decimal         @db.Decimal(14, 2)
+  prestationId  String?         @map("prestation_id")
+  abonnementId  String?         @map("abonnement_id")
+  offreId       String?         @map("offre_id")
+  meta          Json?
+  createdByUserId String?       @map("created_by_user_id")
+  createdAt     DateTime        @default(now()) @map("created_at")
+
+  wallet        Wallet          @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  prestation    Prestation?     @relation(fields: [prestationId], references: [id], onDelete: SetNull)
+  abonnement    Abonnement?     @relation(fields: [abonnementId], references: [id], onDelete: SetNull)
+  offre         Offre?          @relation(fields: [offreId], references: [id], onDelete: SetNull)
+
+  @@index([walletId, createdAt])
+  @@index([type, createdAt])
+  @@unique([walletId, type, prestationId])
+  @@unique([walletId, type, abonnementId])
+  @@map("wallet_transactions")
+}
+
+// =============================================================================
+// DEMANDES DE RETRAIT (wallet -> traitement manuel)
+// =============================================================================
+
+model WithdrawalRequest {
+  id            String               @id @default(cuid())
+  prestataireId String               @map("prestataire_id")
+  method        WithdrawalMethod
+  status        WithdrawalStatus    @default(EN_ATTENTE)
+  meta          Json?
+  createdAt     DateTime            @default(now()) @map("created_at")
+  updatedAt     DateTime            @updatedAt @map("updated_at")
+
+  prestataire   Prestataire         @relation(fields: [prestataireId], references: [id], onDelete: Cascade)
+
+  @@index([prestataireId])
+  @@map("withdrawal_requests")
+}
+
+model Prestation {
+  id                   String            @id @default(cuid())
+  particulierId        String            @map("particulier_id")
+  prestataireId        String            @map("prestataire_id")
+  prestataireServiceId  String            @map("prestataire_service_id")
+  typeDeTache          String?           @map("type_de_tache")
+  description          String?           @db.Text
+  imageUrl             String?           @map("image_url")
+  budget               Decimal?          @db.Decimal(10, 2)
+  adresse              String?           @db.Text
+  codePostal           String?           @map("code_postal")
+  ville                String?
+  noteParticulier      String?           @map("note_particulier") @db.Text
+  statut               StatutPrestation @default(EN_ATTENTE)
+  acceptedAt           DateTime?         @map("accepted_at")
+  completedAt          DateTime?         @map("completed_at")
+  createdAt            DateTime          @default(now()) @map("created_at")
+  updatedAt            DateTime          @updatedAt @map("updated_at")
+
+  particulier       Particulier        @relation(fields: [particulierId], references: [id], onDelete: Cascade)
+  prestataire       Prestataire        @relation(fields: [prestataireId], references: [id], onDelete: Cascade)
+  prestataireService PrestataireService @relation(fields: [prestataireServiceId], references: [id], onDelete: Restrict)
+  walletTransactions WalletTransaction[]
+
+  @@index([particulierId])
+  @@index([prestataireId])
+  @@index([statut])
+  @@map("prestations")
+}
+
+// =============================================================================
+// NOTIFICATIONS (push + in-app)
+// =============================================================================
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  title     String   @db.Text
+  body      String?  @db.Text
+  type      String?  // ex: "prestation_created", "prestation_accepted"
+  data      Json?    // payload pour la navigation (prestationId, etc.)
+  lu        Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, lu])
+  @@map("notifications")
+}
+
+// =============================================================================
+// AVIS / NOTATION PRESTATAIRES (note sur 5 étoiles)
+// =============================================================================
+
+model AvisPrestataire {
+  id             String   @id @default(cuid())
+  particulierId  String   @map("particulier_id")
+  prestataireId  String   @map("prestataire_id")
+  note           Int      // 1 à 5 étoiles
+  commentaire    String?  @db.Text
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  particulier  Particulier @relation(fields: [particulierId], references: [id], onDelete: Cascade)
+  prestataire  Prestataire @relation(fields: [prestataireId], references: [id], onDelete: Cascade)
+
+  @@unique([particulierId, prestataireId]) // un avis par particulier par prestataire
+  @@index([prestataireId])
+  @@map("avis_prestataire")
+}
