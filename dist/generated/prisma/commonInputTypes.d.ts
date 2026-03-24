@@ -290,6 +290,12 @@ export type EnumWalletTypeFilter<$PrismaModel = never> = {
     notIn?: $Enums.WalletType[] | Prisma.ListEnumWalletTypeFieldRefInput<$PrismaModel>;
     not?: Prisma.NestedEnumWalletTypeFilter<$PrismaModel> | $Enums.WalletType;
 };
+export type EnumPrestataireWalletStatutFilter<$PrismaModel = never> = {
+    equals?: $Enums.PrestataireWalletStatut | Prisma.EnumPrestataireWalletStatutFieldRefInput<$PrismaModel>;
+    in?: $Enums.PrestataireWalletStatut[] | Prisma.ListEnumPrestataireWalletStatutFieldRefInput<$PrismaModel>;
+    notIn?: $Enums.PrestataireWalletStatut[] | Prisma.ListEnumPrestataireWalletStatutFieldRefInput<$PrismaModel>;
+    not?: Prisma.NestedEnumPrestataireWalletStatutFilter<$PrismaModel> | $Enums.PrestataireWalletStatut;
+};
 export type EnumWalletTypeWithAggregatesFilter<$PrismaModel = never> = {
     equals?: $Enums.WalletType | Prisma.EnumWalletTypeFieldRefInput<$PrismaModel>;
     in?: $Enums.WalletType[] | Prisma.ListEnumWalletTypeFieldRefInput<$PrismaModel>;
@@ -298,6 +304,15 @@ export type EnumWalletTypeWithAggregatesFilter<$PrismaModel = never> = {
     _count?: Prisma.NestedIntFilter<$PrismaModel>;
     _min?: Prisma.NestedEnumWalletTypeFilter<$PrismaModel>;
     _max?: Prisma.NestedEnumWalletTypeFilter<$PrismaModel>;
+};
+export type EnumPrestataireWalletStatutWithAggregatesFilter<$PrismaModel = never> = {
+    equals?: $Enums.PrestataireWalletStatut | Prisma.EnumPrestataireWalletStatutFieldRefInput<$PrismaModel>;
+    in?: $Enums.PrestataireWalletStatut[] | Prisma.ListEnumPrestataireWalletStatutFieldRefInput<$PrismaModel>;
+    notIn?: $Enums.PrestataireWalletStatut[] | Prisma.ListEnumPrestataireWalletStatutFieldRefInput<$PrismaModel>;
+    not?: Prisma.NestedEnumPrestataireWalletStatutWithAggregatesFilter<$PrismaModel> | $Enums.PrestataireWalletStatut;
+    _count?: Prisma.NestedIntFilter<$PrismaModel>;
+    _min?: Prisma.NestedEnumPrestataireWalletStatutFilter<$PrismaModel>;
+    _max?: Prisma.NestedEnumPrestataireWalletStatutFilter<$PrismaModel>;
 };
 export type EnumTransactionTypeFilter<$PrismaModel = never> = {
     equals?: $Enums.TransactionType | Prisma.EnumTransactionTypeFieldRefInput<$PrismaModel>;
@@ -697,6 +712,12 @@ export type NestedEnumWalletTypeFilter<$PrismaModel = never> = {
     notIn?: $Enums.WalletType[] | Prisma.ListEnumWalletTypeFieldRefInput<$PrismaModel>;
     not?: Prisma.NestedEnumWalletTypeFilter<$PrismaModel> | $Enums.WalletType;
 };
+export type NestedEnumPrestataireWalletStatutFilter<$PrismaModel = never> = {
+    equals?: $Enums.PrestataireWalletStatut | Prisma.EnumPrestataireWalletStatutFieldRefInput<$PrismaModel>;
+    in?: $Enums.PrestataireWalletStatut[] | Prisma.ListEnumPrestataireWalletStatutFieldRefInput<$PrismaModel>;
+    notIn?: $Enums.PrestataireWalletStatut[] | Prisma.ListEnumPrestataireWalletStatutFieldRefInput<$PrismaModel>;
+    not?: Prisma.NestedEnumPrestataireWalletStatutFilter<$PrismaModel> | $Enums.PrestataireWalletStatut;
+};
 export type NestedEnumWalletTypeWithAggregatesFilter<$PrismaModel = never> = {
     equals?: $Enums.WalletType | Prisma.EnumWalletTypeFieldRefInput<$PrismaModel>;
     in?: $Enums.WalletType[] | Prisma.ListEnumWalletTypeFieldRefInput<$PrismaModel>;
@@ -705,6 +726,15 @@ export type NestedEnumWalletTypeWithAggregatesFilter<$PrismaModel = never> = {
     _count?: Prisma.NestedIntFilter<$PrismaModel>;
     _min?: Prisma.NestedEnumWalletTypeFilter<$PrismaModel>;
     _max?: Prisma.NestedEnumWalletTypeFilter<$PrismaModel>;
+};
+export type NestedEnumPrestataireWalletStatutWithAggregatesFilter<$PrismaModel = never> = {
+    equals?: $Enums.PrestataireWalletStatut | Prisma.EnumPrestataireWalletStatutFieldRefInput<$PrismaModel>;
+    in?: $Enums.PrestataireWalletStatut[] | Prisma.ListEnumPrestataireWalletStatutFieldRefInput<$PrismaModel>;
+    notIn?: $Enums.PrestataireWalletStatut[] | Prisma.ListEnumPrestataireWalletStatutFieldRefInput<$PrismaModel>;
+    not?: Prisma.NestedEnumPrestataireWalletStatutWithAggregatesFilter<$PrismaModel> | $Enums.PrestataireWalletStatut;
+    _count?: Prisma.NestedIntFilter<$PrismaModel>;
+    _min?: Prisma.NestedEnumPrestataireWalletStatutFilter<$PrismaModel>;
+    _max?: Prisma.NestedEnumPrestataireWalletStatutFilter<$PrismaModel>;
 };
 export type NestedEnumTransactionTypeFilter<$PrismaModel = never> = {
     equals?: $Enums.TransactionType | Prisma.EnumTransactionTypeFieldRefInput<$PrismaModel>;

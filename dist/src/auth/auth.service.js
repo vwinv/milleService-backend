@@ -96,6 +96,7 @@ let AuthService = AuthService_1 = class AuthService {
                         email: dto.email.toLowerCase(),
                         passwordHash,
                         role: client_js_1.Role.PARTICULIER,
+                        emailVerified: true,
                     },
                 });
                 await this.prisma.particulier.create({
@@ -113,7 +114,7 @@ let AuthService = AuthService_1 = class AuthService {
                     where: { id: user.id },
                     include: { particulier: true },
                 });
-                const access_token = this.jwtService.sign({ sub: user.id, email: user.email, role: user.role }, { expiresIn: '15m' });
+                const access_token = this.jwtService.sign({ sub: user.id, email: user.email, role: user.role }, { expiresIn: '24h' });
                 const refresh_token = this.jwtService.sign({ sub: user.id, type: 'refresh' }, { expiresIn: '7d' });
                 return {
                     access_token,
@@ -210,7 +211,7 @@ let AuthService = AuthService_1 = class AuthService {
                     where: { id: user.id },
                     include: { prestataire: true },
                 });
-                const access_token = this.jwtService.sign({ sub: user.id, email: user.email, role: user.role }, { expiresIn: '15m' });
+                const access_token = this.jwtService.sign({ sub: user.id, email: user.email, role: user.role }, { expiresIn: '24h' });
                 const refresh_token = this.jwtService.sign({ sub: user.id, type: 'refresh' }, { expiresIn: '7d' });
                 return {
                     access_token,
@@ -252,7 +253,7 @@ let AuthService = AuthService_1 = class AuthService {
         if (user.role === client_js_1.Role.PRESTATAIRE && user.prestataire && user.prestataire.actif === false) {
             throw new common_1.UnauthorizedException('Votre compte a été désactivé. Veuillez contacter notre équipe pour la réactivation.');
         }
-        const access_token = this.jwtService.sign({ sub: user.id, email: user.email, role: user.role }, { expiresIn: '15m' });
+        const access_token = this.jwtService.sign({ sub: user.id, email: user.email, role: user.role }, { expiresIn: '24h' });
         const refresh_token = this.jwtService.sign({ sub: user.id, type: 'refresh' }, { expiresIn: '7d' });
         let abonnement = null;
         if (user.role === client_js_1.Role.PRESTATAIRE) {
@@ -283,7 +284,7 @@ let AuthService = AuthService_1 = class AuthService {
             if (!user) {
                 throw new common_1.UnauthorizedException('Utilisateur introuvable');
             }
-            const access_token = this.jwtService.sign({ sub: user.id, email: user.email, role: user.role }, { expiresIn: '15m' });
+            const access_token = this.jwtService.sign({ sub: user.id, email: user.email, role: user.role }, { expiresIn: '24h' });
             const new_refresh_token = this.jwtService.sign({ sub: user.id, type: 'refresh' }, { expiresIn: '7d' });
             let abonnement = null;
             if (user.role === client_js_1.Role.PRESTATAIRE) {
@@ -460,7 +461,7 @@ let AuthService = AuthService_1 = class AuthService {
             where: { id: user.id },
             include: { particulier: true, prestataire: true },
         });
-        const access_token = this.jwtService.sign({ sub: user.id, email: user.email, role: client_js_1.Role.PRESTATAIRE }, { expiresIn: '15m' });
+        const access_token = this.jwtService.sign({ sub: user.id, email: user.email, role: client_js_1.Role.PRESTATAIRE }, { expiresIn: '24h' });
         const refresh_token = this.jwtService.sign({ sub: user.id, type: 'refresh' }, { expiresIn: '7d' });
         let abonnement = null;
         try {
@@ -514,7 +515,7 @@ let AuthService = AuthService_1 = class AuthService {
             where: { id: user.id },
             include: { particulier: true, prestataire: true },
         });
-        const access_token = this.jwtService.sign({ sub: user.id, email: user.email, role: client_js_1.Role.PARTICULIER }, { expiresIn: '15m' });
+        const access_token = this.jwtService.sign({ sub: user.id, email: user.email, role: client_js_1.Role.PARTICULIER }, { expiresIn: '24h' });
         const refresh_token = this.jwtService.sign({ sub: user.id, type: 'refresh' }, { expiresIn: '7d' });
         return {
             access_token,

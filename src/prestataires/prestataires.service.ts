@@ -694,6 +694,29 @@ export class PrestatairesService {
   }
 
   /**
+   * Avis clients pour la page d’accueil (public) : récents, avec avatar.
+   */
+  async getAvisPublicLanding(limit = 80) {
+    const rows = await this.prisma.avisPrestataire.findMany({
+      take: limit,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        particulier: {
+          select: { nom: true, prenom: true, avatarUrl: true },
+        },
+      },
+    });
+    return rows.map((a) => ({
+      id: a.id,
+      nomClient:
+        [a.particulier.prenom, a.particulier.nom].filter(Boolean).join(' ').trim() || 'Client',
+      note: a.note,
+      commentaire: a.commentaire ?? null,
+      avatarUrl: a.particulier.avatarUrl ?? null,
+    }));
+  }
+
+  /**
    * Met à jour les informations de base du prestataire connecté
    * (nom, téléphone, coordonnées GPS à partir de l'adresse, services proposés).
    */

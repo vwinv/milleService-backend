@@ -280,6 +280,12 @@ enum WalletType {
   PRESTATAIRE
 }
 
+/// Accès aux retraits pour le wallet prestataire (crédits prestations toujours possibles sauf plafond).
+enum PrestataireWalletStatut {
+  ACTIF
+  BLOQUE
+}
+
 enum TransactionType {
   PRESTATION
   ABONNEMENT
@@ -303,6 +309,10 @@ model Wallet {
   type          WalletType
   prestataireId String?    @unique @map("prestataire_id")
   balance       Decimal    @default(0) @db.Decimal(14, 2)
+  /// Solde maximal du wallet (FCFA) : après tout crédit, le solde ne peut pas dépasser cette valeur. Null = sans limite.
+  balancePlafond Decimal?  @map("balance_plafond") @db.Decimal(14, 2)
+  /// Gel : bloque les demandes de retrait côté prestataire.
+  statutPrestataire PrestataireWalletStatut @default(ACTIF) @map("statut_prestataire_wallet")
   createdAt     DateTime   @default(now()) @map("created_at")
   updatedAt     DateTime   @updatedAt @map("updated_at")
 

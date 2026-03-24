@@ -24,6 +24,16 @@ export class WalletsController {
 
     const wallet = await this.prisma.wallet.findUnique({
       where: { prestataireId: prestataire.id },
+      select: {
+        id: true,
+        type: true,
+        prestataireId: true,
+        balance: true,
+        balancePlafond: true,
+        statutPrestataire: true,
+        createdAt: true,
+        updatedAt: true,
+      },
     });
 
     const take = Math.min(Math.max(Number(limit ?? 50), 1), 200);
@@ -37,7 +47,12 @@ export class WalletsController {
 
     return {
       wallet: wallet
-        ? { ...wallet, balance: Number(wallet.balance) }
+        ? {
+            ...wallet,
+            balance: Number(wallet.balance),
+            balancePlafond:
+              wallet.balancePlafond != null ? Number(wallet.balancePlafond) : null,
+          }
         : null,
       transactions: transactions.map((t) => ({ ...t, amount: Number(t.amount) })),
     };
@@ -78,6 +93,16 @@ export class WalletsController {
 
     if (!prestataire) {
       throw new BadRequestException('Profil prestataire introuvable');
+    }
+
+    const prestWallet = await this.prisma.wallet.findUnique({
+      where: { prestataireId: prestataire.id },
+      select: { statutPrestataire: true },
+    });
+    if (prestWallet?.statutPrestataire === 'BLOQUE') {
+      throw new BadRequestException(
+        'Votre wallet est gelé : les retraits ne sont pas autorisés pour le moment.',
+      );
     }
 
     const req = await this.prisma.withdrawalRequest.create({

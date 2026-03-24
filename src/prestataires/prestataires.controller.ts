@@ -109,6 +109,12 @@ export class PrestatairesController {
     return this.prestatairesService.addPhoto(user.userId, dto);
   }
 
+  /** Avis clients pour la landing (public, sans auth). */
+  @Get('public/avis')
+  getPublicAvis() {
+    return this.prestatairesService.getAvisPublicLanding();
+  }
+
   /** Photos du catalogue pour un prestataire (profil public côté particulier). */
   @Get(':id/photos')
   getPhotosByPrestataire(@Param('id') prestataireId: string) {

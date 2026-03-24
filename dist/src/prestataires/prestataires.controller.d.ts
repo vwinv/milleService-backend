@@ -76,8 +76,8 @@ export declare class PrestatairesController {
     getMyPhotos(user: CurrentUserPayload): Promise<{
         url: string;
         id: string;
-        createdAt: Date;
         description: string | null;
+        createdAt: Date;
         ordre: number;
         prestataireId: string;
         titre: string | null;
@@ -85,17 +85,24 @@ export declare class PrestatairesController {
     addPhoto(user: CurrentUserPayload, dto: CreatePrestatairePhotoDto): Promise<{
         url: string;
         id: string;
-        createdAt: Date;
         description: string | null;
+        createdAt: Date;
         ordre: number;
         prestataireId: string;
         titre: string | null;
     }>;
+    getPublicAvis(): Promise<{
+        id: string;
+        nomClient: string;
+        note: number;
+        commentaire: string | null;
+        avatarUrl: string | null;
+    }[]>;
     getPhotosByPrestataire(prestataireId: string): Promise<{
         url: string;
         id: string;
-        createdAt: Date;
         description: string | null;
+        createdAt: Date;
         ordre: number;
         prestataireId: string;
         titre: string | null;

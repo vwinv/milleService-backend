@@ -540,6 +540,24 @@ let PrestatairesService = class PrestatairesService {
             commentaire: a.commentaire ?? null,
         }));
     }
+    async getAvisPublicLanding(limit = 80) {
+        const rows = await this.prisma.avisPrestataire.findMany({
+            take: limit,
+            orderBy: { createdAt: 'desc' },
+            include: {
+                particulier: {
+                    select: { nom: true, prenom: true, avatarUrl: true },
+                },
+            },
+        });
+        return rows.map((a) => ({
+            id: a.id,
+            nomClient: [a.particulier.prenom, a.particulier.nom].filter(Boolean).join(' ').trim() || 'Client',
+            note: a.note,
+            commentaire: a.commentaire ?? null,
+            avatarUrl: a.particulier.avatarUrl ?? null,
+        }));
+    }
     async updateMe(userId, dto) {
         const prestataire = await this.prisma.prestataire.findUnique({
             where: { userId },

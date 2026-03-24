@@ -55,6 +55,9 @@ let PrestatairesController = class PrestatairesController {
     addPhoto(user, dto) {
         return this.prestatairesService.addPhoto(user.userId, dto);
     }
+    getPublicAvis() {
+        return this.prestatairesService.getAvisPublicLanding();
+    }
     getPhotosByPrestataire(prestataireId) {
         return this.prestatairesService.getPhotosByPrestataire(prestataireId);
     }
@@ -152,6 +155,12 @@ __decorate([
     __metadata("design:paramtypes", [Object, create_photo_dto_js_1.CreatePrestatairePhotoDto]),
     __metadata("design:returntype", void 0)
 ], PrestatairesController.prototype, "addPhoto", null);
+__decorate([
+    (0, common_1.Get)('public/avis'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], PrestatairesController.prototype, "getPublicAvis", null);
 __decorate([
     (0, common_1.Get)(':id/photos'),
     __param(0, (0, common_1.Param)('id')),

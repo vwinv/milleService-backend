@@ -102,8 +102,8 @@ export declare class PrestatairesService {
     getMyPhotos(userId: string): Promise<{
         url: string;
         id: string;
-        createdAt: Date;
         description: string | null;
+        createdAt: Date;
         ordre: number;
         prestataireId: string;
         titre: string | null;
@@ -111,8 +111,8 @@ export declare class PrestatairesService {
     addPhoto(userId: string, dto: CreatePrestatairePhotoDto): Promise<{
         url: string;
         id: string;
-        createdAt: Date;
         description: string | null;
+        createdAt: Date;
         ordre: number;
         prestataireId: string;
         titre: string | null;
@@ -123,8 +123,8 @@ export declare class PrestatairesService {
     getPhotosByPrestataire(prestataireId: string): Promise<{
         url: string;
         id: string;
-        createdAt: Date;
         description: string | null;
+        createdAt: Date;
         ordre: number;
         prestataireId: string;
         titre: string | null;
@@ -134,6 +134,13 @@ export declare class PrestatairesService {
         nomClient: string;
         note: number;
         commentaire: string | null;
+    }[]>;
+    getAvisPublicLanding(limit?: number): Promise<{
+        id: string;
+        nomClient: string;
+        note: number;
+        commentaire: string | null;
+        avatarUrl: string | null;
     }[]>;
     updateMe(userId: string, dto: UpdateMePrestataireDto): Promise<{
         id: string;

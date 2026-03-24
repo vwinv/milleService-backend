@@ -64,6 +64,7 @@ export class AuthService {
             email: dto.email.toLowerCase(),
             passwordHash,
             role: Role.PARTICULIER,
+            emailVerified: true,
           },
         });
         await this.prisma.particulier.create({
@@ -83,7 +84,7 @@ export class AuthService {
         });
         const access_token = this.jwtService.sign(
           { sub: user.id, email: user.email, role: user.role },
-          { expiresIn: '15m' },
+          { expiresIn: '24h' },
         );
         const refresh_token = this.jwtService.sign(
           { sub: user.id, type: 'refresh' },
@@ -194,7 +195,7 @@ export class AuthService {
         });
         const access_token = this.jwtService.sign(
           { sub: user.id, email: user.email, role: user.role },
-          { expiresIn: '15m' },
+          { expiresIn: '24h' },
         );
         const refresh_token = this.jwtService.sign(
           { sub: user.id, type: 'refresh' },
@@ -250,7 +251,7 @@ export class AuthService {
     }
     const access_token = this.jwtService.sign(
       { sub: user.id, email: user.email, role: user.role },
-      { expiresIn: '15m' },
+      { expiresIn: '24h' },
     );
     const refresh_token = this.jwtService.sign(
       { sub: user.id, type: 'refresh' },
@@ -290,7 +291,7 @@ export class AuthService {
       }
       const access_token = this.jwtService.sign(
         { sub: user.id, email: user.email, role: user.role },
-        { expiresIn: '15m' },
+        { expiresIn: '24h' },
       );
       const new_refresh_token = this.jwtService.sign(
         { sub: user.id, type: 'refresh' },
@@ -513,7 +514,7 @@ export class AuthService {
 
     const access_token = this.jwtService.sign(
       { sub: user.id, email: user.email, role: Role.PRESTATAIRE },
-      { expiresIn: '15m' },
+      { expiresIn: '24h' },
     );
     const refresh_token = this.jwtService.sign(
       { sub: user.id, type: 'refresh' },
@@ -593,7 +594,7 @@ export class AuthService {
 
     const access_token = this.jwtService.sign(
       { sub: user.id, email: user.email, role: Role.PARTICULIER },
-      { expiresIn: '15m' },
+      { expiresIn: '24h' },
     );
     const refresh_token = this.jwtService.sign(
       { sub: user.id, type: 'refresh' },

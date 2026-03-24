@@ -26,7 +26,7 @@ exports.AuthModule = AuthModule = __decorate([
             passport_1.PassportModule.register({ defaultStrategy: 'jwt' }),
             jwt_1.JwtModule.register({
                 secret: process.env.JWT_SECRET || 'change-me-in-production',
-                signOptions: { expiresIn: '15m' },
+                signOptions: { expiresIn: '24h' },
             }),
         ],
         controllers: [auth_controller_js_1.AuthController],

@@ -3,9 +3,12 @@ Object.defineProperty(exports, "__esModule", { value: true });
 require("dotenv/config");
 const adapter_pg_1 = require("@prisma/adapter-pg");
 const client_1 = require("../generated/prisma/client");
-const connectionString = process.env.DATABASE_URL;
+let connectionString = process.env.DATABASE_URL;
 if (!connectionString)
     throw new Error('DATABASE_URL is required');
+if (!connectionString.includes('sslmode=')) {
+    connectionString += (connectionString.includes('?') ? '&' : '?') + 'sslmode=require';
+}
 const adapter = new adapter_pg_1.PrismaPg({ connectionString });
 const prisma = new client_1.PrismaClient({ adapter });
 async function main() {

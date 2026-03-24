@@ -1535,6 +1535,8 @@ export declare const WalletScalarFieldEnum: {
     readonly type: "type";
     readonly prestataireId: "prestataireId";
     readonly balance: "balance";
+    readonly balancePlafond: "balancePlafond";
+    readonly statutPrestataire: "statutPrestataire";
     readonly createdAt: "createdAt";
     readonly updatedAt: "updatedAt";
 };
@@ -1647,6 +1649,8 @@ export type EnumStatutDocumentFieldRefInput<$PrismaModel> = FieldRefInputType<$P
 export type ListEnumStatutDocumentFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'StatutDocument[]'>;
 export type EnumWalletTypeFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'WalletType'>;
 export type ListEnumWalletTypeFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'WalletType[]'>;
+export type EnumPrestataireWalletStatutFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'PrestataireWalletStatut'>;
+export type ListEnumPrestataireWalletStatutFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'PrestataireWalletStatut[]'>;
 export type EnumTransactionTypeFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'TransactionType'>;
 export type ListEnumTransactionTypeFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'TransactionType[]'>;
 export type JsonFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Json'>;

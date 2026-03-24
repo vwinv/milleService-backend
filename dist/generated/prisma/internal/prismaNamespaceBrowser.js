@@ -189,6 +189,8 @@ exports.WalletScalarFieldEnum = {
     type: 'type',
     prestataireId: 'prestataireId',
     balance: 'balance',
+    balancePlafond: 'balancePlafond',
+    statutPrestataire: 'statutPrestataire',
     createdAt: 'createdAt',
     updatedAt: 'updatedAt'
 };

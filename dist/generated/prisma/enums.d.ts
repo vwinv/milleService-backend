@@ -38,6 +38,11 @@ export declare const WalletType: {
     readonly PRESTATAIRE: "PRESTATAIRE";
 };
 export type WalletType = (typeof WalletType)[keyof typeof WalletType];
+export declare const PrestataireWalletStatut: {
+    readonly ACTIF: "ACTIF";
+    readonly BLOQUE: "BLOQUE";
+};
+export type PrestataireWalletStatut = (typeof PrestataireWalletStatut)[keyof typeof PrestataireWalletStatut];
 export declare const TransactionType: {
     readonly PRESTATION: "PRESTATION";
     readonly ABONNEMENT: "ABONNEMENT";

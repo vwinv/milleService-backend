@@ -7,9 +7,9 @@ export declare class AbonnementsController {
     getOffres(): Promise<{
         prix: number;
         id: string;
-        code: string;
         libelle: string;
         description: string | null;
+        code: string;
         dureeMois: number;
         ordre: number;
     }[]>;
@@ -21,8 +21,8 @@ export declare class AbonnementsController {
         offre: {
             prix: number;
             id: string;
-            code: string;
             libelle: string;
+            code: string;
             dureeMois: number;
         };
     } | null>;
@@ -34,8 +34,8 @@ export declare class AbonnementsController {
         offre: {
             prix: number;
             id: string;
-            code: string;
             libelle: string;
+            code: string;
             dureeMois: number;
         };
     } | null>;

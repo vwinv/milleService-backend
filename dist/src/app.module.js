@@ -21,6 +21,7 @@ const geocoding_module_js_1 = require("./geocoding/geocoding.module.js");
 const services_module_js_1 = require("./services/services.module.js");
 const abonnements_module_js_1 = require("./abonnements/abonnements.module.js");
 const wallets_module_js_1 = require("./wallets/wallets.module.js");
+const admin_module_js_1 = require("./admin/admin.module.js");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -38,6 +39,7 @@ exports.AppModule = AppModule = __decorate([
             services_module_js_1.ServicesModule,
             abonnements_module_js_1.AbonnementsModule,
             wallets_module_js_1.WalletsModule,
+            admin_module_js_1.AdminModule,
         ],
         controllers: [app_controller_js_1.AppController],
         providers: [app_service_js_1.AppService],

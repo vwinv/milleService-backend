@@ -55,6 +55,22 @@ let WalletsService = class WalletsService {
     async creditWallet(params) {
         const client = params.tx ?? this.prisma;
         const amount = Number(params.amount);
+        if (!(amount > 0) || Number.isNaN(amount)) {
+            throw new common_1.BadRequestException('Montant de crédit invalide');
+        }
+        const walletBefore = await client.wallet.findUnique({
+            where: { id: params.walletId },
+            select: { balance: true, balancePlafond: true },
+        });
+        if (!walletBefore) {
+            throw new common_1.BadRequestException('Wallet introuvable');
+        }
+        const balance = Number(walletBefore.balance);
+        const plafond = walletBefore.balancePlafond != null ? Number(walletBefore.balancePlafond) : null;
+        const nextBalance = Math.round((balance + amount) * 100) / 100;
+        if (plafond != null && !Number.isNaN(plafond) && nextBalance > plafond) {
+            throw new common_1.BadRequestException(`Le solde du wallet ne peut pas dépasser ${plafond} FCFA (solde maximal / plafond).`);
+        }
         await client.wallet.update({
             where: { id: params.walletId },
             data: {

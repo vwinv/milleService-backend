@@ -12,6 +12,7 @@ import { GeocodingModule } from './geocoding/geocoding.module.js';
 import { ServicesModule } from './services/services.module.js';
 import { AbonnementsModule } from './abonnements/abonnements.module.js';
 import { WalletsModule } from './wallets/wallets.module.js';
+import { AdminModule } from './admin/admin.module.js';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { WalletsModule } from './wallets/wallets.module.js';
     ServicesModule,
     AbonnementsModule,
     WalletsModule,
+    AdminModule,
   ],
   controllers: [AppController],
   providers: [AppService],

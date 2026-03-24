@@ -2,8 +2,12 @@ import 'dotenv/config';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../generated/prisma/client';
 
-const connectionString = process.env.DATABASE_URL;
+let connectionString = process.env.DATABASE_URL;
 if (!connectionString) throw new Error('DATABASE_URL is required');
+// Render et bases cloud exigent souvent SSL pour les connexions externes
+if (!connectionString.includes('sslmode=')) {
+  connectionString += (connectionString.includes('?') ? '&' : '?') + 'sslmode=require';
+}
 const adapter = new PrismaPg({ connectionString });
 const prisma = new PrismaClient({ adapter });
 

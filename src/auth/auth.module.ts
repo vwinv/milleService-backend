@@ -14,7 +14,7 @@ import { AbonnementsModule } from '../abonnements/abonnements.module.js';
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.register({
       secret: process.env.JWT_SECRET || 'change-me-in-production',
-      signOptions: { expiresIn: '15m' },
+      signOptions: { expiresIn: '24h' },
     }),
   ],
   controllers: [AuthController],

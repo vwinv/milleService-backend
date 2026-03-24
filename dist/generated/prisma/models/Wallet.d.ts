@@ -11,15 +11,19 @@ export type AggregateWallet = {
 };
 export type WalletAvgAggregateOutputType = {
     balance: runtime.Decimal | null;
+    balancePlafond: runtime.Decimal | null;
 };
 export type WalletSumAggregateOutputType = {
     balance: runtime.Decimal | null;
+    balancePlafond: runtime.Decimal | null;
 };
 export type WalletMinAggregateOutputType = {
     id: string | null;
     type: $Enums.WalletType | null;
     prestataireId: string | null;
     balance: runtime.Decimal | null;
+    balancePlafond: runtime.Decimal | null;
+    statutPrestataire: $Enums.PrestataireWalletStatut | null;
     createdAt: Date | null;
     updatedAt: Date | null;
 };
@@ -28,6 +32,8 @@ export type WalletMaxAggregateOutputType = {
     type: $Enums.WalletType | null;
     prestataireId: string | null;
     balance: runtime.Decimal | null;
+    balancePlafond: runtime.Decimal | null;
+    statutPrestataire: $Enums.PrestataireWalletStatut | null;
     createdAt: Date | null;
     updatedAt: Date | null;
 };
@@ -36,21 +42,27 @@ export type WalletCountAggregateOutputType = {
     type: number;
     prestataireId: number;
     balance: number;
+    balancePlafond: number;
+    statutPrestataire: number;
     createdAt: number;
     updatedAt: number;
     _all: number;
 };
 export type WalletAvgAggregateInputType = {
     balance?: true;
+    balancePlafond?: true;
 };
 export type WalletSumAggregateInputType = {
     balance?: true;
+    balancePlafond?: true;
 };
 export type WalletMinAggregateInputType = {
     id?: true;
     type?: true;
     prestataireId?: true;
     balance?: true;
+    balancePlafond?: true;
+    statutPrestataire?: true;
     createdAt?: true;
     updatedAt?: true;
 };
@@ -59,6 +71,8 @@ export type WalletMaxAggregateInputType = {
     type?: true;
     prestataireId?: true;
     balance?: true;
+    balancePlafond?: true;
+    statutPrestataire?: true;
     createdAt?: true;
     updatedAt?: true;
 };
@@ -67,6 +81,8 @@ export type WalletCountAggregateInputType = {
     type?: true;
     prestataireId?: true;
     balance?: true;
+    balancePlafond?: true;
+    statutPrestataire?: true;
     createdAt?: true;
     updatedAt?: true;
     _all?: true;
@@ -104,6 +120,8 @@ export type WalletGroupByOutputType = {
     type: $Enums.WalletType;
     prestataireId: string | null;
     balance: runtime.Decimal;
+    balancePlafond: runtime.Decimal | null;
+    statutPrestataire: $Enums.PrestataireWalletStatut;
     createdAt: Date;
     updatedAt: Date;
     _count: WalletCountAggregateOutputType | null;
@@ -123,6 +141,8 @@ export type WalletWhereInput = {
     type?: Prisma.EnumWalletTypeFilter<"Wallet"> | $Enums.WalletType;
     prestataireId?: Prisma.StringNullableFilter<"Wallet"> | string | null;
     balance?: Prisma.DecimalFilter<"Wallet"> | runtime.Decimal | runtime.DecimalJsLike | number | string;
+    balancePlafond?: Prisma.DecimalNullableFilter<"Wallet"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null;
+    statutPrestataire?: Prisma.EnumPrestataireWalletStatutFilter<"Wallet"> | $Enums.PrestataireWalletStatut;
     createdAt?: Prisma.DateTimeFilter<"Wallet"> | Date | string;
     updatedAt?: Prisma.DateTimeFilter<"Wallet"> | Date | string;
     prestataire?: Prisma.XOR<Prisma.PrestataireNullableScalarRelationFilter, Prisma.PrestataireWhereInput> | null;
@@ -133,6 +153,8 @@ export type WalletOrderByWithRelationInput = {
     type?: Prisma.SortOrder;
     prestataireId?: Prisma.SortOrderInput | Prisma.SortOrder;
     balance?: Prisma.SortOrder;
+    balancePlafond?: Prisma.SortOrderInput | Prisma.SortOrder;
+    statutPrestataire?: Prisma.SortOrder;
     createdAt?: Prisma.SortOrder;
     updatedAt?: Prisma.SortOrder;
     prestataire?: Prisma.PrestataireOrderByWithRelationInput;
@@ -146,6 +168,8 @@ export type WalletWhereUniqueInput = Prisma.AtLeast<{
     OR?: Prisma.WalletWhereInput[];
     NOT?: Prisma.WalletWhereInput | Prisma.WalletWhereInput[];
     balance?: Prisma.DecimalFilter<"Wallet"> | runtime.Decimal | runtime.DecimalJsLike | number | string;
+    balancePlafond?: Prisma.DecimalNullableFilter<"Wallet"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null;
+    statutPrestataire?: Prisma.EnumPrestataireWalletStatutFilter<"Wallet"> | $Enums.PrestataireWalletStatut;
     createdAt?: Prisma.DateTimeFilter<"Wallet"> | Date | string;
     updatedAt?: Prisma.DateTimeFilter<"Wallet"> | Date | string;
     prestataire?: Prisma.XOR<Prisma.PrestataireNullableScalarRelationFilter, Prisma.PrestataireWhereInput> | null;
@@ -156,6 +180,8 @@ export type WalletOrderByWithAggregationInput = {
     type?: Prisma.SortOrder;
     prestataireId?: Prisma.SortOrderInput | Prisma.SortOrder;
     balance?: Prisma.SortOrder;
+    balancePlafond?: Prisma.SortOrderInput | Prisma.SortOrder;
+    statutPrestataire?: Prisma.SortOrder;
     createdAt?: Prisma.SortOrder;
     updatedAt?: Prisma.SortOrder;
     _count?: Prisma.WalletCountOrderByAggregateInput;
@@ -172,6 +198,8 @@ export type WalletScalarWhereWithAggregatesInput = {
     type?: Prisma.EnumWalletTypeWithAggregatesFilter<"Wallet"> | $Enums.WalletType;
     prestataireId?: Prisma.StringNullableWithAggregatesFilter<"Wallet"> | string | null;
     balance?: Prisma.DecimalWithAggregatesFilter<"Wallet"> | runtime.Decimal | runtime.DecimalJsLike | number | string;
+    balancePlafond?: Prisma.DecimalNullableWithAggregatesFilter<"Wallet"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null;
+    statutPrestataire?: Prisma.EnumPrestataireWalletStatutWithAggregatesFilter<"Wallet"> | $Enums.PrestataireWalletStatut;
     createdAt?: Prisma.DateTimeWithAggregatesFilter<"Wallet"> | Date | string;
     updatedAt?: Prisma.DateTimeWithAggregatesFilter<"Wallet"> | Date | string;
 };
@@ -179,6 +207,8 @@ export type WalletCreateInput = {
     id?: string;
     type: $Enums.WalletType;
     balance?: runtime.Decimal | runtime.DecimalJsLike | number | string;
+    balancePlafond?: runtime.Decimal | runtime.DecimalJsLike | number | string | null;
+    statutPrestataire?: $Enums.PrestataireWalletStatut;
     createdAt?: Date | string;
     updatedAt?: Date | string;
     prestataire?: Prisma.PrestataireCreateNestedOneWithoutWalletInput;
@@ -189,6 +219,8 @@ export type WalletUncheckedCreateInput = {
     type: $Enums.WalletType;
     prestataireId?: string | null;
     balance?: runtime.Decimal | runtime.DecimalJsLike | number | string;
+    balancePlafond?: runtime.Decimal | runtime.DecimalJsLike | number | string | null;
+    statutPrestataire?: $Enums.PrestataireWalletStatut;
     createdAt?: Date | string;
     updatedAt?: Date | string;
     transactions?: Prisma.WalletTransactionUncheckedCreateNestedManyWithoutWalletInput;
@@ -197,6 +229,8 @@ export type WalletUpdateInput = {
     id?: Prisma.StringFieldUpdateOperationsInput | string;
     type?: Prisma.EnumWalletTypeFieldUpdateOperationsInput | $Enums.WalletType;
     balance?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string;
+    balancePlafond?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null;
+    statutPrestataire?: Prisma.EnumPrestataireWalletStatutFieldUpdateOperationsInput | $Enums.PrestataireWalletStatut;
     createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     prestataire?: Prisma.PrestataireUpdateOneWithoutWalletNestedInput;
@@ -207,6 +241,8 @@ export type WalletUncheckedUpdateInput = {
     type?: Prisma.EnumWalletTypeFieldUpdateOperationsInput | $Enums.WalletType;
     prestataireId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
     balance?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string;
+    balancePlafond?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null;
+    statutPrestataire?: Prisma.EnumPrestataireWalletStatutFieldUpdateOperationsInput | $Enums.PrestataireWalletStatut;
     createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     transactions?: Prisma.WalletTransactionUncheckedUpdateManyWithoutWalletNestedInput;
@@ -216,6 +252,8 @@ export type WalletCreateManyInput = {
     type: $Enums.WalletType;
     prestataireId?: string | null;
     balance?: runtime.Decimal | runtime.DecimalJsLike | number | string;
+    balancePlafond?: runtime.Decimal | runtime.DecimalJsLike | number | string | null;
+    statutPrestataire?: $Enums.PrestataireWalletStatut;
     createdAt?: Date | string;
     updatedAt?: Date | string;
 };
@@ -223,6 +261,8 @@ export type WalletUpdateManyMutationInput = {
     id?: Prisma.StringFieldUpdateOperationsInput | string;
     type?: Prisma.EnumWalletTypeFieldUpdateOperationsInput | $Enums.WalletType;
     balance?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string;
+    balancePlafond?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null;
+    statutPrestataire?: Prisma.EnumPrestataireWalletStatutFieldUpdateOperationsInput | $Enums.PrestataireWalletStatut;
     createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
 };
@@ -231,6 +271,8 @@ export type WalletUncheckedUpdateManyInput = {
     type?: Prisma.EnumWalletTypeFieldUpdateOperationsInput | $Enums.WalletType;
     prestataireId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
     balance?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string;
+    balancePlafond?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null;
+    statutPrestataire?: Prisma.EnumPrestataireWalletStatutFieldUpdateOperationsInput | $Enums.PrestataireWalletStatut;
     createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
 };
@@ -243,17 +285,22 @@ export type WalletCountOrderByAggregateInput = {
     type?: Prisma.SortOrder;
     prestataireId?: Prisma.SortOrder;
     balance?: Prisma.SortOrder;
+    balancePlafond?: Prisma.SortOrder;
+    statutPrestataire?: Prisma.SortOrder;
     createdAt?: Prisma.SortOrder;
     updatedAt?: Prisma.SortOrder;
 };
 export type WalletAvgOrderByAggregateInput = {
     balance?: Prisma.SortOrder;
+    balancePlafond?: Prisma.SortOrder;
 };
 export type WalletMaxOrderByAggregateInput = {
     id?: Prisma.SortOrder;
     type?: Prisma.SortOrder;
     prestataireId?: Prisma.SortOrder;
     balance?: Prisma.SortOrder;
+    balancePlafond?: Prisma.SortOrder;
+    statutPrestataire?: Prisma.SortOrder;
     createdAt?: Prisma.SortOrder;
     updatedAt?: Prisma.SortOrder;
 };
@@ -262,11 +309,14 @@ export type WalletMinOrderByAggregateInput = {
     type?: Prisma.SortOrder;
     prestataireId?: Prisma.SortOrder;
     balance?: Prisma.SortOrder;
+    balancePlafond?: Prisma.SortOrder;
+    statutPrestataire?: Prisma.SortOrder;
     createdAt?: Prisma.SortOrder;
     updatedAt?: Prisma.SortOrder;
 };
 export type WalletSumOrderByAggregateInput = {
     balance?: Prisma.SortOrder;
+    balancePlafond?: Prisma.SortOrder;
 };
 export type WalletScalarRelationFilter = {
     is?: Prisma.WalletWhereInput;
@@ -303,6 +353,9 @@ export type WalletUncheckedUpdateOneWithoutPrestataireNestedInput = {
 export type EnumWalletTypeFieldUpdateOperationsInput = {
     set?: $Enums.WalletType;
 };
+export type EnumPrestataireWalletStatutFieldUpdateOperationsInput = {
+    set?: $Enums.PrestataireWalletStatut;
+};
 export type WalletCreateNestedOneWithoutTransactionsInput = {
     create?: Prisma.XOR<Prisma.WalletCreateWithoutTransactionsInput, Prisma.WalletUncheckedCreateWithoutTransactionsInput>;
     connectOrCreate?: Prisma.WalletCreateOrConnectWithoutTransactionsInput;
@@ -319,6 +372,8 @@ export type WalletCreateWithoutPrestataireInput = {
     id?: string;
     type: $Enums.WalletType;
     balance?: runtime.Decimal | runtime.DecimalJsLike | number | string;
+    balancePlafond?: runtime.Decimal | runtime.DecimalJsLike | number | string | null;
+    statutPrestataire?: $Enums.PrestataireWalletStatut;
     createdAt?: Date | string;
     updatedAt?: Date | string;
     transactions?: Prisma.WalletTransactionCreateNestedManyWithoutWalletInput;
@@ -327,6 +382,8 @@ export type WalletUncheckedCreateWithoutPrestataireInput = {
     id?: string;
     type: $Enums.WalletType;
     balance?: runtime.Decimal | runtime.DecimalJsLike | number | string;
+    balancePlafond?: runtime.Decimal | runtime.DecimalJsLike | number | string | null;
+    statutPrestataire?: $Enums.PrestataireWalletStatut;
     createdAt?: Date | string;
     updatedAt?: Date | string;
     transactions?: Prisma.WalletTransactionUncheckedCreateNestedManyWithoutWalletInput;
@@ -348,6 +405,8 @@ export type WalletUpdateWithoutPrestataireInput = {
     id?: Prisma.StringFieldUpdateOperationsInput | string;
     type?: Prisma.EnumWalletTypeFieldUpdateOperationsInput | $Enums.WalletType;
     balance?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string;
+    balancePlafond?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null;
+    statutPrestataire?: Prisma.EnumPrestataireWalletStatutFieldUpdateOperationsInput | $Enums.PrestataireWalletStatut;
     createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     transactions?: Prisma.WalletTransactionUpdateManyWithoutWalletNestedInput;
@@ -356,6 +415,8 @@ export type WalletUncheckedUpdateWithoutPrestataireInput = {
     id?: Prisma.StringFieldUpdateOperationsInput | string;
     type?: Prisma.EnumWalletTypeFieldUpdateOperationsInput | $Enums.WalletType;
     balance?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string;
+    balancePlafond?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null;
+    statutPrestataire?: Prisma.EnumPrestataireWalletStatutFieldUpdateOperationsInput | $Enums.PrestataireWalletStatut;
     createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     transactions?: Prisma.WalletTransactionUncheckedUpdateManyWithoutWalletNestedInput;
@@ -364,6 +425,8 @@ export type WalletCreateWithoutTransactionsInput = {
     id?: string;
     type: $Enums.WalletType;
     balance?: runtime.Decimal | runtime.DecimalJsLike | number | string;
+    balancePlafond?: runtime.Decimal | runtime.DecimalJsLike | number | string | null;
+    statutPrestataire?: $Enums.PrestataireWalletStatut;
     createdAt?: Date | string;
     updatedAt?: Date | string;
     prestataire?: Prisma.PrestataireCreateNestedOneWithoutWalletInput;
@@ -373,6 +436,8 @@ export type WalletUncheckedCreateWithoutTransactionsInput = {
     type: $Enums.WalletType;
     prestataireId?: string | null;
     balance?: runtime.Decimal | runtime.DecimalJsLike | number | string;
+    balancePlafond?: runtime.Decimal | runtime.DecimalJsLike | number | string | null;
+    statutPrestataire?: $Enums.PrestataireWalletStatut;
     createdAt?: Date | string;
     updatedAt?: Date | string;
 };
@@ -393,6 +458,8 @@ export type WalletUpdateWithoutTransactionsInput = {
     id?: Prisma.StringFieldUpdateOperationsInput | string;
     type?: Prisma.EnumWalletTypeFieldUpdateOperationsInput | $Enums.WalletType;
     balance?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string;
+    balancePlafond?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null;
+    statutPrestataire?: Prisma.EnumPrestataireWalletStatutFieldUpdateOperationsInput | $Enums.PrestataireWalletStatut;
     createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     prestataire?: Prisma.PrestataireUpdateOneWithoutWalletNestedInput;
@@ -402,6 +469,8 @@ export type WalletUncheckedUpdateWithoutTransactionsInput = {
     type?: Prisma.EnumWalletTypeFieldUpdateOperationsInput | $Enums.WalletType;
     prestataireId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
     balance?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string;
+    balancePlafond?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null;
+    statutPrestataire?: Prisma.EnumPrestataireWalletStatutFieldUpdateOperationsInput | $Enums.PrestataireWalletStatut;
     createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
 };
@@ -422,6 +491,8 @@ export type WalletSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs =
     type?: boolean;
     prestataireId?: boolean;
     balance?: boolean;
+    balancePlafond?: boolean;
+    statutPrestataire?: boolean;
     createdAt?: boolean;
     updatedAt?: boolean;
     prestataire?: boolean | Prisma.Wallet$prestataireArgs<ExtArgs>;
@@ -433,6 +504,8 @@ export type WalletSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extens
     type?: boolean;
     prestataireId?: boolean;
     balance?: boolean;
+    balancePlafond?: boolean;
+    statutPrestataire?: boolean;
     createdAt?: boolean;
     updatedAt?: boolean;
     prestataire?: boolean | Prisma.Wallet$prestataireArgs<ExtArgs>;
@@ -442,6 +515,8 @@ export type WalletSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extens
     type?: boolean;
     prestataireId?: boolean;
     balance?: boolean;
+    balancePlafond?: boolean;
+    statutPrestataire?: boolean;
     createdAt?: boolean;
     updatedAt?: boolean;
     prestataire?: boolean | Prisma.Wallet$prestataireArgs<ExtArgs>;
@@ -451,10 +526,12 @@ export type WalletSelectScalar = {
     type?: boolean;
     prestataireId?: boolean;
     balance?: boolean;
+    balancePlafond?: boolean;
+    statutPrestataire?: boolean;
     createdAt?: boolean;
     updatedAt?: boolean;
 };
-export type WalletOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "type" | "prestataireId" | "balance" | "createdAt" | "updatedAt", ExtArgs["result"]["wallet"]>;
+export type WalletOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "type" | "prestataireId" | "balance" | "balancePlafond" | "statutPrestataire" | "createdAt" | "updatedAt", ExtArgs["result"]["wallet"]>;
 export type WalletInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
     prestataire?: boolean | Prisma.Wallet$prestataireArgs<ExtArgs>;
     transactions?: boolean | Prisma.Wallet$transactionsArgs<ExtArgs>;
@@ -477,6 +554,8 @@ export type $WalletPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs
         type: $Enums.WalletType;
         prestataireId: string | null;
         balance: runtime.Decimal;
+        balancePlafond: runtime.Decimal | null;
+        statutPrestataire: $Enums.PrestataireWalletStatut;
         createdAt: Date;
         updatedAt: Date;
     }, ExtArgs["result"]["wallet"]>;
@@ -542,6 +621,8 @@ export interface WalletFieldRefs {
     readonly type: Prisma.FieldRef<"Wallet", 'WalletType'>;
     readonly prestataireId: Prisma.FieldRef<"Wallet", 'String'>;
     readonly balance: Prisma.FieldRef<"Wallet", 'Decimal'>;
+    readonly balancePlafond: Prisma.FieldRef<"Wallet", 'Decimal'>;
+    readonly statutPrestataire: Prisma.FieldRef<"Wallet", 'PrestataireWalletStatut'>;
     readonly createdAt: Prisma.FieldRef<"Wallet", 'DateTime'>;
     readonly updatedAt: Prisma.FieldRef<"Wallet", 'DateTime'>;
 }

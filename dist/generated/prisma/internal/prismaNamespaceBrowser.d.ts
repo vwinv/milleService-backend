@@ -167,6 +167,8 @@ export declare const WalletScalarFieldEnum: {
     readonly type: "type";
     readonly prestataireId: "prestataireId";
     readonly balance: "balance";
+    readonly balancePlafond: "balancePlafond";
+    readonly statutPrestataire: "statutPrestataire";
     readonly createdAt: "createdAt";
     readonly updatedAt: "updatedAt";
 };

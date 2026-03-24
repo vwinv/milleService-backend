@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { TransactionType, WalletType } from '../../generated/prisma/client.js';
 
@@ -55,6 +55,25 @@ export class WalletsService {
   }) {
     const client = params.tx ?? this.prisma;
     const amount = Number(params.amount);
+    if (!(amount > 0) || Number.isNaN(amount)) {
+      throw new BadRequestException('Montant de crédit invalide');
+    }
+    const walletBefore = await client.wallet.findUnique({
+      where: { id: params.walletId },
+      select: { balance: true, balancePlafond: true },
+    });
+    if (!walletBefore) {
+      throw new BadRequestException('Wallet introuvable');
+    }
+    const balance = Number(walletBefore.balance);
+    const plafond =
+      walletBefore.balancePlafond != null ? Number(walletBefore.balancePlafond) : null;
+    const nextBalance = Math.round((balance + amount) * 100) / 100;
+    if (plafond != null && !Number.isNaN(plafond) && nextBalance > plafond) {
+      throw new BadRequestException(
+        `Le solde du wallet ne peut pas dépasser ${plafond} FCFA (solde maximal / plafond).`,
+      );
+    }
     await client.wallet.update({
       where: { id: params.walletId },
       data: {
