@@ -4,6 +4,11 @@ export declare const Role: {
     readonly ADMIN: "ADMIN";
 };
 export type Role = (typeof Role)[keyof typeof Role];
+export declare const ParticulierStatut: {
+    readonly ACTIF: "ACTIF";
+    readonly INACTIF: "INACTIF";
+};
+export type ParticulierStatut = (typeof ParticulierStatut)[keyof typeof ParticulierStatut];
 export declare const StatutAbonnement: {
     readonly ACTIF: "ACTIF";
     readonly EXPIRE: "EXPIRE";

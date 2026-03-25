@@ -42,6 +42,12 @@ model User {
 // PROFILS
 // =============================================================================
 
+/// Compte client : INACTIF = fermeture / demande de suppression, sans supprimer la ligne.
+enum ParticulierStatut {
+  ACTIF
+  INACTIF
+}
+
 model Particulier {
   id        String   @id @default(cuid())
   userId    String   @unique @map("user_id")
@@ -52,6 +58,7 @@ model Particulier {
   latitude  Decimal? @db.Decimal(10, 7)
   longitude Decimal? @db.Decimal(10, 7)
   avatarUrl String?  @map("avatar_url")
+  statut    ParticulierStatut @default(ACTIF) @map("statut")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 

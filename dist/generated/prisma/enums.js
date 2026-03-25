@@ -1,10 +1,14 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.WithdrawalStatus = exports.WithdrawalMethod = exports.TransactionType = exports.PrestataireWalletStatut = exports.WalletType = exports.StatutPrestation = exports.StatutDocument = exports.StatutVerificationPrestataire = exports.StatutAbonnement = exports.Role = void 0;
+exports.WithdrawalStatus = exports.WithdrawalMethod = exports.TransactionType = exports.PrestataireWalletStatut = exports.WalletType = exports.StatutPrestation = exports.StatutDocument = exports.StatutVerificationPrestataire = exports.StatutAbonnement = exports.ParticulierStatut = exports.Role = void 0;
 exports.Role = {
     PARTICULIER: 'PARTICULIER',
     PRESTATAIRE: 'PRESTATAIRE',
     ADMIN: 'ADMIN'
+};
+exports.ParticulierStatut = {
+    ACTIF: 'ACTIF',
+    INACTIF: 'INACTIF'
 };
 exports.StatutAbonnement = {
     ACTIF: 'ACTIF',

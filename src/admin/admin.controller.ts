@@ -7,6 +7,7 @@ import {
   Logger,
   Param,
   Patch,
+  Post,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -15,16 +16,51 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../auth/guards/roles.guard.js';
 import { Roles } from '../auth/decorators/roles.decorator.js';
 import { CurrentUser, CurrentUserPayload } from '../auth/decorators/current-user.decorator.js';
+import { NotificationsService } from '../notifications/notifications.service.js';
 import {
+  ParticulierStatut,
   PrestataireWalletStatut,
+  Prisma,
   Role,
   StatutDocument,
   StatutPrestation,
   StatutVerificationPrestataire,
   TransactionType,
   WalletType,
+  WithdrawalMethod,
   WithdrawalStatus,
 } from '../../generated/prisma/client.js';
+
+function metaWithdrawalAmount(meta: unknown): number | null {
+  if (!meta || typeof meta !== 'object') return null;
+  const m = meta as Record<string, unknown>;
+  const a = m.amount;
+  if (typeof a === 'number' && !Number.isNaN(a) && a >= 0) return a;
+  return null;
+}
+
+function withdrawalMethodLabel(method: WithdrawalMethod): string {
+  switch (method) {
+    case WithdrawalMethod.ORANGE_MONEY:
+      return 'Orange money';
+    case WithdrawalMethod.WAVE:
+      return 'Wave';
+    case WithdrawalMethod.FREE_MONEY:
+      return 'Free money';
+    case WithdrawalMethod.RIB:
+      return 'Carte bancaire';
+    default:
+      return method;
+  }
+}
+
+/** Base sans migration `particuliers.statut` (P2022 ou message colonne statut). */
+function isParticulierStatutMissingError(err: unknown): boolean {
+  if (!(err instanceof Prisma.PrismaClientKnownRequestError)) return false;
+  if (err.code === 'P2022') return true;
+  const msg = String((err as { message?: string }).message ?? '');
+  return msg.includes('statut') && msg.toLowerCase().includes('particulier');
+}
 
 /** Select détail admin : wallet limité au solde (colonnes plafond/statut chargées à part si la migration est appliquée). */
 function prestataireAdminDetailSelect() {
@@ -75,7 +111,10 @@ function prestataireAdminDetailSelect() {
 export class AdminController {
   private readonly logger = new Logger(AdminController.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationsService,
+  ) {}
 
   /**
    * KPIs dashboard admin:
@@ -86,22 +125,214 @@ export class AdminController {
    */
   @Get('stats')
   async getStats() {
-    const [clientsActifs, prestatairesActifs, metiersCount, generalWallet] =
-      await Promise.all([
-        this.prisma.particulier.count(),
-        this.prisma.prestataire.count({ where: { actif: true } }),
-        this.prisma.service.count(),
-        this.prisma.wallet.findUnique({
-          where: { type: WalletType.GENERAL },
-          select: { balance: true },
+    try {
+      const [clientsActifs, prestatairesActifs, metiersCount, generalWallet] =
+        await Promise.all([
+          this.prisma.particulier.count({ where: { statut: ParticulierStatut.ACTIF } }),
+          this.prisma.prestataire.count({ where: { actif: true } }),
+          this.prisma.service.count(),
+          this.prisma.wallet.findUnique({
+            where: { type: WalletType.GENERAL },
+            select: { balance: true },
+          }),
+        ]);
+
+      return {
+        clientsActifs,
+        prestatairesActifs,
+        credit: generalWallet ? Number(generalWallet.balance) : 0,
+        metiers: metiersCount,
+      };
+    } catch (err) {
+      if (!isParticulierStatutMissingError(err)) throw err;
+      this.logger.warn(
+        'KPI clients : colonne particuliers.statut absente — repli sur email vérifié. Exécutez: npx prisma migrate deploy',
+      );
+      const [clientsActifs, prestatairesActifs, metiersCount, generalWallet] =
+        await Promise.all([
+          this.prisma.particulier.count({
+            where: { user: { emailVerified: true } },
+          }),
+          this.prisma.prestataire.count({ where: { actif: true } }),
+          this.prisma.service.count(),
+          this.prisma.wallet.findUnique({
+            where: { type: WalletType.GENERAL },
+            select: { balance: true },
+          }),
+        ]);
+      return {
+        clientsActifs,
+        prestatairesActifs,
+        credit: generalWallet ? Number(generalWallet.balance) : 0,
+        metiers: metiersCount,
+      };
+    }
+  }
+
+  /**
+   * Notifications admin :
+   * - générale : envoie une notification à tous les utilisateurs (PARTICULIER + PRESTATAIRE)
+   * - ciblée : envoie une notification à un utilisateur (userId)
+   */
+  @Post('notifications/general')
+  async createGeneralNotification(
+    @Body()
+    body: {
+      title: string;
+      body?: string;
+      type?: string;
+      data?: Record<string, unknown>;
+      audience?: 'TOUT' | 'ALL' | 'PARTICULIER' | 'PRESTATAIRE';
+    },
+  ) {
+    const title = String(body?.title ?? '').trim();
+    if (!title) {
+      throw new BadRequestException('title requis');
+    }
+
+    const audience = body?.audience ?? 'TOUT';
+    const roleFilter =
+      audience === 'PARTICULIER'
+        ? { role: Role.PARTICULIER }
+        : audience === 'PRESTATAIRE'
+          ? { role: Role.PRESTATAIRE }
+          : { role: { in: [Role.PARTICULIER, Role.PRESTATAIRE] } };
+
+    const users = await this.prisma.user.findMany({
+      where: roleFilter,
+      select: { id: true },
+    });
+
+    const sent = users.length;
+    await Promise.all(
+      users.map((u) =>
+        this.notifications.sendToUser(u.id, {
+          title,
+          body: body.body ?? undefined,
+          type: body.type ?? undefined,
+          data: body.data,
         }),
-      ]);
+      ),
+    );
+
+    return { ok: true, sent };
+  }
+
+  @Post('notifications/targeted')
+  async createTargetedNotification(
+    @Body()
+    body: {
+      userId: string;
+      title: string;
+      body?: string;
+      type?: string;
+      data?: Record<string, unknown>;
+    },
+  ) {
+    const userId = String(body?.userId ?? '').trim();
+    const title = String(body?.title ?? '').trim();
+    if (!userId) throw new BadRequestException('userId requis');
+    if (!title) throw new BadRequestException('title requis');
+
+    await this.notifications.sendToUser(userId, {
+      title,
+      body: body.body ?? undefined,
+      type: body.type ?? undefined,
+      data: body.data,
+    });
+
+    return { ok: true };
+  }
+
+  /**
+   * Liste admin des notifications envoyées (pour audit / support).
+   * audience = "TOUT" | "PARTICULIER" | "PRESTATAIRE"
+   */
+  @Get('notifications')
+  async listAdminNotifications(
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+    @Query('audience') audience?: string,
+    @Query('unreadOnly') unreadOnly?: string,
+    @Query('type') type?: string,
+    @Query('search') search?: string,
+  ) {
+    const take = Math.min(Math.max(Number(limit ?? 14), 1), 100);
+    const skip = Math.max(Number(offset ?? 0), 0);
+
+    const aud = (audience ?? 'TOUT').toUpperCase();
+    const roleFilter =
+      aud === 'PARTICULIER'
+        ? { role: Role.PARTICULIER }
+        : aud === 'PRESTATAIRE'
+          ? { role: Role.PRESTATAIRE }
+          : aud === 'ALL'
+            ? { role: { in: [Role.PARTICULIER, Role.PRESTATAIRE] } }
+            : { role: { in: [Role.PARTICULIER, Role.PRESTATAIRE] } };
+
+    const q = search?.trim();
+
+    const where: Prisma.NotificationWhereInput = {
+      user: roleFilter,
+      ...(unreadOnly === 'true' ? { lu: false } : {}),
+      ...(type?.trim() ? { type: type.trim() } : {}),
+      ...(q
+        ? {
+            OR: [
+              { title: { contains: q, mode: 'insensitive' } },
+              { body: q ? { contains: q, mode: 'insensitive' } : undefined },
+              { type: { contains: q, mode: 'insensitive' } },
+              { user: { email: { contains: q, mode: 'insensitive' } } },
+            ],
+          }
+        : {}),
+    };
+
+    const [total, rows] = await Promise.all([
+      this.prisma.notification.count({ where }),
+      this.prisma.notification.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take,
+        skip,
+        include: {
+          user: {
+            select: {
+              id: true,
+              email: true,
+              role: true,
+              particulier: { select: { nom: true, prenom: true } },
+              prestataire: { select: { nom: true } },
+            },
+          },
+        },
+      }),
+    ]);
 
     return {
-      clientsActifs,
-      prestatairesActifs,
-      credit: generalWallet ? Number(generalWallet.balance) : 0,
-      metiers: metiersCount,
+      total,
+      items: rows.map((n) => {
+        const u = n.user;
+        const displayName =
+          u.role === Role.PARTICULIER
+            ? [u.particulier?.prenom, u.particulier?.nom].filter(Boolean).join(' ')
+            : u.role === Role.PRESTATAIRE
+              ? u.prestataire?.nom ?? u.email
+              : u.email;
+
+        return {
+          id: n.id,
+          createdAt: n.createdAt.toISOString(),
+          lu: n.lu,
+          title: n.title,
+          body: n.body,
+          type: n.type,
+          userId: n.userId,
+          userEmail: u.email,
+          userRole: u.role,
+          displayName,
+        };
+      }),
     };
   }
 
@@ -177,6 +408,157 @@ export class AdminController {
       clients,
       prestataires,
     };
+  }
+
+  /** Soldes agrégés pour l’écran admin Wallet. */
+  @Get('wallet/summary')
+  async getWalletSummary() {
+    const [generalRow, prestataireAgg] = await Promise.all([
+      this.prisma.wallet.findUnique({
+        where: { type: WalletType.GENERAL },
+        select: { balance: true },
+      }),
+      this.prisma.wallet.aggregate({
+        where: { prestataireId: { not: null } },
+        _sum: { balance: true },
+      }),
+    ]);
+
+    const soldeMilleServices = generalRow ? Number(generalRow.balance) : 0;
+    const soldesPrestataires = Number(prestataireAgg._sum.balance ?? 0);
+    const totalSolde = soldeMilleServices + soldesPrestataires;
+
+    return {
+      totalSolde,
+      credit: soldeMilleServices,
+      soldeMilleServices,
+      soldesPrestataires,
+      retraitTotal: 0,
+    };
+  }
+
+  /** Demandes de retrait (admin) : en attente, acceptées et rejetées. */
+  @Get('wallet/withdrawal-requests')
+  async listWithdrawalRequests(
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ) {
+    const take = Math.min(Math.max(Number(limit ?? 14), 1), 100);
+    const skip = Math.max(Number(offset ?? 0), 0);
+    const [total, rows] = await Promise.all([
+      this.prisma.withdrawalRequest.count({}),
+      this.prisma.withdrawalRequest.findMany({
+        orderBy: { createdAt: 'desc' },
+        take,
+        skip,
+        include: {
+          prestataire: { select: { id: true, nom: true } },
+        },
+      }),
+    ]);
+    return {
+      total,
+      items: rows.map((r) => ({
+        id: r.id,
+        date: r.createdAt.toISOString(),
+        prestataireId: r.prestataireId,
+        prestataireNom: r.prestataire.nom,
+        montant: metaWithdrawalAmount(r.meta),
+        wallet: withdrawalMethodLabel(r.method),
+        method: r.method,
+        status: r.status,
+      })),
+    };
+  }
+
+  @Patch('wallet/withdrawal-requests/:id')
+  async decisionWithdrawalRequest(
+    @Param('id') id: string,
+    @Body()
+    body: {
+      decision?: string;
+      /** Moyen utilisé par l’admin pour effectuer le versement (modal Paiement). */
+      payoutMethod?: WithdrawalMethod;
+    },
+  ) {
+    const decision = body.decision;
+    if (decision !== 'accept' && decision !== 'reject') {
+      throw new BadRequestException('decision invalide (accept ou reject)');
+    }
+    const row = await this.prisma.withdrawalRequest.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        status: true,
+        prestataireId: true,
+        meta: true,
+      },
+    });
+    if (!row) {
+      throw new BadRequestException('Demande introuvable');
+    }
+    if (row.status !== WithdrawalStatus.EN_ATTENTE) {
+      throw new BadRequestException('Cette demande a déjà été traitée');
+    }
+    if (decision === 'reject') {
+      await this.prisma.withdrawalRequest.update({
+        where: { id: row.id },
+        data: { status: WithdrawalStatus.REFUSE },
+      });
+      return { ok: true, status: WithdrawalStatus.REFUSE };
+    }
+    if (
+      body.payoutMethod != null &&
+      !Object.values(WithdrawalMethod).includes(body.payoutMethod)
+    ) {
+      throw new BadRequestException('Moyen de paiement invalide');
+    }
+    const metaBase =
+      row.meta && typeof row.meta === 'object' && !Array.isArray(row.meta)
+        ? { ...(row.meta as Record<string, unknown>) }
+        : {};
+    if (body.payoutMethod != null) {
+      metaBase.adminPayoutMethod = body.payoutMethod;
+    }
+    metaBase.adminProcessedAt = new Date().toISOString();
+    const metaPayload = metaBase as Prisma.InputJsonValue;
+
+    const amount = metaWithdrawalAmount(row.meta);
+    const wallet = await this.prisma.wallet.findUnique({
+      where: { prestataireId: row.prestataireId },
+      select: { id: true, balance: true },
+    });
+    if (!wallet) {
+      throw new BadRequestException('Wallet du prestataire introuvable');
+    }
+    if (amount != null && amount > 0) {
+      const bal = Number(wallet.balance);
+      if (amount > bal) {
+        throw new BadRequestException('Solde insuffisant pour valider ce montant');
+      }
+      await this.prisma.$transaction([
+        this.prisma.wallet.update({
+          where: { id: wallet.id },
+          data: { balance: { decrement: amount } },
+        }),
+        this.prisma.withdrawalRequest.update({
+          where: { id: row.id },
+          data: {
+            status: WithdrawalStatus.TRAITE,
+            meta: metaPayload,
+          },
+        }),
+      ]);
+    } else {
+      await this.prisma.withdrawalRequest.update({
+        where: { id: row.id },
+        data: {
+          status: WithdrawalStatus.TRAITE,
+          meta: metaPayload,
+        },
+      });
+    }
+    return { ok: true, status: WithdrawalStatus.TRAITE };
   }
 
   /**
@@ -259,7 +641,7 @@ export class AdminController {
 
   /**
    * Liste admin des clients (particuliers) + stats globales.
-   * Actif / inactif : email vérifié ou non sur le compte utilisateur.
+   * Actif / inactif : champ `particuliers.statut` (ACTIF / INACTIF).
    */
   @Get('clients')
   async getClients(
@@ -281,90 +663,205 @@ export class AdminController {
         }
       : {};
 
-    const [globalTotal, actifsCount, inactifsCount, filteredTotal, rows] =
-      await Promise.all([
-        this.prisma.particulier.count(),
-        this.prisma.particulier.count({
-          where: { user: { emailVerified: true } },
-        }),
-        this.prisma.particulier.count({
-          where: { user: { emailVerified: false } },
-        }),
-        this.prisma.particulier.count({ where: searchFilter }),
-        this.prisma.particulier.findMany({
-          where: searchFilter,
-          take,
-          skip,
-          orderBy: { createdAt: 'desc' },
-          select: {
-            id: true,
-            nom: true,
-            prenom: true,
-            telephone: true,
-            adresse: true,
-            avatarUrl: true,
-            createdAt: true,
-            user: {
-              select: {
-                id: true,
-                email: true,
-                emailVerified: true,
+    try {
+      const [globalTotal, actifsCount, inactifsCount, filteredTotal, rows] =
+        await Promise.all([
+          this.prisma.particulier.count(),
+          this.prisma.particulier.count({
+            where: { statut: ParticulierStatut.ACTIF },
+          }),
+          this.prisma.particulier.count({
+            where: { statut: ParticulierStatut.INACTIF },
+          }),
+          this.prisma.particulier.count({ where: searchFilter }),
+          this.prisma.particulier.findMany({
+            where: searchFilter,
+            take,
+            skip,
+            orderBy: { createdAt: 'desc' },
+            select: {
+              id: true,
+              nom: true,
+              prenom: true,
+              telephone: true,
+              adresse: true,
+              avatarUrl: true,
+              statut: true,
+              createdAt: true,
+              user: {
+                select: {
+                  id: true,
+                  email: true,
+                  emailVerified: true,
+                },
               },
             },
-          },
-        }),
-      ]);
+          }),
+        ]);
 
-    return {
-      stats: {
-        total: globalTotal,
-        actifs: actifsCount,
-        inactifs: inactifsCount,
-      },
-      total: filteredTotal,
-      items: rows.map((p) => {
-        const actif = p.user.emailVerified;
-        return {
-          id: p.id,
-          userId: p.user.id,
-          prenom: p.prenom,
-          nom: p.nom,
-          nomComplet: `${p.prenom} ${p.nom}`.trim(),
-          email: p.user.email,
-          telephone: p.telephone ?? '',
-          adresse: p.adresse ?? '',
-          avatarUrl: p.avatarUrl,
-          dateAdhesion: p.createdAt.toISOString(),
-          actif,
-          statut: actif ? 'Actif' : 'Inactif',
-        };
-      }),
-    };
+      return {
+        stats: {
+          total: globalTotal,
+          actifs: actifsCount,
+          inactifs: inactifsCount,
+        },
+        total: filteredTotal,
+        items: rows.map((p) => {
+          const actif = p.statut === ParticulierStatut.ACTIF;
+          return {
+            id: p.id,
+            userId: p.user.id,
+            prenom: p.prenom,
+            nom: p.nom,
+            nomComplet: `${p.prenom} ${p.nom}`.trim(),
+            email: p.user.email,
+            telephone: p.telephone ?? '',
+            adresse: p.adresse ?? '',
+            avatarUrl: p.avatarUrl,
+            dateAdhesion: p.createdAt.toISOString(),
+            actif,
+            statut: actif ? 'Actif' : 'Inactif',
+          };
+        }),
+      };
+    } catch (err) {
+      if (!isParticulierStatutMissingError(err)) throw err;
+      this.logger.warn(
+        'Liste clients : colonne particuliers.statut absente — repli sur email vérifié. Exécutez: npx prisma migrate deploy',
+      );
+      const [globalTotal, actifsCount, inactifsCount, filteredTotal, rows] =
+        await Promise.all([
+          this.prisma.particulier.count(),
+          this.prisma.particulier.count({
+            where: { user: { emailVerified: true } },
+          }),
+          this.prisma.particulier.count({
+            where: { user: { emailVerified: false } },
+          }),
+          this.prisma.particulier.count({ where: searchFilter }),
+          this.prisma.particulier.findMany({
+            where: searchFilter,
+            take,
+            skip,
+            orderBy: { createdAt: 'desc' },
+            select: {
+              id: true,
+              nom: true,
+              prenom: true,
+              telephone: true,
+              adresse: true,
+              avatarUrl: true,
+              createdAt: true,
+              user: {
+                select: {
+                  id: true,
+                  email: true,
+                  emailVerified: true,
+                },
+              },
+            },
+          }),
+        ]);
+
+      return {
+        stats: {
+          total: globalTotal,
+          actifs: actifsCount,
+          inactifs: inactifsCount,
+        },
+        total: filteredTotal,
+        items: rows.map((p) => {
+          const actif = p.user.emailVerified;
+          return {
+            id: p.id,
+            userId: p.user.id,
+            prenom: p.prenom,
+            nom: p.nom,
+            nomComplet: `${p.prenom} ${p.nom}`.trim(),
+            email: p.user.email,
+            telephone: p.telephone ?? '',
+            adresse: p.adresse ?? '',
+            avatarUrl: p.avatarUrl,
+            dateAdhesion: p.createdAt.toISOString(),
+            actif,
+            statut: actif ? 'Actif' : 'Inactif',
+          };
+        }),
+      };
+    }
   }
 
   @Get('clients/:id')
   async getClientDetails(@Param('id') particulierId: string) {
-    const p = await this.prisma.particulier.findUnique({
-      where: { id: particulierId },
-      select: {
-        id: true,
-        nom: true,
-        prenom: true,
-        telephone: true,
-        adresse: true,
-        avatarUrl: true,
-        createdAt: true,
-        updatedAt: true,
-        user: {
-          select: {
-            id: true,
-            email: true,
-            emailVerified: true,
-            createdAt: true,
+    let p: {
+      id: string;
+      nom: string;
+      prenom: string;
+      telephone: string | null;
+      adresse: string | null;
+      avatarUrl: string | null;
+      statut?: ParticulierStatut;
+      createdAt: Date;
+      updatedAt: Date;
+      user: {
+        id: string;
+        email: string;
+        emailVerified: boolean;
+        createdAt: Date;
+      };
+    } | null;
+
+    try {
+      p = await this.prisma.particulier.findUnique({
+        where: { id: particulierId },
+        select: {
+          id: true,
+          nom: true,
+          prenom: true,
+          telephone: true,
+          adresse: true,
+          avatarUrl: true,
+          statut: true,
+          createdAt: true,
+          updatedAt: true,
+          user: {
+            select: {
+              id: true,
+              email: true,
+              emailVerified: true,
+              createdAt: true,
+            },
           },
         },
-      },
-    });
+      });
+    } catch (err) {
+      if (!isParticulierStatutMissingError(err)) throw err;
+      this.logger.warn(
+        'Détail client : colonne particuliers.statut absente — repli sur email vérifié. Exécutez: npx prisma migrate deploy',
+      );
+      p = await this.prisma.particulier.findUnique({
+        where: { id: particulierId },
+        select: {
+          id: true,
+          nom: true,
+          prenom: true,
+          telephone: true,
+          adresse: true,
+          avatarUrl: true,
+          createdAt: true,
+          updatedAt: true,
+          user: {
+            select: {
+              id: true,
+              email: true,
+              emailVerified: true,
+              createdAt: true,
+            },
+          },
+        },
+      });
+    }
+
     if (!p) {
       throw new BadRequestException('Client introuvable');
     }
@@ -376,7 +873,10 @@ export class AdminController {
       }),
     ]);
 
-    const actif = p.user.emailVerified;
+    const actif =
+      p.statut !== undefined
+        ? p.statut === ParticulierStatut.ACTIF
+        : p.user.emailVerified;
     return {
       id: p.id,
       userId: p.user.id,
@@ -398,7 +898,7 @@ export class AdminController {
   }
 
   /**
-   * Active / désactive le compte côté admin (e-mail vérifié = « client actif » dans le back-office).
+   * Active / désactive le compte client (`particuliers.statut`).
    */
   @Patch('clients/:id/statut')
   async setClientActif(
@@ -408,15 +908,28 @@ export class AdminController {
     const actif = Boolean(body?.actif);
     const p = await this.prisma.particulier.findUnique({
       where: { id: particulierId },
-      select: { userId: true },
+      select: { id: true, userId: true },
     });
     if (!p) {
       throw new BadRequestException('Client introuvable');
     }
-    await this.prisma.user.update({
-      where: { id: p.userId },
-      data: { emailVerified: actif },
-    });
+    try {
+      await this.prisma.particulier.update({
+        where: { id: p.id },
+        data: {
+          statut: actif ? ParticulierStatut.ACTIF : ParticulierStatut.INACTIF,
+        },
+      });
+    } catch (err) {
+      if (!isParticulierStatutMissingError(err)) throw err;
+      this.logger.warn(
+        'Mise à jour statut client : colonne particuliers.statut absente — repli sur users.email_verified. Exécutez: npx prisma migrate deploy',
+      );
+      await this.prisma.user.update({
+        where: { id: p.userId },
+        data: { emailVerified: actif },
+      });
+    }
     return { actif, statut: actif ? 'Actif' : 'Inactif' };
   }
 
@@ -457,6 +970,7 @@ export class AdminController {
         orderBy: { createdAt: 'desc' },
         select: {
           id: true,
+          userId: true,
           nom: true,
           telephone: true,
           actif: true,
@@ -504,6 +1018,7 @@ export class AdminController {
 
         return {
           id: p.id,
+          userId: p.userId,
           nom: p.nom,
           email: p.user?.email ?? '',
           telephone: p.telephone ?? '',
@@ -951,6 +1466,7 @@ export class AdminController {
         libelle: true,
         slug: true,
         actif: true,
+        createdAt: true,
         _count: {
           select: { prestataires: true },
         },
@@ -962,9 +1478,128 @@ export class AdminController {
         libelle: s.libelle,
         slug: s.slug,
         actif: s.actif,
+        createdAt: s.createdAt.toISOString(),
         prestatairesCount: s._count.prestataires,
       })),
     };
+  }
+
+  @Post('services')
+  async createService(@Body() body: { libelle?: string }) {
+    const libelle = body?.libelle?.trim();
+    if (!libelle) {
+      throw new BadRequestException('Libellé requis');
+    }
+    const base = this.slugifyServiceLabel(libelle);
+    const slug = await this.ensureUniqueServiceSlug(base);
+    const created = await this.prisma.service.create({
+      data: { libelle, slug, actif: true },
+      select: {
+        id: true,
+        libelle: true,
+        slug: true,
+        actif: true,
+        createdAt: true,
+        _count: { select: { prestataires: true } },
+      },
+    });
+    return {
+      id: created.id,
+      libelle: created.libelle,
+      slug: created.slug,
+      actif: created.actif,
+      createdAt: created.createdAt.toISOString(),
+      prestatairesCount: created._count.prestataires,
+    };
+  }
+
+  @Patch('services/:serviceId')
+  async updateService(
+    @Param('serviceId') serviceId: string,
+    @Body() body: { actif?: boolean; libelle?: string },
+  ) {
+    const existing = await this.prisma.service.findUnique({
+      where: { id: serviceId },
+      select: { id: true },
+    });
+    if (!existing) {
+      throw new BadRequestException('Métier introuvable');
+    }
+    if (body.actif === false) {
+      const rattaches = await this.prisma.prestataireService.count({
+        where: { serviceId },
+      });
+      if (rattaches > 0) {
+        throw new BadRequestException(
+          `Impossible de désactiver ce service : ${rattaches} prestataire(s) encore rattaché(s). Retirez les rattachements avant.`,
+        );
+      }
+    }
+    const data: { actif?: boolean; libelle?: string; slug?: string } = {};
+    if (typeof body.actif === 'boolean') {
+      data.actif = body.actif;
+    }
+    if (body.libelle !== undefined) {
+      const libelle = body.libelle.trim();
+      if (!libelle) {
+        throw new BadRequestException('Libellé invalide');
+      }
+      data.libelle = libelle;
+      const base = this.slugifyServiceLabel(libelle);
+      data.slug = await this.ensureUniqueServiceSlug(base, serviceId);
+    }
+    if (Object.keys(data).length === 0) {
+      throw new BadRequestException('Aucune modification');
+    }
+    const updated = await this.prisma.service.update({
+      where: { id: serviceId },
+      data,
+      select: {
+        id: true,
+        libelle: true,
+        slug: true,
+        actif: true,
+        createdAt: true,
+        _count: { select: { prestataires: true } },
+      },
+    });
+    return {
+      id: updated.id,
+      libelle: updated.libelle,
+      slug: updated.slug,
+      actif: updated.actif,
+      createdAt: updated.createdAt.toISOString(),
+      prestatairesCount: updated._count.prestataires,
+    };
+  }
+
+  private slugifyServiceLabel(input: string): string {
+    const s = input
+      .normalize('NFD')
+      .replace(/\p{M}/gu, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+    return s || 'service';
+  }
+
+  private async ensureUniqueServiceSlug(
+    base: string,
+    excludeServiceId?: string,
+  ): Promise<string> {
+    let slug = base;
+    let n = 0;
+    while (true) {
+      const row = await this.prisma.service.findUnique({
+        where: { slug },
+        select: { id: true },
+      });
+      if (!row || row.id === excludeServiceId) {
+        return slug;
+      }
+      n += 1;
+      slug = `${base}-${n}`;
+    }
   }
 
   /** Prestataires inscrits sur un métier (service). */

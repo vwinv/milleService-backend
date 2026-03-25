@@ -1,4 +1,5 @@
 import type * as runtime from "@prisma/client/runtime/client";
+import type * as $Enums from "../enums";
 import type * as Prisma from "../internal/prismaNamespace";
 export type ParticulierModel = runtime.Types.Result.DefaultSelection<Prisma.$ParticulierPayload>;
 export type AggregateParticulier = {
@@ -26,6 +27,7 @@ export type ParticulierMinAggregateOutputType = {
     latitude: runtime.Decimal | null;
     longitude: runtime.Decimal | null;
     avatarUrl: string | null;
+    statut: $Enums.ParticulierStatut | null;
     createdAt: Date | null;
     updatedAt: Date | null;
 };
@@ -39,6 +41,7 @@ export type ParticulierMaxAggregateOutputType = {
     latitude: runtime.Decimal | null;
     longitude: runtime.Decimal | null;
     avatarUrl: string | null;
+    statut: $Enums.ParticulierStatut | null;
     createdAt: Date | null;
     updatedAt: Date | null;
 };
@@ -52,6 +55,7 @@ export type ParticulierCountAggregateOutputType = {
     latitude: number;
     longitude: number;
     avatarUrl: number;
+    statut: number;
     createdAt: number;
     updatedAt: number;
     _all: number;
@@ -74,6 +78,7 @@ export type ParticulierMinAggregateInputType = {
     latitude?: true;
     longitude?: true;
     avatarUrl?: true;
+    statut?: true;
     createdAt?: true;
     updatedAt?: true;
 };
@@ -87,6 +92,7 @@ export type ParticulierMaxAggregateInputType = {
     latitude?: true;
     longitude?: true;
     avatarUrl?: true;
+    statut?: true;
     createdAt?: true;
     updatedAt?: true;
 };
@@ -100,6 +106,7 @@ export type ParticulierCountAggregateInputType = {
     latitude?: true;
     longitude?: true;
     avatarUrl?: true;
+    statut?: true;
     createdAt?: true;
     updatedAt?: true;
     _all?: true;
@@ -142,6 +149,7 @@ export type ParticulierGroupByOutputType = {
     latitude: runtime.Decimal | null;
     longitude: runtime.Decimal | null;
     avatarUrl: string | null;
+    statut: $Enums.ParticulierStatut;
     createdAt: Date;
     updatedAt: Date;
     _count: ParticulierCountAggregateOutputType | null;
@@ -166,6 +174,7 @@ export type ParticulierWhereInput = {
     latitude?: Prisma.DecimalNullableFilter<"Particulier"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null;
     longitude?: Prisma.DecimalNullableFilter<"Particulier"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null;
     avatarUrl?: Prisma.StringNullableFilter<"Particulier"> | string | null;
+    statut?: Prisma.EnumParticulierStatutFilter<"Particulier"> | $Enums.ParticulierStatut;
     createdAt?: Prisma.DateTimeFilter<"Particulier"> | Date | string;
     updatedAt?: Prisma.DateTimeFilter<"Particulier"> | Date | string;
     user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>;
@@ -182,6 +191,7 @@ export type ParticulierOrderByWithRelationInput = {
     latitude?: Prisma.SortOrderInput | Prisma.SortOrder;
     longitude?: Prisma.SortOrderInput | Prisma.SortOrder;
     avatarUrl?: Prisma.SortOrderInput | Prisma.SortOrder;
+    statut?: Prisma.SortOrder;
     createdAt?: Prisma.SortOrder;
     updatedAt?: Prisma.SortOrder;
     user?: Prisma.UserOrderByWithRelationInput;
@@ -201,6 +211,7 @@ export type ParticulierWhereUniqueInput = Prisma.AtLeast<{
     latitude?: Prisma.DecimalNullableFilter<"Particulier"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null;
     longitude?: Prisma.DecimalNullableFilter<"Particulier"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null;
     avatarUrl?: Prisma.StringNullableFilter<"Particulier"> | string | null;
+    statut?: Prisma.EnumParticulierStatutFilter<"Particulier"> | $Enums.ParticulierStatut;
     createdAt?: Prisma.DateTimeFilter<"Particulier"> | Date | string;
     updatedAt?: Prisma.DateTimeFilter<"Particulier"> | Date | string;
     user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>;
@@ -217,6 +228,7 @@ export type ParticulierOrderByWithAggregationInput = {
     latitude?: Prisma.SortOrderInput | Prisma.SortOrder;
     longitude?: Prisma.SortOrderInput | Prisma.SortOrder;
     avatarUrl?: Prisma.SortOrderInput | Prisma.SortOrder;
+    statut?: Prisma.SortOrder;
     createdAt?: Prisma.SortOrder;
     updatedAt?: Prisma.SortOrder;
     _count?: Prisma.ParticulierCountOrderByAggregateInput;
@@ -238,6 +250,7 @@ export type ParticulierScalarWhereWithAggregatesInput = {
     latitude?: Prisma.DecimalNullableWithAggregatesFilter<"Particulier"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null;
     longitude?: Prisma.DecimalNullableWithAggregatesFilter<"Particulier"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null;
     avatarUrl?: Prisma.StringNullableWithAggregatesFilter<"Particulier"> | string | null;
+    statut?: Prisma.EnumParticulierStatutWithAggregatesFilter<"Particulier"> | $Enums.ParticulierStatut;
     createdAt?: Prisma.DateTimeWithAggregatesFilter<"Particulier"> | Date | string;
     updatedAt?: Prisma.DateTimeWithAggregatesFilter<"Particulier"> | Date | string;
 };
@@ -250,6 +263,7 @@ export type ParticulierCreateInput = {
     latitude?: runtime.Decimal | runtime.DecimalJsLike | number | string | null;
     longitude?: runtime.Decimal | runtime.DecimalJsLike | number | string | null;
     avatarUrl?: string | null;
+    statut?: $Enums.ParticulierStatut;
     createdAt?: Date | string;
     updatedAt?: Date | string;
     user: Prisma.UserCreateNestedOneWithoutParticulierInput;
@@ -266,6 +280,7 @@ export type ParticulierUncheckedCreateInput = {
     latitude?: runtime.Decimal | runtime.DecimalJsLike | number | string | null;
     longitude?: runtime.Decimal | runtime.DecimalJsLike | number | string | null;
     avatarUrl?: string | null;
+    statut?: $Enums.ParticulierStatut;
     createdAt?: Date | string;
     updatedAt?: Date | string;
     prestations?: Prisma.PrestationUncheckedCreateNestedManyWithoutParticulierInput;
@@ -280,6 +295,7 @@ export type ParticulierUpdateInput = {
     latitude?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null;
     longitude?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null;
     avatarUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+    statut?: Prisma.EnumParticulierStatutFieldUpdateOperationsInput | $Enums.ParticulierStatut;
     createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     user?: Prisma.UserUpdateOneRequiredWithoutParticulierNestedInput;
@@ -296,6 +312,7 @@ export type ParticulierUncheckedUpdateInput = {
     latitude?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null;
     longitude?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null;
     avatarUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+    statut?: Prisma.EnumParticulierStatutFieldUpdateOperationsInput | $Enums.ParticulierStatut;
     createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     prestations?: Prisma.PrestationUncheckedUpdateManyWithoutParticulierNestedInput;
@@ -311,6 +328,7 @@ export type ParticulierCreateManyInput = {
     latitude?: runtime.Decimal | runtime.DecimalJsLike | number | string | null;
     longitude?: runtime.Decimal | runtime.DecimalJsLike | number | string | null;
     avatarUrl?: string | null;
+    statut?: $Enums.ParticulierStatut;
     createdAt?: Date | string;
     updatedAt?: Date | string;
 };
@@ -323,6 +341,7 @@ export type ParticulierUpdateManyMutationInput = {
     latitude?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null;
     longitude?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null;
     avatarUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+    statut?: Prisma.EnumParticulierStatutFieldUpdateOperationsInput | $Enums.ParticulierStatut;
     createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
 };
@@ -336,6 +355,7 @@ export type ParticulierUncheckedUpdateManyInput = {
     latitude?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null;
     longitude?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null;
     avatarUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+    statut?: Prisma.EnumParticulierStatutFieldUpdateOperationsInput | $Enums.ParticulierStatut;
     createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
 };
@@ -353,6 +373,7 @@ export type ParticulierCountOrderByAggregateInput = {
     latitude?: Prisma.SortOrder;
     longitude?: Prisma.SortOrder;
     avatarUrl?: Prisma.SortOrder;
+    statut?: Prisma.SortOrder;
     createdAt?: Prisma.SortOrder;
     updatedAt?: Prisma.SortOrder;
 };
@@ -370,6 +391,7 @@ export type ParticulierMaxOrderByAggregateInput = {
     latitude?: Prisma.SortOrder;
     longitude?: Prisma.SortOrder;
     avatarUrl?: Prisma.SortOrder;
+    statut?: Prisma.SortOrder;
     createdAt?: Prisma.SortOrder;
     updatedAt?: Prisma.SortOrder;
 };
@@ -383,6 +405,7 @@ export type ParticulierMinOrderByAggregateInput = {
     latitude?: Prisma.SortOrder;
     longitude?: Prisma.SortOrder;
     avatarUrl?: Prisma.SortOrder;
+    statut?: Prisma.SortOrder;
     createdAt?: Prisma.SortOrder;
     updatedAt?: Prisma.SortOrder;
 };
@@ -429,6 +452,9 @@ export type NullableDecimalFieldUpdateOperationsInput = {
     multiply?: runtime.Decimal | runtime.DecimalJsLike | number | string;
     divide?: runtime.Decimal | runtime.DecimalJsLike | number | string;
 };
+export type EnumParticulierStatutFieldUpdateOperationsInput = {
+    set?: $Enums.ParticulierStatut;
+};
 export type ParticulierCreateNestedOneWithoutPrestationsInput = {
     create?: Prisma.XOR<Prisma.ParticulierCreateWithoutPrestationsInput, Prisma.ParticulierUncheckedCreateWithoutPrestationsInput>;
     connectOrCreate?: Prisma.ParticulierCreateOrConnectWithoutPrestationsInput;
@@ -462,6 +488,7 @@ export type ParticulierCreateWithoutUserInput = {
     latitude?: runtime.Decimal | runtime.DecimalJsLike | number | string | null;
     longitude?: runtime.Decimal | runtime.DecimalJsLike | number | string | null;
     avatarUrl?: string | null;
+    statut?: $Enums.ParticulierStatut;
     createdAt?: Date | string;
     updatedAt?: Date | string;
     prestations?: Prisma.PrestationCreateNestedManyWithoutParticulierInput;
@@ -476,6 +503,7 @@ export type ParticulierUncheckedCreateWithoutUserInput = {
     latitude?: runtime.Decimal | runtime.DecimalJsLike | number | string | null;
     longitude?: runtime.Decimal | runtime.DecimalJsLike | number | string | null;
     avatarUrl?: string | null;
+    statut?: $Enums.ParticulierStatut;
     createdAt?: Date | string;
     updatedAt?: Date | string;
     prestations?: Prisma.PrestationUncheckedCreateNestedManyWithoutParticulierInput;
@@ -503,6 +531,7 @@ export type ParticulierUpdateWithoutUserInput = {
     latitude?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null;
     longitude?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null;
     avatarUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+    statut?: Prisma.EnumParticulierStatutFieldUpdateOperationsInput | $Enums.ParticulierStatut;
     createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     prestations?: Prisma.PrestationUpdateManyWithoutParticulierNestedInput;
@@ -517,6 +546,7 @@ export type ParticulierUncheckedUpdateWithoutUserInput = {
     latitude?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null;
     longitude?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null;
     avatarUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+    statut?: Prisma.EnumParticulierStatutFieldUpdateOperationsInput | $Enums.ParticulierStatut;
     createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     prestations?: Prisma.PrestationUncheckedUpdateManyWithoutParticulierNestedInput;
@@ -531,6 +561,7 @@ export type ParticulierCreateWithoutPrestationsInput = {
     latitude?: runtime.Decimal | runtime.DecimalJsLike | number | string | null;
     longitude?: runtime.Decimal | runtime.DecimalJsLike | number | string | null;
     avatarUrl?: string | null;
+    statut?: $Enums.ParticulierStatut;
     createdAt?: Date | string;
     updatedAt?: Date | string;
     user: Prisma.UserCreateNestedOneWithoutParticulierInput;
@@ -546,6 +577,7 @@ export type ParticulierUncheckedCreateWithoutPrestationsInput = {
     latitude?: runtime.Decimal | runtime.DecimalJsLike | number | string | null;
     longitude?: runtime.Decimal | runtime.DecimalJsLike | number | string | null;
     avatarUrl?: string | null;
+    statut?: $Enums.ParticulierStatut;
     createdAt?: Date | string;
     updatedAt?: Date | string;
     avis?: Prisma.AvisPrestataireUncheckedCreateNestedManyWithoutParticulierInput;
@@ -572,6 +604,7 @@ export type ParticulierUpdateWithoutPrestationsInput = {
     latitude?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null;
     longitude?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null;
     avatarUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+    statut?: Prisma.EnumParticulierStatutFieldUpdateOperationsInput | $Enums.ParticulierStatut;
     createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     user?: Prisma.UserUpdateOneRequiredWithoutParticulierNestedInput;
@@ -587,6 +620,7 @@ export type ParticulierUncheckedUpdateWithoutPrestationsInput = {
     latitude?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null;
     longitude?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null;
     avatarUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+    statut?: Prisma.EnumParticulierStatutFieldUpdateOperationsInput | $Enums.ParticulierStatut;
     createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     avis?: Prisma.AvisPrestataireUncheckedUpdateManyWithoutParticulierNestedInput;
@@ -600,6 +634,7 @@ export type ParticulierCreateWithoutAvisInput = {
     latitude?: runtime.Decimal | runtime.DecimalJsLike | number | string | null;
     longitude?: runtime.Decimal | runtime.DecimalJsLike | number | string | null;
     avatarUrl?: string | null;
+    statut?: $Enums.ParticulierStatut;
     createdAt?: Date | string;
     updatedAt?: Date | string;
     user: Prisma.UserCreateNestedOneWithoutParticulierInput;
@@ -615,6 +650,7 @@ export type ParticulierUncheckedCreateWithoutAvisInput = {
     latitude?: runtime.Decimal | runtime.DecimalJsLike | number | string | null;
     longitude?: runtime.Decimal | runtime.DecimalJsLike | number | string | null;
     avatarUrl?: string | null;
+    statut?: $Enums.ParticulierStatut;
     createdAt?: Date | string;
     updatedAt?: Date | string;
     prestations?: Prisma.PrestationUncheckedCreateNestedManyWithoutParticulierInput;
@@ -641,6 +677,7 @@ export type ParticulierUpdateWithoutAvisInput = {
     latitude?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null;
     longitude?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null;
     avatarUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+    statut?: Prisma.EnumParticulierStatutFieldUpdateOperationsInput | $Enums.ParticulierStatut;
     createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     user?: Prisma.UserUpdateOneRequiredWithoutParticulierNestedInput;
@@ -656,6 +693,7 @@ export type ParticulierUncheckedUpdateWithoutAvisInput = {
     latitude?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null;
     longitude?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null;
     avatarUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+    statut?: Prisma.EnumParticulierStatutFieldUpdateOperationsInput | $Enums.ParticulierStatut;
     createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     prestations?: Prisma.PrestationUncheckedUpdateManyWithoutParticulierNestedInput;
@@ -687,6 +725,7 @@ export type ParticulierSelect<ExtArgs extends runtime.Types.Extensions.InternalA
     latitude?: boolean;
     longitude?: boolean;
     avatarUrl?: boolean;
+    statut?: boolean;
     createdAt?: boolean;
     updatedAt?: boolean;
     user?: boolean | Prisma.UserDefaultArgs<ExtArgs>;
@@ -704,6 +743,7 @@ export type ParticulierSelectCreateManyAndReturn<ExtArgs extends runtime.Types.E
     latitude?: boolean;
     longitude?: boolean;
     avatarUrl?: boolean;
+    statut?: boolean;
     createdAt?: boolean;
     updatedAt?: boolean;
     user?: boolean | Prisma.UserDefaultArgs<ExtArgs>;
@@ -718,6 +758,7 @@ export type ParticulierSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.E
     latitude?: boolean;
     longitude?: boolean;
     avatarUrl?: boolean;
+    statut?: boolean;
     createdAt?: boolean;
     updatedAt?: boolean;
     user?: boolean | Prisma.UserDefaultArgs<ExtArgs>;
@@ -732,10 +773,11 @@ export type ParticulierSelectScalar = {
     latitude?: boolean;
     longitude?: boolean;
     avatarUrl?: boolean;
+    statut?: boolean;
     createdAt?: boolean;
     updatedAt?: boolean;
 };
-export type ParticulierOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "nom" | "prenom" | "telephone" | "adresse" | "latitude" | "longitude" | "avatarUrl" | "createdAt" | "updatedAt", ExtArgs["result"]["particulier"]>;
+export type ParticulierOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "nom" | "prenom" | "telephone" | "adresse" | "latitude" | "longitude" | "avatarUrl" | "statut" | "createdAt" | "updatedAt", ExtArgs["result"]["particulier"]>;
 export type ParticulierInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
     user?: boolean | Prisma.UserDefaultArgs<ExtArgs>;
     prestations?: boolean | Prisma.Particulier$prestationsArgs<ExtArgs>;
@@ -765,6 +807,7 @@ export type $ParticulierPayload<ExtArgs extends runtime.Types.Extensions.Interna
         latitude: runtime.Decimal | null;
         longitude: runtime.Decimal | null;
         avatarUrl: string | null;
+        statut: $Enums.ParticulierStatut;
         createdAt: Date;
         updatedAt: Date;
     }, ExtArgs["result"]["particulier"]>;
@@ -836,6 +879,7 @@ export interface ParticulierFieldRefs {
     readonly latitude: Prisma.FieldRef<"Particulier", 'Decimal'>;
     readonly longitude: Prisma.FieldRef<"Particulier", 'Decimal'>;
     readonly avatarUrl: Prisma.FieldRef<"Particulier", 'String'>;
+    readonly statut: Prisma.FieldRef<"Particulier", 'ParticulierStatut'>;
     readonly createdAt: Prisma.FieldRef<"Particulier", 'DateTime'>;
     readonly updatedAt: Prisma.FieldRef<"Particulier", 'DateTime'>;
 }

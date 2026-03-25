@@ -253,6 +253,11 @@ let AuthService = AuthService_1 = class AuthService {
         if (user.role === client_js_1.Role.PRESTATAIRE && user.prestataire && user.prestataire.actif === false) {
             throw new common_1.UnauthorizedException('Votre compte a été désactivé. Veuillez contacter notre équipe pour la réactivation.');
         }
+        if (user.role === client_js_1.Role.PARTICULIER &&
+            user.particulier &&
+            user.particulier.statut === client_js_1.ParticulierStatut.INACTIF) {
+            throw new common_1.UnauthorizedException('Ce compte a été désactivé. Pour toute question, contactez le support.');
+        }
         const access_token = this.jwtService.sign({ sub: user.id, email: user.email, role: user.role }, { expiresIn: '24h' });
         const refresh_token = this.jwtService.sign({ sub: user.id, type: 'refresh' }, { expiresIn: '7d' });
         let abonnement = null;
@@ -284,6 +289,11 @@ let AuthService = AuthService_1 = class AuthService {
             if (!user) {
                 throw new common_1.UnauthorizedException('Utilisateur introuvable');
             }
+            if (user.role === client_js_1.Role.PARTICULIER &&
+                user.particulier &&
+                user.particulier.statut === client_js_1.ParticulierStatut.INACTIF) {
+                throw new common_1.UnauthorizedException('Ce compte a été désactivé. Pour toute question, contactez le support.');
+            }
             const access_token = this.jwtService.sign({ sub: user.id, email: user.email, role: user.role }, { expiresIn: '24h' });
             const new_refresh_token = this.jwtService.sign({ sub: user.id, type: 'refresh' }, { expiresIn: '7d' });
             let abonnement = null;
@@ -309,10 +319,24 @@ let AuthService = AuthService_1 = class AuthService {
     async deactivateAccount(userId) {
         const user = await this.prisma.user.findUnique({
             where: { id: userId },
-            include: { prestataire: true },
+            include: { prestataire: true, particulier: true },
         });
         if (!user) {
             throw new common_1.UnauthorizedException('Utilisateur introuvable');
+        }
+        if (user.role === client_js_1.Role.PARTICULIER) {
+            const part = user.particulier;
+            if (!part) {
+                throw new common_1.BadRequestException('Profil particulier introuvable');
+            }
+            await this.prisma.particulier.update({
+                where: { id: part.id },
+                data: { statut: client_js_1.ParticulierStatut.INACTIF },
+            });
+            return {
+                success: true,
+                message: 'Votre compte a été désactivé. Vous pouvez contacter le support pour toute réactivation.',
+            };
         }
         if (user.role === client_js_1.Role.PRESTATAIRE) {
             if (!user.prestataire) {
@@ -340,6 +364,9 @@ let AuthService = AuthService_1 = class AuthService {
         const part = user.particulier;
         if (!part) {
             throw new common_1.BadRequestException('Profil particulier introuvable');
+        }
+        if (part.statut === client_js_1.ParticulierStatut.INACTIF) {
+            throw new common_1.BadRequestException('Ce compte a été désactivé.');
         }
         let lat = dto.latitude != null && !Number.isNaN(dto.latitude)
             ? dto.latitude

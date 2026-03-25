@@ -13,17 +13,30 @@ exports.JwtStrategy = void 0;
 const common_1 = require("@nestjs/common");
 const passport_1 = require("@nestjs/passport");
 const passport_jwt_1 = require("passport-jwt");
+const prisma_service_js_1 = require("../../prisma/prisma.service.js");
+const client_js_1 = require("../../../generated/prisma/client.js");
 let JwtStrategy = class JwtStrategy extends (0, passport_1.PassportStrategy)(passport_jwt_1.Strategy) {
-    constructor() {
+    prisma;
+    constructor(prisma) {
         super({
             jwtFromRequest: passport_jwt_1.ExtractJwt.fromAuthHeaderAsBearerToken(),
             ignoreExpiration: false,
             secretOrKey: process.env.JWT_SECRET || 'change-me-in-production',
         });
+        this.prisma = prisma;
     }
     async validate(payload) {
         if (!payload?.sub) {
             throw new common_1.UnauthorizedException('Token invalide');
+        }
+        if (payload.role === client_js_1.Role.PARTICULIER) {
+            const p = await this.prisma.particulier.findUnique({
+                where: { userId: payload.sub },
+                select: { statut: true },
+            });
+            if (p?.statut === client_js_1.ParticulierStatut.INACTIF) {
+                throw new common_1.UnauthorizedException('Ce compte client a été désactivé. Contactez le support si besoin.');
+            }
         }
         return {
             userId: payload.sub,
@@ -35,6 +48,6 @@ let JwtStrategy = class JwtStrategy extends (0, passport_1.PassportStrategy)(pas
 exports.JwtStrategy = JwtStrategy;
 exports.JwtStrategy = JwtStrategy = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [])
+    __metadata("design:paramtypes", [prisma_service_js_1.PrismaService])
 ], JwtStrategy);
 //# sourceMappingURL=jwt.strategy.js.map

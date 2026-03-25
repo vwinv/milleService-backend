@@ -1425,6 +1425,7 @@ export declare const ParticulierScalarFieldEnum: {
     readonly latitude: "latitude";
     readonly longitude: "longitude";
     readonly avatarUrl: "avatarUrl";
+    readonly statut: "statut";
     readonly createdAt: "createdAt";
     readonly updatedAt: "updatedAt";
 };
@@ -1639,6 +1640,8 @@ export type DateTimeFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel
 export type ListDateTimeFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'DateTime[]'>;
 export type DecimalFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Decimal'>;
 export type ListDecimalFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Decimal[]'>;
+export type EnumParticulierStatutFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'ParticulierStatut'>;
+export type ListEnumParticulierStatutFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'ParticulierStatut[]'>;
 export type EnumStatutVerificationPrestataireFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'StatutVerificationPrestataire'>;
 export type ListEnumStatutVerificationPrestataireFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'StatutVerificationPrestataire[]'>;
 export type IntFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Int'>;

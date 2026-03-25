@@ -57,6 +57,7 @@ export declare const ParticulierScalarFieldEnum: {
     readonly latitude: "latitude";
     readonly longitude: "longitude";
     readonly avatarUrl: "avatarUrl";
+    readonly statut: "statut";
     readonly createdAt: "createdAt";
     readonly updatedAt: "updatedAt";
 };

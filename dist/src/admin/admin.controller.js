@@ -20,7 +20,39 @@ const jwt_auth_guard_js_1 = require("../auth/guards/jwt-auth.guard.js");
 const roles_guard_js_1 = require("../auth/guards/roles.guard.js");
 const roles_decorator_js_1 = require("../auth/decorators/roles.decorator.js");
 const current_user_decorator_js_1 = require("../auth/decorators/current-user.decorator.js");
+const notifications_service_js_1 = require("../notifications/notifications.service.js");
 const client_js_1 = require("../../generated/prisma/client.js");
+function metaWithdrawalAmount(meta) {
+    if (!meta || typeof meta !== 'object')
+        return null;
+    const m = meta;
+    const a = m.amount;
+    if (typeof a === 'number' && !Number.isNaN(a) && a >= 0)
+        return a;
+    return null;
+}
+function withdrawalMethodLabel(method) {
+    switch (method) {
+        case client_js_1.WithdrawalMethod.ORANGE_MONEY:
+            return 'Orange money';
+        case client_js_1.WithdrawalMethod.WAVE:
+            return 'Wave';
+        case client_js_1.WithdrawalMethod.FREE_MONEY:
+            return 'Free money';
+        case client_js_1.WithdrawalMethod.RIB:
+            return 'Carte bancaire';
+        default:
+            return method;
+    }
+}
+function isParticulierStatutMissingError(err) {
+    if (!(err instanceof client_js_1.Prisma.PrismaClientKnownRequestError))
+        return false;
+    if (err.code === 'P2022')
+        return true;
+    const msg = String(err.message ?? '');
+    return msg.includes('statut') && msg.toLowerCase().includes('particulier');
+}
 function prestataireAdminDetailSelect() {
     return {
         id: true,
@@ -64,25 +96,161 @@ function prestataireAdminDetailSelect() {
 }
 let AdminController = AdminController_1 = class AdminController {
     prisma;
+    notifications;
     logger = new common_1.Logger(AdminController_1.name);
-    constructor(prisma) {
+    constructor(prisma, notifications) {
         this.prisma = prisma;
+        this.notifications = notifications;
     }
     async getStats() {
-        const [clientsActifs, prestatairesActifs, metiersCount, generalWallet] = await Promise.all([
-            this.prisma.particulier.count(),
-            this.prisma.prestataire.count({ where: { actif: true } }),
-            this.prisma.service.count(),
-            this.prisma.wallet.findUnique({
-                where: { type: client_js_1.WalletType.GENERAL },
-                select: { balance: true },
+        try {
+            const [clientsActifs, prestatairesActifs, metiersCount, generalWallet] = await Promise.all([
+                this.prisma.particulier.count({ where: { statut: client_js_1.ParticulierStatut.ACTIF } }),
+                this.prisma.prestataire.count({ where: { actif: true } }),
+                this.prisma.service.count(),
+                this.prisma.wallet.findUnique({
+                    where: { type: client_js_1.WalletType.GENERAL },
+                    select: { balance: true },
+                }),
+            ]);
+            return {
+                clientsActifs,
+                prestatairesActifs,
+                credit: generalWallet ? Number(generalWallet.balance) : 0,
+                metiers: metiersCount,
+            };
+        }
+        catch (err) {
+            if (!isParticulierStatutMissingError(err))
+                throw err;
+            this.logger.warn('KPI clients : colonne particuliers.statut absente — repli sur email vérifié. Exécutez: npx prisma migrate deploy');
+            const [clientsActifs, prestatairesActifs, metiersCount, generalWallet] = await Promise.all([
+                this.prisma.particulier.count({
+                    where: { user: { emailVerified: true } },
+                }),
+                this.prisma.prestataire.count({ where: { actif: true } }),
+                this.prisma.service.count(),
+                this.prisma.wallet.findUnique({
+                    where: { type: client_js_1.WalletType.GENERAL },
+                    select: { balance: true },
+                }),
+            ]);
+            return {
+                clientsActifs,
+                prestatairesActifs,
+                credit: generalWallet ? Number(generalWallet.balance) : 0,
+                metiers: metiersCount,
+            };
+        }
+    }
+    async createGeneralNotification(body) {
+        const title = String(body?.title ?? '').trim();
+        if (!title) {
+            throw new common_1.BadRequestException('title requis');
+        }
+        const audience = body?.audience ?? 'TOUT';
+        const roleFilter = audience === 'PARTICULIER'
+            ? { role: client_js_1.Role.PARTICULIER }
+            : audience === 'PRESTATAIRE'
+                ? { role: client_js_1.Role.PRESTATAIRE }
+                : { role: { in: [client_js_1.Role.PARTICULIER, client_js_1.Role.PRESTATAIRE] } };
+        const users = await this.prisma.user.findMany({
+            where: roleFilter,
+            select: { id: true },
+        });
+        const sent = users.length;
+        await Promise.all(users.map((u) => this.notifications.sendToUser(u.id, {
+            title,
+            body: body.body ?? undefined,
+            type: body.type ?? undefined,
+            data: body.data,
+        })));
+        return { ok: true, sent };
+    }
+    async createTargetedNotification(body) {
+        const userId = String(body?.userId ?? '').trim();
+        const title = String(body?.title ?? '').trim();
+        if (!userId)
+            throw new common_1.BadRequestException('userId requis');
+        if (!title)
+            throw new common_1.BadRequestException('title requis');
+        await this.notifications.sendToUser(userId, {
+            title,
+            body: body.body ?? undefined,
+            type: body.type ?? undefined,
+            data: body.data,
+        });
+        return { ok: true };
+    }
+    async listAdminNotifications(limit, offset, audience, unreadOnly, type, search) {
+        const take = Math.min(Math.max(Number(limit ?? 14), 1), 100);
+        const skip = Math.max(Number(offset ?? 0), 0);
+        const aud = (audience ?? 'TOUT').toUpperCase();
+        const roleFilter = aud === 'PARTICULIER'
+            ? { role: client_js_1.Role.PARTICULIER }
+            : aud === 'PRESTATAIRE'
+                ? { role: client_js_1.Role.PRESTATAIRE }
+                : aud === 'ALL'
+                    ? { role: { in: [client_js_1.Role.PARTICULIER, client_js_1.Role.PRESTATAIRE] } }
+                    : { role: { in: [client_js_1.Role.PARTICULIER, client_js_1.Role.PRESTATAIRE] } };
+        const q = search?.trim();
+        const where = {
+            user: roleFilter,
+            ...(unreadOnly === 'true' ? { lu: false } : {}),
+            ...(type?.trim() ? { type: type.trim() } : {}),
+            ...(q
+                ? {
+                    OR: [
+                        { title: { contains: q, mode: 'insensitive' } },
+                        { body: q ? { contains: q, mode: 'insensitive' } : undefined },
+                        { type: { contains: q, mode: 'insensitive' } },
+                        { user: { email: { contains: q, mode: 'insensitive' } } },
+                    ],
+                }
+                : {}),
+        };
+        const [total, rows] = await Promise.all([
+            this.prisma.notification.count({ where }),
+            this.prisma.notification.findMany({
+                where,
+                orderBy: { createdAt: 'desc' },
+                take,
+                skip,
+                include: {
+                    user: {
+                        select: {
+                            id: true,
+                            email: true,
+                            role: true,
+                            particulier: { select: { nom: true, prenom: true } },
+                            prestataire: { select: { nom: true } },
+                        },
+                    },
+                },
             }),
         ]);
         return {
-            clientsActifs,
-            prestatairesActifs,
-            credit: generalWallet ? Number(generalWallet.balance) : 0,
-            metiers: metiersCount,
+            total,
+            items: rows.map((n) => {
+                const u = n.user;
+                const displayName = u.role === client_js_1.Role.PARTICULIER
+                    ? [u.particulier?.prenom, u.particulier?.nom].filter(Boolean).join(' ')
+                    : u.role === client_js_1.Role.PRESTATAIRE
+                        ? u.prestataire?.nom ?? u.email
+                        : u.email;
+                return {
+                    id: n.id,
+                    createdAt: n.createdAt.toISOString(),
+                    lu: n.lu,
+                    title: n.title,
+                    body: n.body,
+                    type: n.type,
+                    userId: n.userId,
+                    userEmail: u.email,
+                    userRole: u.role,
+                    displayName,
+                };
+            }),
         };
     }
     async getEvolution(months) {
@@ -135,6 +303,133 @@ let AdminController = AdminController_1 = class AdminController {
             clients,
             prestataires,
         };
+    }
+    async getWalletSummary() {
+        const [generalRow, prestataireAgg] = await Promise.all([
+            this.prisma.wallet.findUnique({
+                where: { type: client_js_1.WalletType.GENERAL },
+                select: { balance: true },
+            }),
+            this.prisma.wallet.aggregate({
+                where: { prestataireId: { not: null } },
+                _sum: { balance: true },
+            }),
+        ]);
+        const soldeMilleServices = generalRow ? Number(generalRow.balance) : 0;
+        const soldesPrestataires = Number(prestataireAgg._sum.balance ?? 0);
+        const totalSolde = soldeMilleServices + soldesPrestataires;
+        return {
+            totalSolde,
+            credit: soldeMilleServices,
+            soldeMilleServices,
+            soldesPrestataires,
+            retraitTotal: 0,
+        };
+    }
+    async listWithdrawalRequests(limit, offset) {
+        const take = Math.min(Math.max(Number(limit ?? 14), 1), 100);
+        const skip = Math.max(Number(offset ?? 0), 0);
+        const [total, rows] = await Promise.all([
+            this.prisma.withdrawalRequest.count({}),
+            this.prisma.withdrawalRequest.findMany({
+                orderBy: { createdAt: 'desc' },
+                take,
+                skip,
+                include: {
+                    prestataire: { select: { id: true, nom: true } },
+                },
+            }),
+        ]);
+        return {
+            total,
+            items: rows.map((r) => ({
+                id: r.id,
+                date: r.createdAt.toISOString(),
+                prestataireId: r.prestataireId,
+                prestataireNom: r.prestataire.nom,
+                montant: metaWithdrawalAmount(r.meta),
+                wallet: withdrawalMethodLabel(r.method),
+                method: r.method,
+                status: r.status,
+            })),
+        };
+    }
+    async decisionWithdrawalRequest(id, body) {
+        const decision = body.decision;
+        if (decision !== 'accept' && decision !== 'reject') {
+            throw new common_1.BadRequestException('decision invalide (accept ou reject)');
+        }
+        const row = await this.prisma.withdrawalRequest.findUnique({
+            where: { id },
+            select: {
+                id: true,
+                status: true,
+                prestataireId: true,
+                meta: true,
+            },
+        });
+        if (!row) {
+            throw new common_1.BadRequestException('Demande introuvable');
+        }
+        if (row.status !== client_js_1.WithdrawalStatus.EN_ATTENTE) {
+            throw new common_1.BadRequestException('Cette demande a déjà été traitée');
+        }
+        if (decision === 'reject') {
+            await this.prisma.withdrawalRequest.update({
+                where: { id: row.id },
+                data: { status: client_js_1.WithdrawalStatus.REFUSE },
+            });
+            return { ok: true, status: client_js_1.WithdrawalStatus.REFUSE };
+        }
+        if (body.payoutMethod != null &&
+            !Object.values(client_js_1.WithdrawalMethod).includes(body.payoutMethod)) {
+            throw new common_1.BadRequestException('Moyen de paiement invalide');
+        }
+        const metaBase = row.meta && typeof row.meta === 'object' && !Array.isArray(row.meta)
+            ? { ...row.meta }
+            : {};
+        if (body.payoutMethod != null) {
+            metaBase.adminPayoutMethod = body.payoutMethod;
+        }
+        metaBase.adminProcessedAt = new Date().toISOString();
+        const metaPayload = metaBase;
+        const amount = metaWithdrawalAmount(row.meta);
+        const wallet = await this.prisma.wallet.findUnique({
+            where: { prestataireId: row.prestataireId },
+            select: { id: true, balance: true },
+        });
+        if (!wallet) {
+            throw new common_1.BadRequestException('Wallet du prestataire introuvable');
+        }
+        if (amount != null && amount > 0) {
+            const bal = Number(wallet.balance);
+            if (amount > bal) {
+                throw new common_1.BadRequestException('Solde insuffisant pour valider ce montant');
+            }
+            await this.prisma.$transaction([
+                this.prisma.wallet.update({
+                    where: { id: wallet.id },
+                    data: { balance: { decrement: amount } },
+                }),
+                this.prisma.withdrawalRequest.update({
+                    where: { id: row.id },
+                    data: {
+                        status: client_js_1.WithdrawalStatus.TRAITE,
+                        meta: metaPayload,
+                    },
+                }),
+            ]);
+        }
+        else {
+            await this.prisma.withdrawalRequest.update({
+                where: { id: row.id },
+                data: {
+                    status: client_js_1.WithdrawalStatus.TRAITE,
+                    meta: metaPayload,
+                },
+            });
+        }
+        return { ok: true, status: client_js_1.WithdrawalStatus.TRAITE };
     }
     async getTransactions(limit) {
         const take = Math.min(Math.max(Number(limit ?? 20), 1), 100);
@@ -213,20 +508,161 @@ let AdminController = AdminController_1 = class AdminController {
                 ],
             }
             : {};
-        const [globalTotal, actifsCount, inactifsCount, filteredTotal, rows] = await Promise.all([
-            this.prisma.particulier.count(),
-            this.prisma.particulier.count({
-                where: { user: { emailVerified: true } },
-            }),
-            this.prisma.particulier.count({
-                where: { user: { emailVerified: false } },
-            }),
-            this.prisma.particulier.count({ where: searchFilter }),
-            this.prisma.particulier.findMany({
-                where: searchFilter,
-                take,
-                skip,
-                orderBy: { createdAt: 'desc' },
+        try {
+            const [globalTotal, actifsCount, inactifsCount, filteredTotal, rows] = await Promise.all([
+                this.prisma.particulier.count(),
+                this.prisma.particulier.count({
+                    where: { statut: client_js_1.ParticulierStatut.ACTIF },
+                }),
+                this.prisma.particulier.count({
+                    where: { statut: client_js_1.ParticulierStatut.INACTIF },
+                }),
+                this.prisma.particulier.count({ where: searchFilter }),
+                this.prisma.particulier.findMany({
+                    where: searchFilter,
+                    take,
+                    skip,
+                    orderBy: { createdAt: 'desc' },
+                    select: {
+                        id: true,
+                        nom: true,
+                        prenom: true,
+                        telephone: true,
+                        adresse: true,
+                        avatarUrl: true,
+                        statut: true,
+                        createdAt: true,
+                        user: {
+                            select: {
+                                id: true,
+                                email: true,
+                                emailVerified: true,
+                            },
+                        },
+                    },
+                }),
+            ]);
+            return {
+                stats: {
+                    total: globalTotal,
+                    actifs: actifsCount,
+                    inactifs: inactifsCount,
+                },
+                total: filteredTotal,
+                items: rows.map((p) => {
+                    const actif = p.statut === client_js_1.ParticulierStatut.ACTIF;
+                    return {
+                        id: p.id,
+                        userId: p.user.id,
+                        prenom: p.prenom,
+                        nom: p.nom,
+                        nomComplet: `${p.prenom} ${p.nom}`.trim(),
+                        email: p.user.email,
+                        telephone: p.telephone ?? '',
+                        adresse: p.adresse ?? '',
+                        avatarUrl: p.avatarUrl,
+                        dateAdhesion: p.createdAt.toISOString(),
+                        actif,
+                        statut: actif ? 'Actif' : 'Inactif',
+                    };
+                }),
+            };
+        }
+        catch (err) {
+            if (!isParticulierStatutMissingError(err))
+                throw err;
+            this.logger.warn('Liste clients : colonne particuliers.statut absente — repli sur email vérifié. Exécutez: npx prisma migrate deploy');
+            const [globalTotal, actifsCount, inactifsCount, filteredTotal, rows] = await Promise.all([
+                this.prisma.particulier.count(),
+                this.prisma.particulier.count({
+                    where: { user: { emailVerified: true } },
+                }),
+                this.prisma.particulier.count({
+                    where: { user: { emailVerified: false } },
+                }),
+                this.prisma.particulier.count({ where: searchFilter }),
+                this.prisma.particulier.findMany({
+                    where: searchFilter,
+                    take,
+                    skip,
+                    orderBy: { createdAt: 'desc' },
+                    select: {
+                        id: true,
+                        nom: true,
+                        prenom: true,
+                        telephone: true,
+                        adresse: true,
+                        avatarUrl: true,
+                        createdAt: true,
+                        user: {
+                            select: {
+                                id: true,
+                                email: true,
+                                emailVerified: true,
+                            },
+                        },
+                    },
+                }),
+            ]);
+            return {
+                stats: {
+                    total: globalTotal,
+                    actifs: actifsCount,
+                    inactifs: inactifsCount,
+                },
+                total: filteredTotal,
+                items: rows.map((p) => {
+                    const actif = p.user.emailVerified;
+                    return {
+                        id: p.id,
+                        userId: p.user.id,
+                        prenom: p.prenom,
+                        nom: p.nom,
+                        nomComplet: `${p.prenom} ${p.nom}`.trim(),
+                        email: p.user.email,
+                        telephone: p.telephone ?? '',
+                        adresse: p.adresse ?? '',
+                        avatarUrl: p.avatarUrl,
+                        dateAdhesion: p.createdAt.toISOString(),
+                        actif,
+                        statut: actif ? 'Actif' : 'Inactif',
+                    };
+                }),
+            };
+        }
+    }
+    async getClientDetails(particulierId) {
+        let p;
+        try {
+            p = await this.prisma.particulier.findUnique({
+                where: { id: particulierId },
+                select: {
+                    id: true,
+                    nom: true,
+                    prenom: true,
+                    telephone: true,
+                    adresse: true,
+                    avatarUrl: true,
+                    statut: true,
+                    createdAt: true,
+                    updatedAt: true,
+                    user: {
+                        select: {
+                            id: true,
+                            email: true,
+                            emailVerified: true,
+                            createdAt: true,
+                        },
+                    },
+                },
+            });
+        }
+        catch (err) {
+            if (!isParticulierStatutMissingError(err))
+                throw err;
+            this.logger.warn('Détail client : colonne particuliers.statut absente — repli sur email vérifié. Exécutez: npx prisma migrate deploy');
+            p = await this.prisma.particulier.findUnique({
+                where: { id: particulierId },
                 select: {
                     id: true,
                     nom: true,
@@ -235,64 +671,18 @@ let AdminController = AdminController_1 = class AdminController {
                     adresse: true,
                     avatarUrl: true,
                     createdAt: true,
+                    updatedAt: true,
                     user: {
                         select: {
                             id: true,
                             email: true,
                             emailVerified: true,
+                            createdAt: true,
                         },
                     },
                 },
-            }),
-        ]);
-        return {
-            stats: {
-                total: globalTotal,
-                actifs: actifsCount,
-                inactifs: inactifsCount,
-            },
-            total: filteredTotal,
-            items: rows.map((p) => {
-                const actif = p.user.emailVerified;
-                return {
-                    id: p.id,
-                    userId: p.user.id,
-                    prenom: p.prenom,
-                    nom: p.nom,
-                    nomComplet: `${p.prenom} ${p.nom}`.trim(),
-                    email: p.user.email,
-                    telephone: p.telephone ?? '',
-                    adresse: p.adresse ?? '',
-                    avatarUrl: p.avatarUrl,
-                    dateAdhesion: p.createdAt.toISOString(),
-                    actif,
-                    statut: actif ? 'Actif' : 'Inactif',
-                };
-            }),
-        };
-    }
-    async getClientDetails(particulierId) {
-        const p = await this.prisma.particulier.findUnique({
-            where: { id: particulierId },
-            select: {
-                id: true,
-                nom: true,
-                prenom: true,
-                telephone: true,
-                adresse: true,
-                avatarUrl: true,
-                createdAt: true,
-                updatedAt: true,
-                user: {
-                    select: {
-                        id: true,
-                        email: true,
-                        emailVerified: true,
-                        createdAt: true,
-                    },
-                },
-            },
-        });
+            });
+        }
         if (!p) {
             throw new common_1.BadRequestException('Client introuvable');
         }
@@ -302,7 +692,9 @@ let AdminController = AdminController_1 = class AdminController {
                 where: { particulierId, statut: client_js_1.StatutPrestation.ANNULEE },
             }),
         ]);
-        const actif = p.user.emailVerified;
+        const actif = p.statut !== undefined
+            ? p.statut === client_js_1.ParticulierStatut.ACTIF
+            : p.user.emailVerified;
         return {
             id: p.id,
             userId: p.user.id,
@@ -326,15 +718,28 @@ let AdminController = AdminController_1 = class AdminController {
         const actif = Boolean(body?.actif);
         const p = await this.prisma.particulier.findUnique({
             where: { id: particulierId },
-            select: { userId: true },
+            select: { id: true, userId: true },
         });
         if (!p) {
             throw new common_1.BadRequestException('Client introuvable');
         }
-        await this.prisma.user.update({
-            where: { id: p.userId },
-            data: { emailVerified: actif },
-        });
+        try {
+            await this.prisma.particulier.update({
+                where: { id: p.id },
+                data: {
+                    statut: actif ? client_js_1.ParticulierStatut.ACTIF : client_js_1.ParticulierStatut.INACTIF,
+                },
+            });
+        }
+        catch (err) {
+            if (!isParticulierStatutMissingError(err))
+                throw err;
+            this.logger.warn('Mise à jour statut client : colonne particuliers.statut absente — repli sur users.email_verified. Exécutez: npx prisma migrate deploy');
+            await this.prisma.user.update({
+                where: { id: p.userId },
+                data: { emailVerified: actif },
+            });
+        }
         return { actif, statut: actif ? 'Actif' : 'Inactif' };
     }
     async deleteClient(particulierId) {
@@ -365,6 +770,7 @@ let AdminController = AdminController_1 = class AdminController {
                 orderBy: { createdAt: 'desc' },
                 select: {
                     id: true,
+                    userId: true,
                     nom: true,
                     telephone: true,
                     actif: true,
@@ -405,6 +811,7 @@ let AdminController = AdminController_1 = class AdminController {
                 const documentsValides = p.documents.filter((d) => d.statut === client_js_1.StatutDocument.VALIDE).length;
                 return {
                     id: p.id,
+                    userId: p.userId,
                     nom: p.nom,
                     email: p.user?.email ?? '',
                     telephone: p.telephone ?? '',
@@ -755,6 +1162,7 @@ let AdminController = AdminController_1 = class AdminController {
                 libelle: true,
                 slug: true,
                 actif: true,
+                createdAt: true,
                 _count: {
                     select: { prestataires: true },
                 },
@@ -766,9 +1174,114 @@ let AdminController = AdminController_1 = class AdminController {
                 libelle: s.libelle,
                 slug: s.slug,
                 actif: s.actif,
+                createdAt: s.createdAt.toISOString(),
                 prestatairesCount: s._count.prestataires,
             })),
         };
+    }
+    async createService(body) {
+        const libelle = body?.libelle?.trim();
+        if (!libelle) {
+            throw new common_1.BadRequestException('Libellé requis');
+        }
+        const base = this.slugifyServiceLabel(libelle);
+        const slug = await this.ensureUniqueServiceSlug(base);
+        const created = await this.prisma.service.create({
+            data: { libelle, slug, actif: true },
+            select: {
+                id: true,
+                libelle: true,
+                slug: true,
+                actif: true,
+                createdAt: true,
+                _count: { select: { prestataires: true } },
+            },
+        });
+        return {
+            id: created.id,
+            libelle: created.libelle,
+            slug: created.slug,
+            actif: created.actif,
+            createdAt: created.createdAt.toISOString(),
+            prestatairesCount: created._count.prestataires,
+        };
+    }
+    async updateService(serviceId, body) {
+        const existing = await this.prisma.service.findUnique({
+            where: { id: serviceId },
+            select: { id: true },
+        });
+        if (!existing) {
+            throw new common_1.BadRequestException('Métier introuvable');
+        }
+        if (body.actif === false) {
+            const rattaches = await this.prisma.prestataireService.count({
+                where: { serviceId },
+            });
+            if (rattaches > 0) {
+                throw new common_1.BadRequestException(`Impossible de désactiver ce service : ${rattaches} prestataire(s) encore rattaché(s). Retirez les rattachements avant.`);
+            }
+        }
+        const data = {};
+        if (typeof body.actif === 'boolean') {
+            data.actif = body.actif;
+        }
+        if (body.libelle !== undefined) {
+            const libelle = body.libelle.trim();
+            if (!libelle) {
+                throw new common_1.BadRequestException('Libellé invalide');
+            }
+            data.libelle = libelle;
+            const base = this.slugifyServiceLabel(libelle);
+            data.slug = await this.ensureUniqueServiceSlug(base, serviceId);
+        }
+        if (Object.keys(data).length === 0) {
+            throw new common_1.BadRequestException('Aucune modification');
+        }
+        const updated = await this.prisma.service.update({
+            where: { id: serviceId },
+            data,
+            select: {
+                id: true,
+                libelle: true,
+                slug: true,
+                actif: true,
+                createdAt: true,
+                _count: { select: { prestataires: true } },
+            },
+        });
+        return {
+            id: updated.id,
+            libelle: updated.libelle,
+            slug: updated.slug,
+            actif: updated.actif,
+            createdAt: updated.createdAt.toISOString(),
+            prestatairesCount: updated._count.prestataires,
+        };
+    }
+    slugifyServiceLabel(input) {
+        const s = input
+            .normalize('NFD')
+            .replace(/\p{M}/gu, '')
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-+|-+$/g, '');
+        return s || 'service';
+    }
+    async ensureUniqueServiceSlug(base, excludeServiceId) {
+        let slug = base;
+        let n = 0;
+        while (true) {
+            const row = await this.prisma.service.findUnique({
+                where: { slug },
+                select: { id: true },
+            });
+            if (!row || row.id === excludeServiceId) {
+                return slug;
+            }
+            n += 1;
+            slug = `${base}-${n}`;
+        }
     }
     async getPrestatairesByService(serviceId) {
         const service = await this.prisma.service.findUnique({
@@ -828,12 +1341,60 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], AdminController.prototype, "getStats", null);
 __decorate([
+    (0, common_1.Post)('notifications/general'),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], AdminController.prototype, "createGeneralNotification", null);
+__decorate([
+    (0, common_1.Post)('notifications/targeted'),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], AdminController.prototype, "createTargetedNotification", null);
+__decorate([
+    (0, common_1.Get)('notifications'),
+    __param(0, (0, common_1.Query)('limit')),
+    __param(1, (0, common_1.Query)('offset')),
+    __param(2, (0, common_1.Query)('audience')),
+    __param(3, (0, common_1.Query)('unreadOnly')),
+    __param(4, (0, common_1.Query)('type')),
+    __param(5, (0, common_1.Query)('search')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, String, String, String, String]),
+    __metadata("design:returntype", Promise)
+], AdminController.prototype, "listAdminNotifications", null);
+__decorate([
     (0, common_1.Get)('evolution'),
     __param(0, (0, common_1.Query)('months')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], AdminController.prototype, "getEvolution", null);
+__decorate([
+    (0, common_1.Get)('wallet/summary'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], AdminController.prototype, "getWalletSummary", null);
+__decorate([
+    (0, common_1.Get)('wallet/withdrawal-requests'),
+    __param(0, (0, common_1.Query)('limit')),
+    __param(1, (0, common_1.Query)('offset')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:returntype", Promise)
+], AdminController.prototype, "listWithdrawalRequests", null);
+__decorate([
+    (0, common_1.Patch)('wallet/withdrawal-requests/:id'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], AdminController.prototype, "decisionWithdrawalRequest", null);
 __decorate([
     (0, common_1.Get)('transactions'),
     __param(0, (0, common_1.Query)('limit')),
@@ -952,6 +1513,21 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], AdminController.prototype, "getServicesForAdmin", null);
 __decorate([
+    (0, common_1.Post)('services'),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], AdminController.prototype, "createService", null);
+__decorate([
+    (0, common_1.Patch)('services/:serviceId'),
+    __param(0, (0, common_1.Param)('serviceId')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], AdminController.prototype, "updateService", null);
+__decorate([
     (0, common_1.Get)('services/:serviceId/prestataires'),
     __param(0, (0, common_1.Param)('serviceId')),
     __metadata("design:type", Function),
@@ -969,6 +1545,7 @@ exports.AdminController = AdminController = AdminController_1 = __decorate([
     (0, common_1.Controller)('admin'),
     (0, common_1.UseGuards)(jwt_auth_guard_js_1.JwtAuthGuard, roles_guard_js_1.RolesGuard),
     (0, roles_decorator_js_1.Roles)('ADMIN'),
-    __metadata("design:paramtypes", [prisma_service_js_1.PrismaService])
+    __metadata("design:paramtypes", [prisma_service_js_1.PrismaService,
+        notifications_service_js_1.NotificationsService])
 ], AdminController);
 //# sourceMappingURL=admin.controller.js.map

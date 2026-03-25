@@ -109,6 +109,10 @@ export class WalletsController {
       data: {
         prestataireId: prestataire.id,
         method: dto.method,
+        meta:
+          dto.amount != null && !Number.isNaN(dto.amount) && dto.amount >= 0
+            ? { amount: dto.amount }
+            : undefined,
       },
     });
 

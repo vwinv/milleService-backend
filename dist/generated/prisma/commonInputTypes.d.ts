@@ -126,6 +126,12 @@ export type DecimalNullableFilter<$PrismaModel = never> = {
     gte?: runtime.Decimal | runtime.DecimalJsLike | number | string | Prisma.DecimalFieldRefInput<$PrismaModel>;
     not?: Prisma.NestedDecimalNullableFilter<$PrismaModel> | runtime.Decimal | runtime.DecimalJsLike | number | string | null;
 };
+export type EnumParticulierStatutFilter<$PrismaModel = never> = {
+    equals?: $Enums.ParticulierStatut | Prisma.EnumParticulierStatutFieldRefInput<$PrismaModel>;
+    in?: $Enums.ParticulierStatut[] | Prisma.ListEnumParticulierStatutFieldRefInput<$PrismaModel>;
+    notIn?: $Enums.ParticulierStatut[] | Prisma.ListEnumParticulierStatutFieldRefInput<$PrismaModel>;
+    not?: Prisma.NestedEnumParticulierStatutFilter<$PrismaModel> | $Enums.ParticulierStatut;
+};
 export type DecimalNullableWithAggregatesFilter<$PrismaModel = never> = {
     equals?: runtime.Decimal | runtime.DecimalJsLike | number | string | Prisma.DecimalFieldRefInput<$PrismaModel> | null;
     in?: runtime.Decimal[] | runtime.DecimalJsLike[] | number[] | string[] | Prisma.ListDecimalFieldRefInput<$PrismaModel> | null;
@@ -140,6 +146,15 @@ export type DecimalNullableWithAggregatesFilter<$PrismaModel = never> = {
     _sum?: Prisma.NestedDecimalNullableFilter<$PrismaModel>;
     _min?: Prisma.NestedDecimalNullableFilter<$PrismaModel>;
     _max?: Prisma.NestedDecimalNullableFilter<$PrismaModel>;
+};
+export type EnumParticulierStatutWithAggregatesFilter<$PrismaModel = never> = {
+    equals?: $Enums.ParticulierStatut | Prisma.EnumParticulierStatutFieldRefInput<$PrismaModel>;
+    in?: $Enums.ParticulierStatut[] | Prisma.ListEnumParticulierStatutFieldRefInput<$PrismaModel>;
+    notIn?: $Enums.ParticulierStatut[] | Prisma.ListEnumParticulierStatutFieldRefInput<$PrismaModel>;
+    not?: Prisma.NestedEnumParticulierStatutWithAggregatesFilter<$PrismaModel> | $Enums.ParticulierStatut;
+    _count?: Prisma.NestedIntFilter<$PrismaModel>;
+    _min?: Prisma.NestedEnumParticulierStatutFilter<$PrismaModel>;
+    _max?: Prisma.NestedEnumParticulierStatutFilter<$PrismaModel>;
 };
 export type EnumStatutVerificationPrestataireFilter<$PrismaModel = never> = {
     equals?: $Enums.StatutVerificationPrestataire | Prisma.EnumStatutVerificationPrestataireFieldRefInput<$PrismaModel>;
@@ -548,6 +563,12 @@ export type NestedDecimalNullableFilter<$PrismaModel = never> = {
     gte?: runtime.Decimal | runtime.DecimalJsLike | number | string | Prisma.DecimalFieldRefInput<$PrismaModel>;
     not?: Prisma.NestedDecimalNullableFilter<$PrismaModel> | runtime.Decimal | runtime.DecimalJsLike | number | string | null;
 };
+export type NestedEnumParticulierStatutFilter<$PrismaModel = never> = {
+    equals?: $Enums.ParticulierStatut | Prisma.EnumParticulierStatutFieldRefInput<$PrismaModel>;
+    in?: $Enums.ParticulierStatut[] | Prisma.ListEnumParticulierStatutFieldRefInput<$PrismaModel>;
+    notIn?: $Enums.ParticulierStatut[] | Prisma.ListEnumParticulierStatutFieldRefInput<$PrismaModel>;
+    not?: Prisma.NestedEnumParticulierStatutFilter<$PrismaModel> | $Enums.ParticulierStatut;
+};
 export type NestedDecimalNullableWithAggregatesFilter<$PrismaModel = never> = {
     equals?: runtime.Decimal | runtime.DecimalJsLike | number | string | Prisma.DecimalFieldRefInput<$PrismaModel> | null;
     in?: runtime.Decimal[] | runtime.DecimalJsLike[] | number[] | string[] | Prisma.ListDecimalFieldRefInput<$PrismaModel> | null;
@@ -562,6 +583,15 @@ export type NestedDecimalNullableWithAggregatesFilter<$PrismaModel = never> = {
     _sum?: Prisma.NestedDecimalNullableFilter<$PrismaModel>;
     _min?: Prisma.NestedDecimalNullableFilter<$PrismaModel>;
     _max?: Prisma.NestedDecimalNullableFilter<$PrismaModel>;
+};
+export type NestedEnumParticulierStatutWithAggregatesFilter<$PrismaModel = never> = {
+    equals?: $Enums.ParticulierStatut | Prisma.EnumParticulierStatutFieldRefInput<$PrismaModel>;
+    in?: $Enums.ParticulierStatut[] | Prisma.ListEnumParticulierStatutFieldRefInput<$PrismaModel>;
+    notIn?: $Enums.ParticulierStatut[] | Prisma.ListEnumParticulierStatutFieldRefInput<$PrismaModel>;
+    not?: Prisma.NestedEnumParticulierStatutWithAggregatesFilter<$PrismaModel> | $Enums.ParticulierStatut;
+    _count?: Prisma.NestedIntFilter<$PrismaModel>;
+    _min?: Prisma.NestedEnumParticulierStatutFilter<$PrismaModel>;
+    _max?: Prisma.NestedEnumParticulierStatutFilter<$PrismaModel>;
 };
 export type NestedEnumStatutVerificationPrestataireFilter<$PrismaModel = never> = {
     equals?: $Enums.StatutVerificationPrestataire | Prisma.EnumStatutVerificationPrestataireFieldRefInput<$PrismaModel>;

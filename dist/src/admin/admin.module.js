@@ -10,13 +10,14 @@ exports.AdminModule = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_module_js_1 = require("../prisma/prisma.module.js");
 const auth_module_js_1 = require("../auth/auth.module.js");
+const notifications_module_js_1 = require("../notifications/notifications.module.js");
 const admin_controller_js_1 = require("./admin.controller.js");
 let AdminModule = class AdminModule {
 };
 exports.AdminModule = AdminModule;
 exports.AdminModule = AdminModule = __decorate([
     (0, common_1.Module)({
-        imports: [prisma_module_js_1.PrismaModule, auth_module_js_1.AuthModule],
+        imports: [prisma_module_js_1.PrismaModule, auth_module_js_1.AuthModule, notifications_module_js_1.NotificationsModule],
         controllers: [admin_controller_js_1.AdminController],
     })
 ], AdminModule);

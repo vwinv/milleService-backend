@@ -9,6 +9,7 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
+  ParticulierStatut,
   Role,
   StatutDocument,
 } from '../../generated/prisma/client.js';
@@ -249,6 +250,15 @@ export class AuthService {
         'Votre compte a été désactivé. Veuillez contacter notre équipe pour la réactivation.',
       );
     }
+    if (
+      user.role === Role.PARTICULIER &&
+      user.particulier &&
+      user.particulier.statut === ParticulierStatut.INACTIF
+    ) {
+      throw new UnauthorizedException(
+        'Ce compte a été désactivé. Pour toute question, contactez le support.',
+      );
+    }
     const access_token = this.jwtService.sign(
       { sub: user.id, email: user.email, role: user.role },
       { expiresIn: '24h' },
@@ -289,6 +299,15 @@ export class AuthService {
       if (!user) {
         throw new UnauthorizedException('Utilisateur introuvable');
       }
+      if (
+        user.role === Role.PARTICULIER &&
+        user.particulier &&
+        user.particulier.statut === ParticulierStatut.INACTIF
+      ) {
+        throw new UnauthorizedException(
+          'Ce compte a été désactivé. Pour toute question, contactez le support.',
+        );
+      }
       const access_token = this.jwtService.sign(
         { sub: user.id, email: user.email, role: user.role },
         { expiresIn: '24h' },
@@ -316,14 +335,33 @@ export class AuthService {
     }
   }
 
-  /** Désactive le compte utilisateur (actuellement: désactive le profil prestataire). */
+  /**
+   * Désactivation « suppression de compte » côté particulier : statut INACTIF (pas de DELETE).
+   * Prestataire : `prestataires.actif = false` (comportement existant).
+   */
   async deactivateAccount(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      include: { prestataire: true },
+      include: { prestataire: true, particulier: true },
     });
     if (!user) {
       throw new UnauthorizedException('Utilisateur introuvable');
+    }
+
+    if (user.role === Role.PARTICULIER) {
+      const part = user.particulier;
+      if (!part) {
+        throw new BadRequestException('Profil particulier introuvable');
+      }
+      await this.prisma.particulier.update({
+        where: { id: part.id },
+        data: { statut: ParticulierStatut.INACTIF },
+      });
+      return {
+        success: true,
+        message:
+          'Votre compte a été désactivé. Vous pouvez contacter le support pour toute réactivation.',
+      };
     }
 
     if (user.role === Role.PRESTATAIRE) {
@@ -358,6 +396,9 @@ export class AuthService {
     const part = user.particulier;
     if (!part) {
       throw new BadRequestException('Profil particulier introuvable');
+    }
+    if (part.statut === ParticulierStatut.INACTIF) {
+      throw new BadRequestException('Ce compte a été désactivé.');
     }
 
     let lat =

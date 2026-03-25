@@ -10,14 +10,23 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.RequestWithdrawalDto = void 0;
+const class_transformer_1 = require("class-transformer");
 const class_validator_1 = require("class-validator");
 const client_js_1 = require("../../../generated/prisma/client.js");
 class RequestWithdrawalDto {
     method;
+    amount;
 }
 exports.RequestWithdrawalDto = RequestWithdrawalDto;
 __decorate([
     (0, class_validator_1.IsEnum)(client_js_1.WithdrawalMethod),
     __metadata("design:type", String)
 ], RequestWithdrawalDto.prototype, "method", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.Min)(0),
+    __metadata("design:type", Number)
+], RequestWithdrawalDto.prototype, "amount", void 0);
 //# sourceMappingURL=request-withdrawal.dto.js.map

@@ -88,6 +88,7 @@ exports.ParticulierScalarFieldEnum = {
     latitude: 'latitude',
     longitude: 'longitude',
     avatarUrl: 'avatarUrl',
+    statut: 'statut',
     createdAt: 'createdAt',
     updatedAt: 'updatedAt'
 };

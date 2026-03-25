@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
+import * as admin from 'firebase-admin';
+import * as fs from 'fs';
 
 export interface SendNotificationPayload {
   title: string;
@@ -48,10 +50,63 @@ export class NotificationsService {
     fcmToken: string,
     payload: SendNotificationPayload,
   ): Promise<void> {
-    // TODO: intégrer Firebase Admin SDK
-    // await admin.messaging().send({ token: fcmToken, notification: { title, body }, data: payload.data });
-    if (process.env.NODE_ENV !== 'test') {
-      console.log('[NotificationsService] Push (stub)', { fcmToken: fcmToken.slice(0, 20) + '…', title: payload.title });
+    try {
+      const serviceAccountJson = process.env.FCM_SERVICE_ACCOUNT_JSON;
+      const serviceAccountFile = process.env.FCM_SERVICE_ACCOUNT_FILE;
+
+      // Si la config FCM n'est pas présente, on ne bloque pas l'app (les notifications restent en base).
+      if (!serviceAccountJson && !serviceAccountFile) {
+        if (process.env.NODE_ENV !== 'test') {
+          console.log(
+            '[NotificationsService] Push ignoré (FCM non configuré)',
+            { fcmToken: fcmToken.slice(0, 20) + '…', title: payload.title },
+          );
+        }
+        return;
+      }
+
+      let serviceAccount: admin.ServiceAccount;
+      if (serviceAccountJson) {
+        serviceAccount = JSON.parse(serviceAccountJson) as admin.ServiceAccount;
+      } else {
+        const raw = fs.readFileSync(serviceAccountFile as string, 'utf8');
+        serviceAccount = JSON.parse(raw) as admin.ServiceAccount;
+      }
+
+      // Initialiser Firebase Admin une seule fois.
+      if (!admin.apps.length) {
+        admin.initializeApp({
+          credential: admin.credential.cert(serviceAccount),
+        });
+      }
+
+      const data =
+        payload.data != null
+          ? Object.fromEntries(
+              Object.entries(payload.data).map(([k, v]) => [
+                k,
+                typeof v === 'string'
+                  ? v
+                  : v == null
+                    ? ''
+                    : JSON.stringify(v),
+              ]),
+            )
+          : undefined;
+
+      await admin.messaging().send({
+        token: fcmToken,
+        notification: {
+          title: payload.title,
+          body: payload.body ?? '',
+        },
+        data,
+      });
+    } catch (e) {
+      // On ne casse jamais le flow métier : en cas d'erreur FCM, on garde l'enregistrement en base.
+      if (process.env.NODE_ENV !== 'test') {
+        console.error('[NotificationsService] Push (FCM) erreur', e);
+      }
     }
   }
 
