@@ -46,8 +46,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.NotificationsService = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_service_js_1 = require("../prisma/prisma.service.js");
-const admin = __importStar(require("firebase-admin"));
 const fs = __importStar(require("fs"));
+const firebase_admin_runtime_js_1 = require("./firebase-admin.runtime.js");
 function fcmTokenFingerprint(token) {
     const t = token.trim();
     if (!t)
@@ -130,6 +130,7 @@ let NotificationsService = NotificationsService_1 = class NotificationsService {
             if (process.env.NODE_ENV !== 'test') {
                 this.logger.log(`[FCM trace] compte de service OK project_id=${projectId} client_email=${serviceAccount.client_email ?? '—'}`);
             }
+            const admin = (0, firebase_admin_runtime_js_1.getFirebaseAdminSdk)();
             if (!admin.apps.length) {
                 admin.initializeApp({
                     credential: admin.credential.cert(serviceAccount),

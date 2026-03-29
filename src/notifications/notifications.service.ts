@@ -1,7 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
-import * as admin from 'firebase-admin';
 import * as fs from 'fs';
+import {
+  type FirebaseServiceAccountJson,
+  type FcmOutgoingMessage,
+  getFirebaseAdminSdk,
+} from './firebase-admin.runtime.js';
 
 export interface SendNotificationPayload {
   title: string;
@@ -110,14 +114,14 @@ export class NotificationsService {
         );
       }
 
-      let serviceAccount: admin.ServiceAccount;
+      let serviceAccount: FirebaseServiceAccountJson;
       try {
         if (serviceAccountJson) {
           const trimmed = serviceAccountJson.trim();
-          serviceAccount = JSON.parse(trimmed) as admin.ServiceAccount;
+          serviceAccount = JSON.parse(trimmed) as FirebaseServiceAccountJson;
         } else {
           const raw = fs.readFileSync(serviceAccountFile as string, 'utf8');
-          serviceAccount = JSON.parse(raw) as admin.ServiceAccount;
+          serviceAccount = JSON.parse(raw) as FirebaseServiceAccountJson;
         }
       } catch (parseErr) {
         if (process.env.NODE_ENV !== 'test') {
@@ -135,6 +139,8 @@ export class NotificationsService {
           `[FCM trace] compte de service OK project_id=${projectId} client_email=${(serviceAccount as { client_email?: string }).client_email ?? '—'}`,
         );
       }
+
+      const admin = getFirebaseAdminSdk();
 
       // Initialiser Firebase Admin une seule fois.
       if (!admin.apps.length) {
@@ -167,7 +173,7 @@ export class NotificationsService {
       data.title = payload.title;
       data.body = payload.body ?? '';
 
-      const message: admin.messaging.Message = {
+      const message: FcmOutgoingMessage = {
         token: fcmToken,
         notification: {
           title: payload.title,
