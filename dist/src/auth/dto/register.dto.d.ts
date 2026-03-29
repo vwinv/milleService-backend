@@ -4,7 +4,7 @@ export declare class RegisterDocumentDto {
     nomFichier?: string;
 }
 export declare class RegisterDto {
-    email: string;
+    email?: string;
     password: string;
     role: 'PARTICULIER' | 'PRESTATAIRE';
     nom?: string;

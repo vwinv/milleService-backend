@@ -162,11 +162,11 @@ export type WalletOrderByWithRelationInput = {
 };
 export type WalletWhereUniqueInput = Prisma.AtLeast<{
     id?: string;
-    type?: $Enums.WalletType;
     prestataireId?: string;
     AND?: Prisma.WalletWhereInput | Prisma.WalletWhereInput[];
     OR?: Prisma.WalletWhereInput[];
     NOT?: Prisma.WalletWhereInput | Prisma.WalletWhereInput[];
+    type?: Prisma.EnumWalletTypeFilter<"Wallet"> | $Enums.WalletType;
     balance?: Prisma.DecimalFilter<"Wallet"> | runtime.Decimal | runtime.DecimalJsLike | number | string;
     balancePlafond?: Prisma.DecimalNullableFilter<"Wallet"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null;
     statutPrestataire?: Prisma.EnumPrestataireWalletStatutFilter<"Wallet"> | $Enums.PrestataireWalletStatut;
@@ -174,7 +174,7 @@ export type WalletWhereUniqueInput = Prisma.AtLeast<{
     updatedAt?: Prisma.DateTimeFilter<"Wallet"> | Date | string;
     prestataire?: Prisma.XOR<Prisma.PrestataireNullableScalarRelationFilter, Prisma.PrestataireWhereInput> | null;
     transactions?: Prisma.WalletTransactionListRelationFilter;
-}, "id" | "prestataireId" | "type">;
+}, "id" | "prestataireId">;
 export type WalletOrderByWithAggregationInput = {
     id?: Prisma.SortOrder;
     type?: Prisma.SortOrder;

@@ -1,7 +1,7 @@
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CurrentUserPayload } from '../auth/decorators/current-user.decorator.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
-import { PrestataireWalletStatut, Role, StatutDocument, StatutVerificationPrestataire, WithdrawalMethod, WithdrawalStatus } from '../../generated/prisma/client.js';
+import { PrestataireWalletStatut, Role, StatutDocument, StatutPrestation, StatutVerificationPrestataire, WithdrawalMethod, WithdrawalStatus } from '../../generated/prisma/client.js';
 export declare class AdminController {
     private readonly prisma;
     private readonly notifications;
@@ -84,6 +84,14 @@ export declare class AdminController {
         status: "TRAITE";
     }>;
     getTransactions(limit?: string): Promise<({
+        id: any;
+        date: any;
+        prestataireNom: string;
+        montant: number;
+        wallet: string;
+        statut: string;
+        category: "PAIEMENT_ABONNEMENT";
+    } | {
         id: any;
         date: any;
         prestataireNom: any;
@@ -251,6 +259,41 @@ export declare class AdminController {
         prestataireId: string;
         statutVerification: "REFUSE";
     }>;
+    getDemandesMilleServices(limit?: string, offset?: string, statutFilter?: string): Promise<{
+        stats: {
+            total: number;
+            enAttente: number;
+            acceptee: number;
+            enCours: number;
+            terminee: number;
+            payee: number;
+            refusee: number;
+            annulee: number;
+        };
+        total: number;
+        items: {
+            id: string;
+            statut: StatutPrestation;
+            statutLabel: string;
+            typeDeTache: string | null;
+            description: string | null;
+            budget: number | null;
+            adresse: string | null;
+            createdAt: string;
+            updatedAt: string;
+            serviceLibelle: string;
+            particulier: {
+                id: string;
+                nomComplet: string;
+                telephone: string | null;
+            };
+            prestataire: {
+                id: string;
+                nom: string;
+                telephone: string | null;
+            };
+        }[];
+    }>;
     getServicesForAdmin(): Promise<{
         items: {
             id: string;
@@ -303,4 +346,55 @@ export declare class AdminController {
         ok: boolean;
         id: string;
     }>;
+    getOffresForAdmin(): Promise<{
+        items: {
+            id: string;
+            code: string;
+            libelle: string;
+            description: string;
+            prix: number;
+            dureeMois: number;
+            actif: boolean;
+            ordre: number;
+            createdAt: string;
+        }[];
+    }>;
+    createOffre(body: {
+        code?: string;
+        libelle?: string;
+        description?: string;
+        prix?: number;
+        dureeMois?: number;
+        ordre?: number;
+    }): Promise<{
+        id: string;
+        code: string;
+        libelle: string;
+        description: string;
+        prix: number;
+        dureeMois: number;
+        actif: boolean;
+        ordre: number;
+        createdAt: string;
+    }>;
+    updateOffre(offreId: string, body: {
+        actif?: boolean;
+        code?: string;
+        libelle?: string;
+        description?: string;
+        prix?: number;
+        dureeMois?: number;
+        ordre?: number;
+    }): Promise<{
+        id: string;
+        code: string;
+        libelle: string;
+        description: string;
+        prix: number;
+        dureeMois: number;
+        actif: boolean;
+        ordre: number;
+        createdAt: string;
+    }>;
+    private ensureUniqueOffreCode;
 }

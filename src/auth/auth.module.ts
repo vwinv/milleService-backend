@@ -6,11 +6,13 @@ import { AuthService } from './auth.service.js';
 import { JwtStrategy } from './strategies/jwt.strategy.js';
 import { GeocodingModule } from '../geocoding/geocoding.module.js';
 import { AbonnementsModule } from '../abonnements/abonnements.module.js';
+import { WalletsModule } from '../wallets/wallets.module.js';
 
 @Module({
   imports: [
     GeocodingModule,
     AbonnementsModule,
+    WalletsModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.register({
       secret: process.env.JWT_SECRET || 'change-me-in-production',

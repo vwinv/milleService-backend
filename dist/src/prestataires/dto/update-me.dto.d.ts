@@ -6,4 +6,5 @@ export declare class UpdateMePrestataireDto {
     latitude?: number;
     longitude?: number;
     serviceIds?: string[];
+    avatarUrl?: string;
 }

@@ -6,13 +6,16 @@ import type { LoginDto } from './dto/login.dto.js';
 import type { UpdateParticulierDto } from './dto/update-particulier.dto.js';
 import { GeocodingService } from '../geocoding/geocoding.service.js';
 import { AbonnementsService } from '../abonnements/abonnements.service.js';
+import { WalletsService } from '../wallets/wallets.service.js';
 export declare class AuthService {
     private readonly prisma;
     private readonly jwtService;
     private readonly geocodingService;
     private readonly abonnementsService;
+    private readonly walletsService;
     private readonly logger;
-    constructor(prisma: PrismaService, jwtService: JwtService, geocodingService: GeocodingService, abonnementsService: AbonnementsService);
+    constructor(prisma: PrismaService, jwtService: JwtService, geocodingService: GeocodingService, abonnementsService: AbonnementsService, walletsService: WalletsService);
+    private assertPrestataireMayAuthenticate;
     register(dto: RegisterDto): Promise<{
         access_token: string;
         refresh_token: string;
@@ -111,6 +114,7 @@ export declare class AuthService {
             prenom: string;
             telephone: string | null;
             adresse: string | null;
+            avatarUrl: string | null;
             latitude: number | null;
             longitude: number | null;
         };
@@ -171,5 +175,6 @@ export declare class AuthService {
     }>;
     private ensureTypeDocumentsExist;
     private toNumber;
+    private buildGeneratedEmailFromPhone;
     private sanitizeUser;
 }

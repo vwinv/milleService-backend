@@ -105,6 +105,7 @@ export declare class AuthController {
             prenom: string;
             telephone: string | null;
             adresse: string | null;
+            avatarUrl: string | null;
             latitude: number | null;
             longitude: number | null;
         };

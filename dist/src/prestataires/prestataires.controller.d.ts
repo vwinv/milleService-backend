@@ -19,22 +19,25 @@ export declare class PrestatairesController {
         commentaire: string | null;
     }>;
     getFavoris(user: CurrentUserPayload, query: FavorisQueryDto): Promise<{
-        id: any;
-        nom: any;
-        adresse: any;
-        telephone: any;
-        bio: any;
-        avatarUrl: any;
-        zoneIntervention: any;
-        statutVerification: any;
-        noteMoyenne: number;
-        noteSur: number;
-        nbAvis: number;
-        distanceMetres: number;
-        latitude: number | null;
-        longitude: number | null;
-        services: any;
-    }[]>;
+        listeProximite: boolean;
+        prestataires: {
+            id: any;
+            nom: any;
+            adresse: any;
+            telephone: any;
+            bio: any;
+            avatarUrl: any;
+            zoneIntervention: any;
+            statutVerification: any;
+            noteMoyenne: number;
+            noteSur: number;
+            nbAvis: number;
+            distanceMetres: number;
+            latitude: number | null;
+            longitude: number | null;
+            services: any;
+        }[];
+    }>;
     search(user: CurrentUserPayload, query: SearchQueryDto): Promise<{
         id: string;
         nom: string;
@@ -70,6 +73,9 @@ export declare class PrestatairesController {
         id: string;
         nom: string;
         telephone: string | null;
+        adresse: string | null;
+        bio: string | null;
+        avatarUrl: string | null;
         latitude: number | null;
         longitude: number | null;
     }>;

@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsNumber } from 'class-validator';
+import { IsOptional, IsString, IsNumber, MaxLength } from 'class-validator';
 
 export class UpdateParticulierDto {
   @IsOptional()
@@ -24,5 +24,11 @@ export class UpdateParticulierDto {
   @IsOptional()
   @IsNumber()
   longitude?: number;
+
+  /** URL de la photo de profil (ex. Cloudinary). Chaîne vide = suppression. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(2048)
+  avatarUrl?: string;
 }
 

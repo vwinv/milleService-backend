@@ -1,6 +1,7 @@
 import { PrismaService } from '../prisma/prisma.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { WalletsService } from '../wallets/wallets.service.js';
+import type { PayerPrestationDto } from './dto/payer-prestation.dto.js';
 export declare class PrestationsService {
     private readonly prisma;
     private readonly notifications;
@@ -152,7 +153,7 @@ export declare class PrestationsService {
             libelle: any;
         } | undefined;
     }>;
-    marquerPayee(particulierUserId: string, prestationId: string): Promise<{
+    marquerPayee(particulierUserId: string, prestationId: string, dto?: PayerPrestationDto): Promise<{
         id: any;
         statut: any;
         typeDeTache: any;

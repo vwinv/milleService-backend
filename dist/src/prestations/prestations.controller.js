@@ -16,6 +16,7 @@ exports.PrestationsController = void 0;
 const common_1 = require("@nestjs/common");
 const prestations_service_js_1 = require("./prestations.service.js");
 const create_prestation_dto_js_1 = require("./dto/create-prestation.dto.js");
+const payer_prestation_dto_js_1 = require("./dto/payer-prestation.dto.js");
 const jwt_auth_guard_js_1 = require("../auth/guards/jwt-auth.guard.js");
 const roles_guard_js_1 = require("../auth/guards/roles.guard.js");
 const roles_decorator_js_1 = require("../auth/decorators/roles.decorator.js");
@@ -46,8 +47,8 @@ let PrestationsController = class PrestationsController {
     terminer(user, id) {
         return this.prestations.terminer(user.userId, id);
     }
-    marquerPayee(user, id) {
-        return this.prestations.marquerPayee(user.userId, id);
+    marquerPayee(user, id, dto) {
+        return this.prestations.marquerPayee(user.userId, id, dto);
     }
 };
 exports.PrestationsController = PrestationsController;
@@ -122,8 +123,9 @@ __decorate([
     (0, roles_decorator_js_1.Roles)('PARTICULIER'),
     __param(0, (0, current_user_decorator_js_1.CurrentUser)()),
     __param(1, (0, common_1.Param)('id')),
+    __param(2, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:paramtypes", [Object, String, payer_prestation_dto_js_1.PayerPrestationDto]),
     __metadata("design:returntype", void 0)
 ], PrestationsController.prototype, "marquerPayee", null);
 exports.PrestationsController = PrestationsController = __decorate([

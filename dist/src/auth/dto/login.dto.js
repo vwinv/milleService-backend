@@ -13,13 +13,23 @@ exports.LoginDto = void 0;
 const class_validator_1 = require("class-validator");
 const client_js_1 = require("../../../generated/prisma/client.js");
 class LoginDto {
+    telephone;
     email;
     password;
     role;
 }
 exports.LoginDto = LoginDto;
 __decorate([
-    (0, class_validator_1.IsEmail)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.ValidateIf)((o) => !o.email || `${o.email}`.trim().length === 0),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MinLength)(1, { message: 'Le telephone est requis' }),
+    __metadata("design:type", String)
+], LoginDto.prototype, "telephone", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.ValidateIf)((o) => !o.telephone || `${o.telephone}`.trim().length === 0),
+    (0, class_validator_1.IsEmail)({}, { message: "L'email est invalide" }),
     __metadata("design:type", String)
 ], LoginDto.prototype, "email", void 0);
 __decorate([

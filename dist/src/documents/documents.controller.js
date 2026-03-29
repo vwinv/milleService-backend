@@ -23,8 +23,20 @@ const ALLOWED_MIMES = [
     'image/png',
     'image/gif',
     'image/webp',
+    'image/heic',
+    'image/heif',
     'application/pdf',
 ];
+const ALLOWED_NAME = /\.(jpe?g|png|gif|webp|pdf|heic|heif)$/i;
+function isAllowedUpload(file) {
+    if (ALLOWED_MIMES.includes(file.mimetype))
+        return true;
+    if (file.mimetype === 'application/octet-stream' &&
+        ALLOWED_NAME.test(file.originalname)) {
+        return true;
+    }
+    return false;
+}
 let DocumentsController = class DocumentsController {
     cloudinary;
     constructor(cloudinary) {
@@ -34,10 +46,10 @@ let DocumentsController = class DocumentsController {
         if (!file) {
             throw new common_1.BadRequestException('Aucun fichier envoyé');
         }
-        if (!ALLOWED_MIMES.includes(file.mimetype)) {
-            throw new common_1.BadRequestException('Type de fichier non autorisé. Utilisez: JPEG, PNG, GIF, WebP ou PDF.');
+        if (!isAllowedUpload(file)) {
+            throw new common_1.BadRequestException('Type de fichier non autorisé. Utilisez: JPEG, PNG, GIF, WebP, HEIC ou PDF.');
         }
-        const result = await this.cloudinary.uploadDocument(file.buffer, file.originalname);
+        const result = await this.cloudinary.uploadDocument(file.buffer, file.originalname, file.mimetype);
         return {
             url: result.secureUrl,
             publicId: result.publicId,

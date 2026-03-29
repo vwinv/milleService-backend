@@ -13,6 +13,8 @@ import { NotificationsService } from '../notifications/notifications.service.js'
 const RAYON_METRES = 500;
 const NOTE_MAX = 5;
 const NOTE_MIN = 2; // seulement les prestataires avec note moyenne >= 2
+/** Nombre max. de prestataires renvoyés quand on tombe sur le palier « plus proches ». */
+const FAVORIS_PLUS_PROCHES_LIMIT = 20;
 
 /** Distance en mètres entre deux points (formule de Haversine) */
 function haversineDistance(
@@ -62,11 +64,12 @@ export class PrestatairesService {
   ) {}
 
   /**
-   * Retourne les prestataires les mieux notés de la semaine en cours :
-   * - ont eu au moins une prestation (RDV terminé) dans la semaine en cours
-   * - situés dans un rayon de 500m
-   * - note moyenne >= 2
-   * - triés par note décroissante (5 -> 2)
+   * Favoris « semaine » + repli progressif :
+   * 1) Prestataires ayant eu une prestation terminée cette semaine, vérifiés, note >= 2, tri par note.
+   * 2) Sinon, prestataires géolocalisés avec note moyenne >= 3, tri par note.
+   * 3) Sinon, prestataires vérifiés les plus proches (sans filtre de note), tri par distance.
+   *
+   * Réponse : `{ listeProximite, prestataires }` (`listeProximite` true uniquement pour le palier 3).
    */
   async getPrestatairesFavoris(
     userId: string,
@@ -111,6 +114,9 @@ export class PrestatairesService {
       nbAvis: number;
       distanceMetres: number;
     }[] = [];
+
+    /** Si true, la liste est déjà triée par distance (palier « plus proches »). */
+    let listeProximite = false;
 
     if (prestataireIds.length > 0) {
       const prestatairesSemaine = await this.prisma.prestataire.findMany({
@@ -158,6 +164,7 @@ export class PrestatairesService {
       const tousPrestataires = await this.prisma.prestataire.findMany({
         where: {
           actif: true,
+          statutVerification: StatutVerificationPrestataire.VERIFIE,
           latitude: { not: null },
           longitude: { not: null },
         },
@@ -192,12 +199,58 @@ export class PrestatairesService {
         .filter((x): x is NonNullable<typeof x> => x != null);
     }
 
-    // Tri décroissant par note (5 -> 2)
-    const ordonnes = avecNoteEtDistance.sort(
-      (a, b) => b.noteMoyenne - a.noteMoyenne,
-    );
+    // Fallback 3 : prestataires vérifiés les plus proches (sans filtre de note),
+    // pour ne pas laisser l’écran favoris vide.
+    if (avecNoteEtDistance.length === 0) {
+      const proches = await this.prisma.prestataire.findMany({
+        where: {
+          actif: true,
+          statutVerification: StatutVerificationPrestataire.VERIFIE,
+          latitude: { not: null },
+          longitude: { not: null },
+        },
+        include: {
+          avis: { select: { note: true } },
+          servicesProposes: {
+            where: { actif: true },
+            include: { service: true },
+          },
+        },
+      });
 
-    return ordonnes.map(
+      const parDistance = proches
+        .map((p) => {
+          const plat = toNumber(p.latitude);
+          const plng = toNumber(p.longitude);
+          if (plat == null || plng == null) return null;
+          const distance = haversineDistance(userLat!, userLng!, plat, plng);
+          const notes = p.avis.map((a) => a.note);
+          const noteMoyenne =
+            notes.length > 0
+              ? notes.reduce((s, n) => s + n, 0) / notes.length
+              : 0;
+          return {
+            prestataire: p,
+            noteMoyenne,
+            nbAvis: notes.length,
+            distanceMetres: Math.round(distance),
+          };
+        })
+        .filter((x): x is NonNullable<typeof x> => x != null)
+        .sort((a, b) => a.distanceMetres - b.distanceMetres)
+        .slice(0, FAVORIS_PLUS_PROCHES_LIMIT);
+
+      if (parDistance.length > 0) {
+        listeProximite = true;
+        avecNoteEtDistance = parDistance;
+      }
+    }
+
+    const ordonnes = listeProximite
+      ? avecNoteEtDistance
+      : [...avecNoteEtDistance].sort((a, b) => b.noteMoyenne - a.noteMoyenne);
+
+    const prestataires = ordonnes.map(
       ({ prestataire, noteMoyenne, nbAvis, distanceMetres }) => ({
         id: prestataire.id,
         nom: prestataire.nom,
@@ -228,6 +281,8 @@ export class PrestatairesService {
           : [],
       }),
     );
+
+    return { listeProximite, prestataires };
   }
 
   /**
@@ -279,6 +334,8 @@ export class PrestatairesService {
 
   /**
    * Recherche de prestataires par service, fourchette de tarif et optionnellement par date (planifier).
+   * Si les filtres ne renvoient aucun résultat, une seconde recherche est faite avec les seuls critères
+   * de base (actif, vérifié, géolocalisé) — le tri par proximité / note reste inchangé.
    * Retourne le même format que getPrestatairesFavoris (note, distance si position disponible).
    */
   async search(
@@ -315,35 +372,51 @@ export class PrestatairesService {
 
     const hasTarif = tarifMin != null || tarifMax != null;
     const hasService = !!serviceId && serviceId.trim() !== '';
+    const hasDateFilter = date != null && String(date).trim() !== '';
+    const hadFilters = hasService || hasTarif || hasDateFilter;
 
-    const where: any = {
+    const baseWhere: Record<string, unknown> = {
       actif: true,
       statutVerification: StatutVerificationPrestataire.VERIFIE,
       latitude: { not: null },
       longitude: { not: null },
     };
 
+    const include = {
+      avis: { select: { note: true } },
+      servicesProposes: {
+        where: { actif: true },
+        include: { service: true },
+      },
+    };
+
+    let where: Record<string, unknown> = { ...baseWhere };
+
     if (hasService || hasTarif) {
-      const serviceFilter: any = { actif: true };
+      const serviceFilter: Record<string, unknown> = { actif: true };
       if (hasService) {
         serviceFilter.serviceId = serviceId;
       }
       if (tarifFilter) {
         serviceFilter.tarifHoraire = tarifFilter;
       }
-      where.servicesProposes = { some: serviceFilter };
+      where = {
+        ...baseWhere,
+        servicesProposes: { some: serviceFilter },
+      };
     }
 
-    const prestataires = await this.prisma.prestataire.findMany({
-      where,
-      include: {
-        avis: { select: { note: true } },
-        servicesProposes: {
-          where: { actif: true },
-          include: { service: true },
-        },
-      },
+    let prestataires = await this.prisma.prestataire.findMany({
+      where: where as any,
+      include,
     });
+
+    if (prestataires.length === 0 && hadFilters) {
+      prestataires = await this.prisma.prestataire.findMany({
+        where: baseWhere as any,
+        include,
+      });
+    }
 
     const avecNoteEtDistance = prestataires.map((p) => {
       const notes = p.avis.map((a) => a.note);
@@ -449,7 +522,12 @@ export class PrestatairesService {
   ) {
     const prestataire = await this.prisma.prestataire.update({
       where: { id: prestataireId },
-      data: { statutVerification: statut },
+      data: {
+        statutVerification: statut,
+        ...(statut === StatutVerificationPrestataire.VERIFIE
+          ? { actif: true }
+          : {}),
+      },
       include: {
         user: { select: { id: true } },
       },
@@ -506,6 +584,9 @@ export class PrestatairesService {
       throw new BadRequestException('Profil prestataire introuvable');
     }
 
+    await this.ensureTypeDocumentsExist();
+
+    let upsertedCount = 0;
     for (const doc of documents) {
       const typeDoc = await this.prisma.typeDocument.findUnique({
         where: { code: doc.typeCode },
@@ -539,6 +620,13 @@ export class PrestatairesService {
           motifRefus: null,
         },
       });
+      upsertedCount += 1;
+    }
+
+    if (upsertedCount === 0) {
+      throw new BadRequestException(
+        'Aucun document valide n’a été envoyé. Vérifiez les types de documents.',
+      );
     }
 
     const updated = await this.prisma.prestataire.update({
@@ -551,6 +639,24 @@ export class PrestatairesService {
       id: updated.id,
       statutVerification: updated.statutVerification,
     };
+  }
+
+  /** Crée les types de documents prestataire s'ils n'existent pas. */
+  private async ensureTypeDocumentsExist() {
+    const count = await this.prisma.typeDocument.count();
+    if (count > 0) return;
+    await this.prisma.typeDocument.createMany({
+      data: [
+        { code: 'cni_recto', libelle: 'CNI / Passeport (recto)', ordre: 1 },
+        { code: 'cni_verso', libelle: 'CNI / Passeport (verso)', ordre: 2 },
+        { code: 'casier_judiciaire', libelle: 'Casier judiciaire', ordre: 3 },
+        {
+          code: 'certificat_bonne_moeurs',
+          libelle: 'Certificat de bonne mœurs',
+          ordre: 4,
+        },
+      ],
+    });
   }
 
   /**
@@ -777,6 +883,10 @@ export class PrestatairesService {
     if (lng != null) {
       data.longitude = lng;
     }
+    if (dto.avatarUrl !== undefined) {
+      const raw = (dto.avatarUrl ?? '').trim();
+      data.avatarUrl = raw.length > 0 ? raw : null;
+    }
 
     if (Object.keys(data).length === 0 && dto.serviceIds === undefined) {
       throw new BadRequestException('Aucune donnée à mettre à jour');
@@ -839,6 +949,9 @@ export class PrestatairesService {
       id: updated.id,
       nom: updated.nom,
       telephone: updated.telephone,
+      adresse: updated.adresse,
+      bio: updated.bio,
+      avatarUrl: updated.avatarUrl,
       latitude:
         updated.latitude != null ? Number(updated.latitude) : null,
       longitude:

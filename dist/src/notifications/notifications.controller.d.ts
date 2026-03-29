@@ -2,6 +2,7 @@ import { NotificationsService } from './notifications.service.js';
 import { CurrentUserPayload } from '../auth/decorators/current-user.decorator.js';
 export declare class NotificationsController {
     private readonly notifications;
+    private readonly logger;
     constructor(notifications: NotificationsService);
     list(user: CurrentUserPayload, unreadOnly?: string): Promise<{
         id: string;
@@ -13,8 +14,10 @@ export declare class NotificationsController {
         createdAt: Date;
     }[]>;
     markAllAsRead(user: CurrentUserPayload): Promise<void>;
-    markAsRead(user: CurrentUserPayload, id: string): Promise<void>;
     registerFcmToken(user: CurrentUserPayload, body: {
         fcmToken: string | null;
-    }): Promise<void>;
+    }): Promise<{
+        ok: boolean;
+    }>;
+    markAsRead(user: CurrentUserPayload, id: string): Promise<void>;
 }

@@ -18,6 +18,7 @@ class UpdateParticulierDto {
     adresse;
     latitude;
     longitude;
+    avatarUrl;
 }
 exports.UpdateParticulierDto = UpdateParticulierDto;
 __decorate([
@@ -50,4 +51,10 @@ __decorate([
     (0, class_validator_1.IsNumber)(),
     __metadata("design:type", Number)
 ], UpdateParticulierDto.prototype, "longitude", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(2048),
+    __metadata("design:type", String)
+], UpdateParticulierDto.prototype, "avatarUrl", void 0);
 //# sourceMappingURL=update-particulier.dto.js.map

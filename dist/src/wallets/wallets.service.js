@@ -32,7 +32,7 @@ let WalletsService = class WalletsService {
     }
     async ensureGeneralWallet(tx) {
         const client = tx ?? this.prisma;
-        const existing = await client.wallet.findUnique({
+        const existing = await client.wallet.findFirst({
             where: { type: client_js_1.WalletType.GENERAL },
         });
         if (existing)

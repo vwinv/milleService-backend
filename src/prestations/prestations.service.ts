@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { StatutPrestation, TransactionType } from '../../generated/prisma/client.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { WalletsService } from '../wallets/wallets.service.js';
+import type { PayerPrestationDto } from './dto/payer-prestation.dto.js';
 
 @Injectable()
 export class PrestationsService {
@@ -301,7 +302,11 @@ export class PrestationsService {
    * Marquer une prestation comme payée (particulier). Statut -> PAYEE.
    * Le prestataire est notifié. (À appeler après intégration paiement.)
    */
-  async marquerPayee(particulierUserId: string, prestationId: string) {
+  async marquerPayee(
+    particulierUserId: string,
+    prestationId: string,
+    dto?: PayerPrestationDto,
+  ) {
     const particulier = await this.prisma.particulier.findUnique({
       where: { userId: particulierUserId },
       select: { id: true },
@@ -324,12 +329,18 @@ export class PrestationsService {
       throw new BadRequestException('Seule une prestation terminée peut être payée');
     }
 
+    const fromBody =
+      dto?.montant != null && !Number.isNaN(Number(dto.montant))
+        ? Number(dto.montant)
+        : null;
     const rawAmount =
-      prestation.budget != null
-        ? Number(prestation.budget)
-        : prestation.prestataireService?.tarifHoraire != null
-          ? Number(prestation.prestataireService.tarifHoraire)
-          : null;
+      fromBody != null && fromBody > 0
+        ? fromBody
+        : prestation.budget != null
+          ? Number(prestation.budget)
+          : prestation.prestataireService?.tarifHoraire != null
+            ? Number(prestation.prestataireService.tarifHoraire)
+            : null;
     if (rawAmount == null || Number.isNaN(rawAmount) || rawAmount <= 0) {
       throw new BadRequestException('Montant de la prestation introuvable');
     }
@@ -342,7 +353,12 @@ export class PrestationsService {
         data: { statut: StatutPrestation.PAYEE },
         include: {
           particulier: { select: { prenom: true, nom: true } },
-          prestataire: { select: { nom: true }, include: { user: { select: { id: true } } } },
+          prestataire: {
+            select: {
+              nom: true,
+              user: { select: { id: true } },
+            },
+          },
           prestataireService: { include: { service: true } },
         },
       });

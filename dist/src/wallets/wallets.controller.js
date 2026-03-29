@@ -66,7 +66,7 @@ let WalletsController = class WalletsController {
         };
     }
     async general(limit) {
-        const wallet = await this.prisma.wallet.findUnique({
+        const wallet = await this.prisma.wallet.findFirst({
             where: { type: client_js_1.WalletType.GENERAL },
         });
         const take = Math.min(Math.max(Number(limit ?? 50), 1), 200);
@@ -92,18 +92,27 @@ let WalletsController = class WalletsController {
         }
         const prestWallet = await this.prisma.wallet.findUnique({
             where: { prestataireId: prestataire.id },
-            select: { statutPrestataire: true },
+            select: { statutPrestataire: true, balance: true },
         });
-        if (prestWallet?.statutPrestataire === 'BLOQUE') {
+        if (!prestWallet) {
+            throw new common_1.BadRequestException('Wallet prestataire introuvable');
+        }
+        if (prestWallet.statutPrestataire === 'BLOQUE') {
             throw new common_1.BadRequestException('Votre wallet est gelé : les retraits ne sont pas autorisés pour le moment.');
+        }
+        const amount = Number(dto.amount);
+        if (Number.isNaN(amount) || amount <= 0) {
+            throw new common_1.BadRequestException('Montant invalide');
+        }
+        const balance = Number(prestWallet.balance);
+        if (amount > balance) {
+            throw new common_1.BadRequestException('Le montant demandé dépasse le solde disponible sur votre wallet.');
         }
         const req = await this.prisma.withdrawalRequest.create({
             data: {
                 prestataireId: prestataire.id,
                 method: dto.method,
-                meta: dto.amount != null && !Number.isNaN(dto.amount) && dto.amount >= 0
-                    ? { amount: dto.amount }
-                    : undefined,
+                meta: { amount },
             },
         });
         return {

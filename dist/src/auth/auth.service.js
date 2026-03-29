@@ -51,31 +51,50 @@ const prisma_service_js_1 = require("../prisma/prisma.service.js");
 const client_js_1 = require("../../generated/prisma/client.js");
 const geocoding_service_js_1 = require("../geocoding/geocoding.service.js");
 const abonnements_service_js_1 = require("../abonnements/abonnements.service.js");
+const wallets_service_js_1 = require("../wallets/wallets.service.js");
 let AuthService = AuthService_1 = class AuthService {
     prisma;
     jwtService;
     geocodingService;
     abonnementsService;
+    walletsService;
     logger = new common_1.Logger(AuthService_1.name);
-    constructor(prisma, jwtService, geocodingService, abonnementsService) {
+    constructor(prisma, jwtService, geocodingService, abonnementsService, walletsService) {
         this.prisma = prisma;
         this.jwtService = jwtService;
         this.geocodingService = geocodingService;
         this.abonnementsService = abonnementsService;
+        this.walletsService = walletsService;
+    }
+    assertPrestataireMayAuthenticate(user) {
+        if (user.role !== client_js_1.Role.PRESTATAIRE || !user.prestataire)
+            return;
+        const p = user.prestataire;
+        if (!p.actif &&
+            p.statutVerification === client_js_1.StatutVerificationPrestataire.VERIFIE) {
+            throw new common_1.UnauthorizedException('Votre compte a été désactivé. Veuillez contacter notre équipe pour la réactivation.');
+        }
     }
     async register(dto) {
         try {
-            const existing = await this.prisma.user.findUnique({
-                where: { email: dto.email.toLowerCase() },
-            });
-            if (existing) {
-                throw new common_1.ConflictException('Un compte existe déjà avec cet email');
+            const rawEmail = dto.email?.trim();
+            const providedEmail = rawEmail && rawEmail.length > 0 ? rawEmail.toLowerCase() : null;
+            if (providedEmail) {
+                const existing = await this.prisma.user.findUnique({
+                    where: { email: providedEmail },
+                });
+                if (existing) {
+                    throw new common_1.ConflictException('Un compte existe déjà avec cet email');
+                }
             }
             const passwordHash = await bcrypt.hash(dto.password, 10);
             const role = dto.role;
             if (role === client_js_1.Role.PARTICULIER) {
                 if (!dto.nom || !dto.prenom) {
                     throw new common_1.ConflictException('Nom et prénom requis pour un particulier');
+                }
+                if (!providedEmail) {
+                    throw new common_1.ConflictException('Email requis pour un particulier');
                 }
                 let lat = dto.latitude != null ? dto.latitude : null;
                 let lng = dto.longitude != null ? dto.longitude : null;
@@ -93,7 +112,7 @@ let AuthService = AuthService_1 = class AuthService {
                 }
                 const user = await this.prisma.user.create({
                     data: {
-                        email: dto.email.toLowerCase(),
+                        email: providedEmail,
                         passwordHash,
                         role: client_js_1.Role.PARTICULIER,
                         emailVerified: true,
@@ -126,6 +145,11 @@ let AuthService = AuthService_1 = class AuthService {
                 if (!dto.name) {
                     throw new common_1.ConflictException('Nom requis pour un prestataire');
                 }
+                if (!dto.telephone || dto.telephone.trim().length === 0) {
+                    throw new common_1.ConflictException('Telephone requis pour un prestataire');
+                }
+                const emailForPrestataire = providedEmail
+                    ?? await this.buildGeneratedEmailFromPhone(dto.telephone);
                 let lat = dto.latitude != null ? dto.latitude : null;
                 let lng = dto.longitude != null ? dto.longitude : null;
                 const adressePrestataire = dto.adresse?.trim();
@@ -142,7 +166,7 @@ let AuthService = AuthService_1 = class AuthService {
                 }
                 const user = await this.prisma.user.create({
                     data: {
-                        email: dto.email.toLowerCase(),
+                        email: emailForPrestataire,
                         passwordHash,
                         role: client_js_1.Role.PRESTATAIRE,
                     },
@@ -157,8 +181,10 @@ let AuthService = AuthService_1 = class AuthService {
                         zoneIntervention: dto.zoneIntervention ?? [],
                         latitude: lat,
                         longitude: lng,
+                        actif: false,
                     },
                 });
+                await this.walletsService.ensurePrestataireWallet(prestataire.id);
                 const serviceIds = dto.serviceIds?.filter((id) => typeof id === 'string' && id.trim().length > 0) ?? [];
                 if (serviceIds.length > 0) {
                     await Promise.all(serviceIds.map((serviceId) => this.prisma.prestataireService.upsert({
@@ -230,16 +256,31 @@ let AuthService = AuthService_1 = class AuthService {
         }
     }
     async login(dto) {
-        const user = await this.prisma.user.findUnique({
-            where: { email: dto.email.toLowerCase() },
-            include: { particulier: true, prestataire: true },
-        });
+        const telephone = dto.telephone?.trim();
+        const email = dto.email?.trim().toLowerCase();
+        if (!telephone && !email) {
+            throw new common_1.UnauthorizedException('Identifiants manquants');
+        }
+        const user = email
+            ? await this.prisma.user.findUnique({
+                where: { email },
+                include: { particulier: true, prestataire: true },
+            })
+            : await this.prisma.user.findFirst({
+                where: {
+                    OR: [
+                        { particulier: { is: { telephone } } },
+                        { prestataire: { is: { telephone } } },
+                    ],
+                },
+                include: { particulier: true, prestataire: true },
+            });
         if (!user) {
-            throw new common_1.UnauthorizedException('Email ou mot de passe incorrect');
+            throw new common_1.UnauthorizedException('Identifiant ou mot de passe incorrect');
         }
         const ok = await bcrypt.compare(dto.password, user.passwordHash);
         if (!ok) {
-            throw new common_1.UnauthorizedException('Email ou mot de passe incorrect');
+            throw new common_1.UnauthorizedException('Identifiant ou mot de passe incorrect');
         }
         if (dto.role && user.role !== dto.role) {
             if (dto.role === client_js_1.Role.PRESTATAIRE) {
@@ -250,9 +291,7 @@ let AuthService = AuthService_1 = class AuthService {
             }
             throw new common_1.UnauthorizedException('Rôle de connexion invalide pour ce compte.');
         }
-        if (user.role === client_js_1.Role.PRESTATAIRE && user.prestataire && user.prestataire.actif === false) {
-            throw new common_1.UnauthorizedException('Votre compte a été désactivé. Veuillez contacter notre équipe pour la réactivation.');
-        }
+        this.assertPrestataireMayAuthenticate(user);
         if (user.role === client_js_1.Role.PARTICULIER &&
             user.particulier &&
             user.particulier.statut === client_js_1.ParticulierStatut.INACTIF) {
@@ -294,6 +333,7 @@ let AuthService = AuthService_1 = class AuthService {
                 user.particulier.statut === client_js_1.ParticulierStatut.INACTIF) {
                 throw new common_1.UnauthorizedException('Ce compte a été désactivé. Pour toute question, contactez le support.');
             }
+            this.assertPrestataireMayAuthenticate(user);
             const access_token = this.jwtService.sign({ sub: user.id, email: user.email, role: user.role }, { expiresIn: '24h' });
             const new_refresh_token = this.jwtService.sign({ sub: user.id, type: 'refresh' }, { expiresIn: '7d' });
             let abonnement = null;
@@ -409,6 +449,10 @@ let AuthService = AuthService_1 = class AuthService {
         if (lng != null) {
             data.longitude = lng;
         }
+        if (dto.avatarUrl !== undefined) {
+            const raw = (dto.avatarUrl ?? '').trim();
+            data.avatarUrl = raw.length > 0 ? raw : null;
+        }
         if (Object.keys(data).length === 0) {
             throw new common_1.BadRequestException('Aucune donnée à mettre à jour');
         }
@@ -424,6 +468,7 @@ let AuthService = AuthService_1 = class AuthService {
                 prenom: updated.prenom,
                 telephone: updated.telephone,
                 adresse: updated.adresse,
+                avatarUrl: updated.avatarUrl,
                 latitude: updated.latitude != null ? this.toNumber(updated.latitude) : null,
                 longitude: updated.longitude != null ? this.toNumber(updated.longitude) : null,
             },
@@ -470,15 +515,16 @@ let AuthService = AuthService_1 = class AuthService {
                     zoneIntervention: [],
                     latitude: lat,
                     longitude: lng,
-                    actif: true,
+                    actif: false,
                 },
             });
         }
-        else if (existingPrest.actif === false) {
-            await this.prisma.prestataire.update({
-                where: { id: existingPrest.id },
-                data: { actif: true },
-            });
+        const prestProfile = await this.prisma.prestataire.findUnique({
+            where: { userId: user.id },
+            select: { id: true },
+        });
+        if (prestProfile) {
+            await this.walletsService.ensurePrestataireWallet(prestProfile.id);
         }
         await this.prisma.user.update({
             where: { id: user.id },
@@ -579,6 +625,23 @@ let AuthService = AuthService_1 = class AuthService {
         const n = Number(value);
         return Number.isNaN(n) ? null : n;
     }
+    async buildGeneratedEmailFromPhone(telephone) {
+        const digits = telephone.replace(/\D/g, '');
+        const seed = digits.length > 0 ? digits : Date.now().toString();
+        let candidate = `prestataire-${seed}@noemail.milleservices.local`;
+        let index = 1;
+        while (true) {
+            const existing = await this.prisma.user.findUnique({
+                where: { email: candidate },
+                select: { id: true },
+            });
+            if (!existing) {
+                return candidate;
+            }
+            candidate = `prestataire-${seed}-${index}@noemail.milleservices.local`;
+            index += 1;
+        }
+    }
     sanitizeUser(user) {
         const mapProfile = (p) => {
             if (!p)
@@ -608,6 +671,7 @@ exports.AuthService = AuthService = AuthService_1 = __decorate([
     __metadata("design:paramtypes", [prisma_service_js_1.PrismaService,
         jwt_1.JwtService,
         geocoding_service_js_1.GeocodingService,
-        abonnements_service_js_1.AbonnementsService])
+        abonnements_service_js_1.AbonnementsService,
+        wallets_service_js_1.WalletsService])
 ], AuthService);
 //# sourceMappingURL=auth.service.js.map

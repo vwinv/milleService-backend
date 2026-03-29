@@ -45,6 +45,26 @@ function withdrawalMethodLabel(method) {
             return method;
     }
 }
+function statutPrestationLabelFr(statut) {
+    switch (statut) {
+        case client_js_1.StatutPrestation.EN_ATTENTE:
+            return 'En attente';
+        case client_js_1.StatutPrestation.ACCEPTEE:
+            return 'Acceptée';
+        case client_js_1.StatutPrestation.REFUSEE:
+            return 'Refusée';
+        case client_js_1.StatutPrestation.EN_COURS:
+            return 'En cours';
+        case client_js_1.StatutPrestation.TERMINEE:
+            return 'Terminée';
+        case client_js_1.StatutPrestation.ANNULEE:
+            return 'Annulée';
+        case client_js_1.StatutPrestation.PAYEE:
+            return 'Payée';
+        default:
+            return statut;
+    }
+}
 function isParticulierStatutMissingError(err) {
     if (!(err instanceof client_js_1.Prisma.PrismaClientKnownRequestError))
         return false;
@@ -108,7 +128,7 @@ let AdminController = AdminController_1 = class AdminController {
                 this.prisma.particulier.count({ where: { statut: client_js_1.ParticulierStatut.ACTIF } }),
                 this.prisma.prestataire.count({ where: { actif: true } }),
                 this.prisma.service.count(),
-                this.prisma.wallet.findUnique({
+                this.prisma.wallet.findFirst({
                     where: { type: client_js_1.WalletType.GENERAL },
                     select: { balance: true },
                 }),
@@ -130,7 +150,7 @@ let AdminController = AdminController_1 = class AdminController {
                 }),
                 this.prisma.prestataire.count({ where: { actif: true } }),
                 this.prisma.service.count(),
-                this.prisma.wallet.findUnique({
+                this.prisma.wallet.findFirst({
                     where: { type: client_js_1.WalletType.GENERAL },
                     select: { balance: true },
                 }),
@@ -159,12 +179,14 @@ let AdminController = AdminController_1 = class AdminController {
             select: { id: true },
         });
         const sent = users.length;
+        this.logger.log(`[FCM trace] admin POST notifications/general audience=${audience} destinataires=${sent} title="${title.slice(0, 80)}"`);
         await Promise.all(users.map((u) => this.notifications.sendToUser(u.id, {
             title,
             body: body.body ?? undefined,
             type: body.type ?? undefined,
             data: body.data,
         })));
+        this.logger.log(`[FCM trace] admin notifications/general terminé (sendToUser × ${sent})`);
         return { ok: true, sent };
     }
     async createTargetedNotification(body) {
@@ -174,12 +196,14 @@ let AdminController = AdminController_1 = class AdminController {
             throw new common_1.BadRequestException('userId requis');
         if (!title)
             throw new common_1.BadRequestException('title requis');
+        this.logger.log(`[FCM trace] admin POST notifications/targeted userId=${userId} title="${title.slice(0, 80)}"`);
         await this.notifications.sendToUser(userId, {
             title,
             body: body.body ?? undefined,
             type: body.type ?? undefined,
             data: body.data,
         });
+        this.logger.log(`[FCM trace] admin notifications/targeted terminé userId=${userId}`);
         return { ok: true };
     }
     async listAdminNotifications(limit, offset, audience, unreadOnly, type, search) {
@@ -306,7 +330,7 @@ let AdminController = AdminController_1 = class AdminController {
     }
     async getWalletSummary() {
         const [generalRow, prestataireAgg] = await Promise.all([
-            this.prisma.wallet.findUnique({
+            this.prisma.wallet.findFirst({
                 where: { type: client_js_1.WalletType.GENERAL },
                 select: { balance: true },
             }),
@@ -433,16 +457,16 @@ let AdminController = AdminController_1 = class AdminController {
     }
     async getTransactions(limit) {
         const take = Math.min(Math.max(Number(limit ?? 20), 1), 100);
-        const generalWallet = await this.prisma.wallet.findUnique({
+        const generalWallet = await this.prisma.wallet.findFirst({
             where: { type: client_js_1.WalletType.GENERAL },
             select: { id: true },
         });
-        const [paymentRows, withdrawalRows] = await Promise.all([
+        const [walletRows, withdrawalRows] = await Promise.all([
             generalWallet
                 ? this.prisma.walletTransaction.findMany({
                     where: {
                         walletId: generalWallet.id,
-                        type: client_js_1.TransactionType.PRESTATION,
+                        type: { in: [client_js_1.TransactionType.PRESTATION, client_js_1.TransactionType.ABONNEMENT] },
                     },
                     take,
                     orderBy: { createdAt: 'desc' },
@@ -452,6 +476,12 @@ let AdminController = AdminController_1 = class AdminController {
                                 prestataire: { select: { nom: true } },
                             },
                         },
+                        abonnement: {
+                            select: {
+                                prestataire: { select: { nom: true } },
+                            },
+                        },
+                        offre: { select: { libelle: true } },
                     },
                 })
                 : Promise.resolve([]),
@@ -463,15 +493,33 @@ let AdminController = AdminController_1 = class AdminController {
                 },
             }),
         ]);
-        const payments = paymentRows.map((row) => ({
-            id: row.id,
-            date: row.createdAt,
-            prestataireNom: row.prestation?.prestataire?.nom ?? 'Prestataire',
-            montant: Number(row.amount),
-            wallet: 'Wallet Général',
-            statut: 'Depot',
-            category: 'PAIEMENT_PRESTATION',
-        }));
+        const walletTxs = walletRows.map((row) => {
+            if (row.type === client_js_1.TransactionType.ABONNEMENT) {
+                const nom = row.abonnement?.prestataire?.nom ?? 'Prestataire';
+                const offreLib = row.offre?.libelle?.trim();
+                const prestataireNom = offreLib
+                    ? `${nom} — Abonnement (${offreLib})`
+                    : `${nom} — Abonnement`;
+                return {
+                    id: row.id,
+                    date: row.createdAt,
+                    prestataireNom,
+                    montant: Number(row.amount),
+                    wallet: 'Wallet Général',
+                    statut: 'Depot',
+                    category: 'PAIEMENT_ABONNEMENT',
+                };
+            }
+            return {
+                id: row.id,
+                date: row.createdAt,
+                prestataireNom: row.prestation?.prestataire?.nom ?? 'Prestataire',
+                montant: Number(row.amount),
+                wallet: 'Wallet Général',
+                statut: 'Depot',
+                category: 'PAIEMENT_PRESTATION',
+            };
+        });
         const withdrawals = withdrawalRows.map((row) => ({
             id: row.id,
             date: row.createdAt,
@@ -491,7 +539,7 @@ let AdminController = AdminController_1 = class AdminController {
                     : 'En attente',
             category: 'RETRAIT_PRESTATAIRE',
         }));
-        return [...payments, ...withdrawals]
+        return [...walletTxs, ...withdrawals]
             .sort((a, b) => b.date.getTime() - a.date.getTime())
             .slice(0, take);
     }
@@ -1154,6 +1202,99 @@ let AdminController = AdminController_1 = class AdminController {
             statutVerification: client_js_1.StatutVerificationPrestataire.REFUSE,
         };
     }
+    async getDemandesMilleServices(limit, offset, statutFilter) {
+        const take = Math.min(Math.max(Number(limit ?? 20), 1), 100);
+        const skip = Math.max(Number(offset ?? 0), 0);
+        const allowed = new Set(Object.values(client_js_1.StatutPrestation));
+        const listWhere = statutFilter && allowed.has(statutFilter)
+            ? { statut: statutFilter }
+            : {};
+        const [total, enAttente, acceptee, enCours, terminee, payee, refusee, annulee, filteredTotal, rows,] = await Promise.all([
+            this.prisma.prestation.count(),
+            this.prisma.prestation.count({
+                where: { statut: client_js_1.StatutPrestation.EN_ATTENTE },
+            }),
+            this.prisma.prestation.count({
+                where: { statut: client_js_1.StatutPrestation.ACCEPTEE },
+            }),
+            this.prisma.prestation.count({
+                where: { statut: client_js_1.StatutPrestation.EN_COURS },
+            }),
+            this.prisma.prestation.count({
+                where: { statut: client_js_1.StatutPrestation.TERMINEE },
+            }),
+            this.prisma.prestation.count({
+                where: { statut: client_js_1.StatutPrestation.PAYEE },
+            }),
+            this.prisma.prestation.count({
+                where: { statut: client_js_1.StatutPrestation.REFUSEE },
+            }),
+            this.prisma.prestation.count({
+                where: { statut: client_js_1.StatutPrestation.ANNULEE },
+            }),
+            this.prisma.prestation.count({ where: listWhere }),
+            this.prisma.prestation.findMany({
+                where: listWhere,
+                take,
+                skip,
+                orderBy: { createdAt: 'desc' },
+                select: {
+                    id: true,
+                    statut: true,
+                    typeDeTache: true,
+                    description: true,
+                    budget: true,
+                    adresse: true,
+                    createdAt: true,
+                    updatedAt: true,
+                    particulier: {
+                        select: { id: true, nom: true, prenom: true, telephone: true },
+                    },
+                    prestataire: { select: { id: true, nom: true, telephone: true } },
+                    prestataireService: {
+                        select: {
+                            service: { select: { libelle: true, slug: true } },
+                        },
+                    },
+                },
+            }),
+        ]);
+        return {
+            stats: {
+                total,
+                enAttente,
+                acceptee,
+                enCours,
+                terminee,
+                payee,
+                refusee,
+                annulee,
+            },
+            total: filteredTotal,
+            items: rows.map((r) => ({
+                id: r.id,
+                statut: r.statut,
+                statutLabel: statutPrestationLabelFr(r.statut),
+                typeDeTache: r.typeDeTache ?? null,
+                description: r.description ?? null,
+                budget: r.budget != null ? Number(r.budget) : null,
+                adresse: r.adresse ?? null,
+                createdAt: r.createdAt.toISOString(),
+                updatedAt: r.updatedAt.toISOString(),
+                serviceLibelle: r.prestataireService?.service?.libelle ?? null,
+                particulier: {
+                    id: r.particulier.id,
+                    nomComplet: `${r.particulier.prenom} ${r.particulier.nom}`.trim(),
+                    telephone: r.particulier.telephone ?? null,
+                },
+                prestataire: {
+                    id: r.prestataire.id,
+                    nom: r.prestataire.nom,
+                    telephone: r.prestataire.telephone ?? null,
+                },
+            })),
+        };
+    }
     async getServicesForAdmin() {
         const rows = await this.prisma.service.findMany({
             orderBy: { libelle: 'asc' },
@@ -1332,6 +1473,176 @@ let AdminController = AdminController_1 = class AdminController {
         await this.prisma.service.delete({ where: { id: serviceId } });
         return { ok: true, id: serviceId };
     }
+    async getOffresForAdmin() {
+        const rows = await this.prisma.offre.findMany({
+            orderBy: [{ ordre: 'asc' }, { createdAt: 'desc' }],
+            select: {
+                id: true,
+                code: true,
+                libelle: true,
+                description: true,
+                prix: true,
+                dureeMois: true,
+                actif: true,
+                ordre: true,
+                createdAt: true,
+            },
+        });
+        return {
+            items: rows.map((o) => ({
+                id: o.id,
+                code: o.code,
+                libelle: o.libelle,
+                description: o.description ?? '',
+                prix: Number(o.prix),
+                dureeMois: o.dureeMois,
+                actif: o.actif,
+                ordre: o.ordre,
+                createdAt: o.createdAt.toISOString(),
+            })),
+        };
+    }
+    async createOffre(body) {
+        const libelle = (body?.libelle ?? '').trim();
+        if (!libelle)
+            throw new common_1.BadRequestException('Libellé requis');
+        const prix = Number(body?.prix);
+        if (!Number.isFinite(prix) || prix < 0) {
+            throw new common_1.BadRequestException('Prix invalide');
+        }
+        const dureeMois = Number(body?.dureeMois);
+        if (!Number.isInteger(dureeMois) || dureeMois <= 0) {
+            throw new common_1.BadRequestException('Durée (mois) invalide');
+        }
+        const ordreRaw = body?.ordre;
+        const ordre = ordreRaw == null ? 0 : Number.isFinite(Number(ordreRaw)) ? Number(ordreRaw) : 0;
+        const rawCode = (body?.code ?? '').trim();
+        const baseCode = rawCode || this.slugifyServiceLabel(libelle);
+        const code = await this.ensureUniqueOffreCode(baseCode);
+        const created = await this.prisma.offre.create({
+            data: {
+                code,
+                libelle,
+                description: body?.description?.trim() || null,
+                prix,
+                dureeMois,
+                ordre,
+                actif: true,
+            },
+            select: {
+                id: true,
+                code: true,
+                libelle: true,
+                description: true,
+                prix: true,
+                dureeMois: true,
+                actif: true,
+                ordre: true,
+                createdAt: true,
+            },
+        });
+        return {
+            id: created.id,
+            code: created.code,
+            libelle: created.libelle,
+            description: created.description ?? '',
+            prix: Number(created.prix),
+            dureeMois: created.dureeMois,
+            actif: created.actif,
+            ordre: created.ordre,
+            createdAt: created.createdAt.toISOString(),
+        };
+    }
+    async updateOffre(offreId, body) {
+        const existing = await this.prisma.offre.findUnique({
+            where: { id: offreId },
+            select: { id: true, code: true, libelle: true, description: true, prix: true, dureeMois: true, ordre: true, actif: true },
+        });
+        if (!existing)
+            throw new common_1.BadRequestException('Offre introuvable');
+        const data = {};
+        if (typeof body?.actif === 'boolean')
+            data.actif = body.actif;
+        if (body.code !== undefined) {
+            const rawCode = body.code.trim();
+            const base = rawCode || this.slugifyServiceLabel(body.libelle?.trim() || existing.libelle);
+            data.code = await this.ensureUniqueOffreCode(base, existing.id);
+        }
+        if (body.libelle !== undefined) {
+            const libelle = body.libelle.trim();
+            if (!libelle)
+                throw new common_1.BadRequestException('Libellé requis');
+            data.libelle = libelle;
+            if (body.code === undefined) {
+                data.code = await this.ensureUniqueOffreCode(this.slugifyServiceLabel(libelle), existing.id);
+            }
+        }
+        if (body.description !== undefined) {
+            data.description = body.description.trim() || null;
+        }
+        if (body.prix !== undefined) {
+            const prix = Number(body.prix);
+            if (!Number.isFinite(prix) || prix < 0)
+                throw new common_1.BadRequestException('Prix invalide');
+            data.prix = prix;
+        }
+        if (body.dureeMois !== undefined) {
+            const dureeMois = Number(body.dureeMois);
+            if (!Number.isInteger(dureeMois) || dureeMois <= 0) {
+                throw new common_1.BadRequestException('Durée (mois) invalide');
+            }
+            data.dureeMois = dureeMois;
+        }
+        if (body.ordre !== undefined) {
+            const ordre = Number(body.ordre);
+            if (!Number.isFinite(ordre))
+                throw new common_1.BadRequestException('Ordre invalide');
+            data.ordre = ordre;
+        }
+        if (Object.keys(data).length === 0) {
+            throw new common_1.BadRequestException('Aucune modification');
+        }
+        const updated = await this.prisma.offre.update({
+            where: { id: offreId },
+            data,
+            select: {
+                id: true,
+                code: true,
+                libelle: true,
+                description: true,
+                prix: true,
+                dureeMois: true,
+                actif: true,
+                ordre: true,
+                createdAt: true,
+            },
+        });
+        return {
+            id: updated.id,
+            code: updated.code,
+            libelle: updated.libelle,
+            description: updated.description ?? '',
+            prix: Number(updated.prix),
+            dureeMois: updated.dureeMois,
+            actif: updated.actif,
+            ordre: updated.ordre,
+            createdAt: updated.createdAt.toISOString(),
+        };
+    }
+    async ensureUniqueOffreCode(base, excludeOffreId) {
+        let code = base;
+        let n = 0;
+        while (true) {
+            const row = await this.prisma.offre.findUnique({
+                where: { code },
+                select: { id: true },
+            });
+            if (!row || row.id === excludeOffreId)
+                return code;
+            n += 1;
+            code = `${base}-${n}`;
+        }
+    }
 };
 exports.AdminController = AdminController;
 __decorate([
@@ -1507,6 +1818,15 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], AdminController.prototype, "rejectPrestataireDocument", null);
 __decorate([
+    (0, common_1.Get)('demandes-mille-services'),
+    __param(0, (0, common_1.Query)('limit')),
+    __param(1, (0, common_1.Query)('offset')),
+    __param(2, (0, common_1.Query)('statut')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, String]),
+    __metadata("design:returntype", Promise)
+], AdminController.prototype, "getDemandesMilleServices", null);
+__decorate([
     (0, common_1.Get)('services'),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
@@ -1541,6 +1861,27 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], AdminController.prototype, "deleteService", null);
+__decorate([
+    (0, common_1.Get)('offres'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], AdminController.prototype, "getOffresForAdmin", null);
+__decorate([
+    (0, common_1.Post)('offres'),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], AdminController.prototype, "createOffre", null);
+__decorate([
+    (0, common_1.Patch)('offres/:offreId'),
+    __param(0, (0, common_1.Param)('offreId')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], AdminController.prototype, "updateOffre", null);
 exports.AdminController = AdminController = AdminController_1 = __decorate([
     (0, common_1.Controller)('admin'),
     (0, common_1.UseGuards)(jwt_auth_guard_js_1.JwtAuthGuard, roles_guard_js_1.RolesGuard),

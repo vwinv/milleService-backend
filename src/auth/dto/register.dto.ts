@@ -7,6 +7,7 @@ import {
   MinLength,
   IsArray,
   ValidateNested,
+  ValidateIf,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -24,8 +25,10 @@ export class RegisterDocumentDto {
 }
 
 export class RegisterDto {
+  @IsOptional()
+  @ValidateIf((o) => o.email != null && `${o.email}`.trim().length > 0)
   @IsEmail()
-  email: string;
+  email?: string;
 
   @IsString()
   @MinLength(8, { message: 'Le mot de passe doit contenir au moins 8 caractères' })

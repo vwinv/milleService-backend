@@ -7,6 +7,7 @@ export interface SendNotificationPayload {
 }
 export declare class NotificationsService {
     private readonly prisma;
+    private readonly logger;
     constructor(prisma: PrismaService);
     sendToUser(userId: string, payload: SendNotificationPayload): Promise<void>;
     private sendPush;

@@ -21,8 +21,11 @@ let CloudinaryService = class CloudinaryService {
             api_secret: process.env.CLOUDINARY_API_SECRET,
         });
     }
-    async uploadDocument(buffer, originalName) {
-        const isPdf = /\.pdf$/i.test(originalName);
+    async uploadDocument(buffer, originalName, mimetype) {
+        const mt = (mimetype ?? '').toLowerCase();
+        const isPdf = /\.pdf$/i.test(originalName) ||
+            mt === 'application/pdf' ||
+            mt === 'application/x-pdf';
         const resourceType = isPdf ? 'raw' : 'image';
         return new Promise((resolve, reject) => {
             const uploadStream = cloudinary_1.v2.uploader.upload_stream({

@@ -10,22 +10,25 @@ export declare class PrestatairesService {
     private readonly notifications;
     constructor(prisma: PrismaService, geocodingService: GeocodingService, notifications: NotificationsService);
     getPrestatairesFavoris(userId: string, lat?: number, lng?: number): Promise<{
-        id: any;
-        nom: any;
-        adresse: any;
-        telephone: any;
-        bio: any;
-        avatarUrl: any;
-        zoneIntervention: any;
-        statutVerification: any;
-        noteMoyenne: number;
-        noteSur: number;
-        nbAvis: number;
-        distanceMetres: number;
-        latitude: number | null;
-        longitude: number | null;
-        services: any;
-    }[]>;
+        listeProximite: boolean;
+        prestataires: {
+            id: any;
+            nom: any;
+            adresse: any;
+            telephone: any;
+            bio: any;
+            avatarUrl: any;
+            zoneIntervention: any;
+            statutVerification: any;
+            noteMoyenne: number;
+            noteSur: number;
+            nbAvis: number;
+            distanceMetres: number;
+            latitude: number | null;
+            longitude: number | null;
+            services: any;
+        }[];
+    }>;
     createOrUpdateAvis(userId: string, prestataireId: string, note: number, commentaire?: string): Promise<{
         id: string;
         createdAt: Date;
@@ -74,6 +77,7 @@ export declare class PrestatairesService {
         id: string;
         statutVerification: StatutVerificationPrestataire;
     }>;
+    private ensureTypeDocumentsExist;
     getMyVerificationStatus(userId: string): Promise<{
         statutVerification: StatutVerificationPrestataire;
         documents: {
@@ -146,6 +150,9 @@ export declare class PrestatairesService {
         id: string;
         nom: string;
         telephone: string | null;
+        adresse: string | null;
+        bio: string | null;
+        avatarUrl: string | null;
         latitude: number | null;
         longitude: number | null;
     }>;

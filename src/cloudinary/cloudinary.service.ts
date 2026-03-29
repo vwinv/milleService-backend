@@ -28,8 +28,13 @@ export class CloudinaryService {
   async uploadDocument(
     buffer: Buffer,
     originalName: string,
+    mimetype?: string,
   ): Promise<UploadResult> {
-    const isPdf = /\.pdf$/i.test(originalName);
+    const mt = (mimetype ?? '').toLowerCase();
+    const isPdf =
+      /\.pdf$/i.test(originalName) ||
+      mt === 'application/pdf' ||
+      mt === 'application/x-pdf';
     const resourceType = isPdf ? 'raw' : 'image';
 
     return new Promise((resolve, reject) => {

@@ -54,6 +54,27 @@ function withdrawalMethodLabel(method: WithdrawalMethod): string {
   }
 }
 
+function statutPrestationLabelFr(statut: StatutPrestation): string {
+  switch (statut) {
+    case StatutPrestation.EN_ATTENTE:
+      return 'En attente';
+    case StatutPrestation.ACCEPTEE:
+      return 'Acceptée';
+    case StatutPrestation.REFUSEE:
+      return 'Refusée';
+    case StatutPrestation.EN_COURS:
+      return 'En cours';
+    case StatutPrestation.TERMINEE:
+      return 'Terminée';
+    case StatutPrestation.ANNULEE:
+      return 'Annulée';
+    case StatutPrestation.PAYEE:
+      return 'Payée';
+    default:
+      return statut;
+  }
+}
+
 /** Base sans migration `particuliers.statut` (P2022 ou message colonne statut). */
 function isParticulierStatutMissingError(err: unknown): boolean {
   if (!(err instanceof Prisma.PrismaClientKnownRequestError)) return false;
@@ -131,7 +152,7 @@ export class AdminController {
           this.prisma.particulier.count({ where: { statut: ParticulierStatut.ACTIF } }),
           this.prisma.prestataire.count({ where: { actif: true } }),
           this.prisma.service.count(),
-          this.prisma.wallet.findUnique({
+          this.prisma.wallet.findFirst({
             where: { type: WalletType.GENERAL },
             select: { balance: true },
           }),
@@ -155,7 +176,7 @@ export class AdminController {
           }),
           this.prisma.prestataire.count({ where: { actif: true } }),
           this.prisma.service.count(),
-          this.prisma.wallet.findUnique({
+          this.prisma.wallet.findFirst({
             where: { type: WalletType.GENERAL },
             select: { balance: true },
           }),
@@ -204,6 +225,9 @@ export class AdminController {
     });
 
     const sent = users.length;
+    this.logger.log(
+      `[FCM trace] admin POST notifications/general audience=${audience} destinataires=${sent} title="${title.slice(0, 80)}"`,
+    );
     await Promise.all(
       users.map((u) =>
         this.notifications.sendToUser(u.id, {
@@ -215,6 +239,9 @@ export class AdminController {
       ),
     );
 
+    this.logger.log(
+      `[FCM trace] admin notifications/general terminé (sendToUser × ${sent})`,
+    );
     return { ok: true, sent };
   }
 
@@ -234,6 +261,9 @@ export class AdminController {
     if (!userId) throw new BadRequestException('userId requis');
     if (!title) throw new BadRequestException('title requis');
 
+    this.logger.log(
+      `[FCM trace] admin POST notifications/targeted userId=${userId} title="${title.slice(0, 80)}"`,
+    );
     await this.notifications.sendToUser(userId, {
       title,
       body: body.body ?? undefined,
@@ -241,6 +271,9 @@ export class AdminController {
       data: body.data,
     });
 
+    this.logger.log(
+      `[FCM trace] admin notifications/targeted terminé userId=${userId}`,
+    );
     return { ok: true };
   }
 
@@ -414,7 +447,7 @@ export class AdminController {
   @Get('wallet/summary')
   async getWalletSummary() {
     const [generalRow, prestataireAgg] = await Promise.all([
-      this.prisma.wallet.findUnique({
+      this.prisma.wallet.findFirst({
         where: { type: WalletType.GENERAL },
         select: { balance: true },
       }),
@@ -564,23 +597,24 @@ export class AdminController {
   /**
    * Liste mixte des transactions dashboard:
    * - paiements de prestations (wallet général)
+   * - paiements d'abonnements prestataires (wallet général)
    * - retraits des prestataires (demandes de retrait)
    */
   @Get('transactions')
   async getTransactions(@Query('limit') limit?: string) {
     const take = Math.min(Math.max(Number(limit ?? 20), 1), 100);
 
-    const generalWallet = await this.prisma.wallet.findUnique({
+    const generalWallet = await this.prisma.wallet.findFirst({
       where: { type: WalletType.GENERAL },
       select: { id: true },
     });
 
-    const [paymentRows, withdrawalRows] = await Promise.all([
+    const [walletRows, withdrawalRows] = await Promise.all([
       generalWallet
         ? this.prisma.walletTransaction.findMany({
             where: {
               walletId: generalWallet.id,
-              type: TransactionType.PRESTATION,
+              type: { in: [TransactionType.PRESTATION, TransactionType.ABONNEMENT] },
             },
             take,
             orderBy: { createdAt: 'desc' },
@@ -590,6 +624,12 @@ export class AdminController {
                   prestataire: { select: { nom: true } },
                 },
               },
+              abonnement: {
+                select: {
+                  prestataire: { select: { nom: true } },
+                },
+              },
+              offre: { select: { libelle: true } },
             },
           })
         : Promise.resolve([]),
@@ -602,15 +642,33 @@ export class AdminController {
       }),
     ]);
 
-    const payments = paymentRows.map((row) => ({
-      id: row.id,
-      date: row.createdAt,
-      prestataireNom: row.prestation?.prestataire?.nom ?? 'Prestataire',
-      montant: Number(row.amount),
-      wallet: 'Wallet Général',
-      statut: 'Depot',
-      category: 'PAIEMENT_PRESTATION' as const,
-    }));
+    const walletTxs = walletRows.map((row) => {
+      if (row.type === TransactionType.ABONNEMENT) {
+        const nom = row.abonnement?.prestataire?.nom ?? 'Prestataire';
+        const offreLib = row.offre?.libelle?.trim();
+        const prestataireNom = offreLib
+          ? `${nom} — Abonnement (${offreLib})`
+          : `${nom} — Abonnement`;
+        return {
+          id: row.id,
+          date: row.createdAt,
+          prestataireNom,
+          montant: Number(row.amount),
+          wallet: 'Wallet Général',
+          statut: 'Depot',
+          category: 'PAIEMENT_ABONNEMENT' as const,
+        };
+      }
+      return {
+        id: row.id,
+        date: row.createdAt,
+        prestataireNom: row.prestation?.prestataire?.nom ?? 'Prestataire',
+        montant: Number(row.amount),
+        wallet: 'Wallet Général',
+        statut: 'Depot',
+        category: 'PAIEMENT_PRESTATION' as const,
+      };
+    });
 
     const withdrawals = withdrawalRows.map((row) => ({
       id: row.id,
@@ -634,7 +692,7 @@ export class AdminController {
       category: 'RETRAIT_PRESTATAIRE' as const,
     }));
 
-    return [...payments, ...withdrawals]
+    return [...walletTxs, ...withdrawals]
       .sort((a, b) => b.date.getTime() - a.date.getTime())
       .slice(0, take);
   }
@@ -1456,6 +1514,125 @@ export class AdminController {
     };
   }
 
+  /**
+   * Demandes Mille Services : KPIs sur les prestations + liste paginée avec statut.
+   * Query optionnelle `statut` : filtre sur la liste (valeur enum, ex. EN_ATTENTE).
+   */
+  @Get('demandes-mille-services')
+  async getDemandesMilleServices(
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+    @Query('statut') statutFilter?: string,
+  ) {
+    const take = Math.min(Math.max(Number(limit ?? 20), 1), 100);
+    const skip = Math.max(Number(offset ?? 0), 0);
+
+    const allowed = new Set<string>(Object.values(StatutPrestation));
+    const listWhere =
+      statutFilter && allowed.has(statutFilter)
+        ? { statut: statutFilter as StatutPrestation }
+        : {};
+
+    const [
+      total,
+      enAttente,
+      acceptee,
+      enCours,
+      terminee,
+      payee,
+      refusee,
+      annulee,
+      filteredTotal,
+      rows,
+    ] = await Promise.all([
+      this.prisma.prestation.count(),
+      this.prisma.prestation.count({
+        where: { statut: StatutPrestation.EN_ATTENTE },
+      }),
+      this.prisma.prestation.count({
+        where: { statut: StatutPrestation.ACCEPTEE },
+      }),
+      this.prisma.prestation.count({
+        where: { statut: StatutPrestation.EN_COURS },
+      }),
+      this.prisma.prestation.count({
+        where: { statut: StatutPrestation.TERMINEE },
+      }),
+      this.prisma.prestation.count({
+        where: { statut: StatutPrestation.PAYEE },
+      }),
+      this.prisma.prestation.count({
+        where: { statut: StatutPrestation.REFUSEE },
+      }),
+      this.prisma.prestation.count({
+        where: { statut: StatutPrestation.ANNULEE },
+      }),
+      this.prisma.prestation.count({ where: listWhere }),
+      this.prisma.prestation.findMany({
+        where: listWhere,
+        take,
+        skip,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          statut: true,
+          typeDeTache: true,
+          description: true,
+          budget: true,
+          adresse: true,
+          createdAt: true,
+          updatedAt: true,
+          particulier: {
+            select: { id: true, nom: true, prenom: true, telephone: true },
+          },
+          prestataire: { select: { id: true, nom: true, telephone: true } },
+          prestataireService: {
+            select: {
+              service: { select: { libelle: true, slug: true } },
+            },
+          },
+        },
+      }),
+    ]);
+
+    return {
+      stats: {
+        total,
+        enAttente,
+        acceptee,
+        enCours,
+        terminee,
+        payee,
+        refusee,
+        annulee,
+      },
+      total: filteredTotal,
+      items: rows.map((r) => ({
+        id: r.id,
+        statut: r.statut,
+        statutLabel: statutPrestationLabelFr(r.statut),
+        typeDeTache: r.typeDeTache ?? null,
+        description: r.description ?? null,
+        budget:
+          r.budget != null ? Number(r.budget) : null,
+        adresse: r.adresse ?? null,
+        createdAt: r.createdAt.toISOString(),
+        updatedAt: r.updatedAt.toISOString(),
+        serviceLibelle: r.prestataireService?.service?.libelle ?? null,
+        particulier: {
+          id: r.particulier.id,
+          nomComplet: `${r.particulier.prenom} ${r.particulier.nom}`.trim(),
+          telephone: r.particulier.telephone ?? null,
+        },
+        prestataire: {
+          id: r.prestataire.id,
+          nom: r.prestataire.nom,
+          telephone: r.prestataire.telephone ?? null,
+        },
+      })),
+    };
+  }
+
   /** Liste des métiers (services) avec nombre de prestataires liés (ligne PrestataireService). */
   @Get('services')
   async getServicesForAdmin() {
@@ -1659,5 +1836,223 @@ export class AdminController {
     }
     await this.prisma.service.delete({ where: { id: serviceId } });
     return { ok: true, id: serviceId };
+  }
+
+  /** Liste des offres d'abonnement (admin). */
+  @Get('offres')
+  async getOffresForAdmin() {
+    const rows = await this.prisma.offre.findMany({
+      orderBy: [{ ordre: 'asc' }, { createdAt: 'desc' }],
+      select: {
+        id: true,
+        code: true,
+        libelle: true,
+        description: true,
+        prix: true,
+        dureeMois: true,
+        actif: true,
+        ordre: true,
+        createdAt: true,
+      },
+    });
+    return {
+      items: rows.map((o) => ({
+        id: o.id,
+        code: o.code,
+        libelle: o.libelle,
+        description: o.description ?? '',
+        prix: Number(o.prix),
+        dureeMois: o.dureeMois,
+        actif: o.actif,
+        ordre: o.ordre,
+        createdAt: o.createdAt.toISOString(),
+      })),
+    };
+  }
+
+  /** Crée une offre d'abonnement (admin). */
+  @Post('offres')
+  async createOffre(
+    @Body()
+    body: {
+      code?: string;
+      libelle?: string;
+      description?: string;
+      prix?: number;
+      dureeMois?: number;
+      ordre?: number;
+    },
+  ) {
+    const libelle = (body?.libelle ?? '').trim();
+    if (!libelle) throw new BadRequestException('Libellé requis');
+
+    const prix = Number(body?.prix);
+    if (!Number.isFinite(prix) || prix < 0) {
+      throw new BadRequestException('Prix invalide');
+    }
+
+    const dureeMois = Number(body?.dureeMois);
+    if (!Number.isInteger(dureeMois) || dureeMois <= 0) {
+      throw new BadRequestException('Durée (mois) invalide');
+    }
+
+    const ordreRaw = body?.ordre;
+    const ordre =
+      ordreRaw == null ? 0 : Number.isFinite(Number(ordreRaw)) ? Number(ordreRaw) : 0;
+
+    const rawCode = (body?.code ?? '').trim();
+    const baseCode = rawCode || this.slugifyServiceLabel(libelle);
+    const code = await this.ensureUniqueOffreCode(baseCode);
+
+    const created = await this.prisma.offre.create({
+      data: {
+        code,
+        libelle,
+        description: body?.description?.trim() || null,
+        prix,
+        dureeMois,
+        ordre,
+        actif: true,
+      },
+      select: {
+        id: true,
+        code: true,
+        libelle: true,
+        description: true,
+        prix: true,
+        dureeMois: true,
+        actif: true,
+        ordre: true,
+        createdAt: true,
+      },
+    });
+
+    return {
+      id: created.id,
+      code: created.code,
+      libelle: created.libelle,
+      description: created.description ?? '',
+      prix: Number(created.prix),
+      dureeMois: created.dureeMois,
+      actif: created.actif,
+      ordre: created.ordre,
+      createdAt: created.createdAt.toISOString(),
+    };
+  }
+
+  /** Active/désactive une offre d'abonnement (admin). */
+  @Patch('offres/:offreId')
+  async updateOffre(
+    @Param('offreId') offreId: string,
+    @Body()
+    body: {
+      actif?: boolean;
+      code?: string;
+      libelle?: string;
+      description?: string;
+      prix?: number;
+      dureeMois?: number;
+      ordre?: number;
+    },
+  ) {
+    const existing = await this.prisma.offre.findUnique({
+      where: { id: offreId },
+      select: { id: true, code: true, libelle: true, description: true, prix: true, dureeMois: true, ordre: true, actif: true },
+    });
+    if (!existing) throw new BadRequestException('Offre introuvable');
+
+    const data: {
+      actif?: boolean;
+      code?: string;
+      libelle?: string;
+      description?: string | null;
+      prix?: number;
+      dureeMois?: number;
+      ordre?: number;
+    } = {};
+
+    if (typeof body?.actif === 'boolean') data.actif = body.actif;
+
+    if (body.code !== undefined) {
+      const rawCode = body.code.trim();
+      const base = rawCode || this.slugifyServiceLabel(body.libelle?.trim() || existing.libelle);
+      data.code = await this.ensureUniqueOffreCode(base, existing.id);
+    }
+    if (body.libelle !== undefined) {
+      const libelle = body.libelle.trim();
+      if (!libelle) throw new BadRequestException('Libellé requis');
+      data.libelle = libelle;
+      if (body.code === undefined) {
+        data.code = await this.ensureUniqueOffreCode(this.slugifyServiceLabel(libelle), existing.id);
+      }
+    }
+    if (body.description !== undefined) {
+      data.description = body.description.trim() || null;
+    }
+    if (body.prix !== undefined) {
+      const prix = Number(body.prix);
+      if (!Number.isFinite(prix) || prix < 0) throw new BadRequestException('Prix invalide');
+      data.prix = prix;
+    }
+    if (body.dureeMois !== undefined) {
+      const dureeMois = Number(body.dureeMois);
+      if (!Number.isInteger(dureeMois) || dureeMois <= 0) {
+        throw new BadRequestException('Durée (mois) invalide');
+      }
+      data.dureeMois = dureeMois;
+    }
+    if (body.ordre !== undefined) {
+      const ordre = Number(body.ordre);
+      if (!Number.isFinite(ordre)) throw new BadRequestException('Ordre invalide');
+      data.ordre = ordre;
+    }
+    if (Object.keys(data).length === 0) {
+      throw new BadRequestException('Aucune modification');
+    }
+
+    const updated = await this.prisma.offre.update({
+      where: { id: offreId },
+      data,
+      select: {
+        id: true,
+        code: true,
+        libelle: true,
+        description: true,
+        prix: true,
+        dureeMois: true,
+        actif: true,
+        ordre: true,
+        createdAt: true,
+      },
+    });
+
+    return {
+      id: updated.id,
+      code: updated.code,
+      libelle: updated.libelle,
+      description: updated.description ?? '',
+      prix: Number(updated.prix),
+      dureeMois: updated.dureeMois,
+      actif: updated.actif,
+      ordre: updated.ordre,
+      createdAt: updated.createdAt.toISOString(),
+    };
+  }
+
+  private async ensureUniqueOffreCode(
+    base: string,
+    excludeOffreId?: string,
+  ): Promise<string> {
+    let code = base;
+    let n = 0;
+    while (true) {
+      const row = await this.prisma.offre.findUnique({
+        where: { code },
+        select: { id: true },
+      });
+      if (!row || row.id === excludeOffreId) return code;
+      n += 1;
+      code = `${base}-${n}`;
+    }
   }
 }

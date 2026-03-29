@@ -326,7 +326,6 @@ model Wallet {
   prestataire   Prestataire? @relation(fields: [prestataireId], references: [id], onDelete: Cascade)
   transactions  WalletTransaction[]
 
-  @@unique([type])
   @@map("wallets")
 }
 

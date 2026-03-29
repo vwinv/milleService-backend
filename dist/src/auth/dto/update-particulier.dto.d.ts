@@ -5,4 +5,5 @@ export declare class UpdateParticulierDto {
     adresse?: string;
     latitude?: number;
     longitude?: number;
+    avatarUrl?: string;
 }

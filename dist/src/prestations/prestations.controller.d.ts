@@ -1,5 +1,6 @@
 import { PrestationsService } from './prestations.service.js';
 import { CreatePrestationDto } from './dto/create-prestation.dto.js';
+import { PayerPrestationDto } from './dto/payer-prestation.dto.js';
 import { CurrentUserPayload } from '../auth/decorators/current-user.decorator.js';
 export declare class PrestationsController {
     private readonly prestations;
@@ -201,7 +202,7 @@ export declare class PrestationsController {
             libelle: any;
         } | undefined;
     }>;
-    marquerPayee(user: CurrentUserPayload, id: string): Promise<{
+    marquerPayee(user: CurrentUserPayload, id: string, dto: PayerPrestationDto): Promise<{
         id: any;
         statut: any;
         typeDeTache: any;

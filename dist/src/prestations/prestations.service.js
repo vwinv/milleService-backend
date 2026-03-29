@@ -250,7 +250,7 @@ let PrestationsService = class PrestationsService {
         });
         return this.formatPrestation(updated);
     }
-    async marquerPayee(particulierUserId, prestationId) {
+    async marquerPayee(particulierUserId, prestationId, dto) {
         const particulier = await this.prisma.particulier.findUnique({
             where: { userId: particulierUserId },
             select: { id: true },
@@ -271,11 +271,16 @@ let PrestationsService = class PrestationsService {
         if (prestation.statut !== client_js_1.StatutPrestation.TERMINEE) {
             throw new common_1.BadRequestException('Seule une prestation terminée peut être payée');
         }
-        const rawAmount = prestation.budget != null
-            ? Number(prestation.budget)
-            : prestation.prestataireService?.tarifHoraire != null
-                ? Number(prestation.prestataireService.tarifHoraire)
-                : null;
+        const fromBody = dto?.montant != null && !Number.isNaN(Number(dto.montant))
+            ? Number(dto.montant)
+            : null;
+        const rawAmount = fromBody != null && fromBody > 0
+            ? fromBody
+            : prestation.budget != null
+                ? Number(prestation.budget)
+                : prestation.prestataireService?.tarifHoraire != null
+                    ? Number(prestation.prestataireService.tarifHoraire)
+                    : null;
         if (rawAmount == null || Number.isNaN(rawAmount) || rawAmount <= 0) {
             throw new common_1.BadRequestException('Montant de la prestation introuvable');
         }
@@ -286,7 +291,12 @@ let PrestationsService = class PrestationsService {
                 data: { statut: client_js_1.StatutPrestation.PAYEE },
                 include: {
                     particulier: { select: { prenom: true, nom: true } },
-                    prestataire: { select: { nom: true }, include: { user: { select: { id: true } } } },
+                    prestataire: {
+                        select: {
+                            nom: true,
+                            user: { select: { id: true } },
+                        },
+                    },
                     prestataireService: { include: { service: true } },
                 },
             });

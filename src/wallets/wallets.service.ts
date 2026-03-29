@@ -22,7 +22,7 @@ export class WalletsService {
 
   async ensureGeneralWallet(tx?: any) {
     const client = tx ?? this.prisma;
-    const existing = await client.wallet.findUnique({
+    const existing = await client.wallet.findFirst({
       where: { type: WalletType.GENERAL },
     });
     if (existing) return existing;

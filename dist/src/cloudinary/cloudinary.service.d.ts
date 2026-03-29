@@ -6,5 +6,5 @@ export interface UploadResult {
 }
 export declare class CloudinaryService {
     constructor();
-    uploadDocument(buffer: Buffer, originalName: string): Promise<UploadResult>;
+    uploadDocument(buffer: Buffer, originalName: string, mimetype?: string): Promise<UploadResult>;
 }

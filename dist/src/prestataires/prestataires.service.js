@@ -18,6 +18,7 @@ const notifications_service_js_1 = require("../notifications/notifications.servi
 const RAYON_METRES = 500;
 const NOTE_MAX = 5;
 const NOTE_MIN = 2;
+const FAVORIS_PLUS_PROCHES_LIMIT = 20;
 function haversineDistance(lat1, lon1, lat2, lon2) {
     const R = 6371000;
     const dLat = ((lat2 - lat1) * Math.PI) / 180;
@@ -82,6 +83,7 @@ let PrestatairesService = class PrestatairesService {
         });
         const prestataireIds = [...new Set(prestationsCetteSemaine.map((p) => p.prestataireId))];
         let avecNoteEtDistance = [];
+        let listeProximite = false;
         if (prestataireIds.length > 0) {
             const prestatairesSemaine = await this.prisma.prestataire.findMany({
                 where: {
@@ -125,6 +127,7 @@ let PrestatairesService = class PrestatairesService {
             const tousPrestataires = await this.prisma.prestataire.findMany({
                 where: {
                     actif: true,
+                    statutVerification: client_js_1.StatutVerificationPrestataire.VERIFIE,
                     latitude: { not: null },
                     longitude: { not: null },
                 },
@@ -158,8 +161,52 @@ let PrestatairesService = class PrestatairesService {
             })
                 .filter((x) => x != null);
         }
-        const ordonnes = avecNoteEtDistance.sort((a, b) => b.noteMoyenne - a.noteMoyenne);
-        return ordonnes.map(({ prestataire, noteMoyenne, nbAvis, distanceMetres }) => ({
+        if (avecNoteEtDistance.length === 0) {
+            const proches = await this.prisma.prestataire.findMany({
+                where: {
+                    actif: true,
+                    statutVerification: client_js_1.StatutVerificationPrestataire.VERIFIE,
+                    latitude: { not: null },
+                    longitude: { not: null },
+                },
+                include: {
+                    avis: { select: { note: true } },
+                    servicesProposes: {
+                        where: { actif: true },
+                        include: { service: true },
+                    },
+                },
+            });
+            const parDistance = proches
+                .map((p) => {
+                const plat = toNumber(p.latitude);
+                const plng = toNumber(p.longitude);
+                if (plat == null || plng == null)
+                    return null;
+                const distance = haversineDistance(userLat, userLng, plat, plng);
+                const notes = p.avis.map((a) => a.note);
+                const noteMoyenne = notes.length > 0
+                    ? notes.reduce((s, n) => s + n, 0) / notes.length
+                    : 0;
+                return {
+                    prestataire: p,
+                    noteMoyenne,
+                    nbAvis: notes.length,
+                    distanceMetres: Math.round(distance),
+                };
+            })
+                .filter((x) => x != null)
+                .sort((a, b) => a.distanceMetres - b.distanceMetres)
+                .slice(0, FAVORIS_PLUS_PROCHES_LIMIT);
+            if (parDistance.length > 0) {
+                listeProximite = true;
+                avecNoteEtDistance = parDistance;
+            }
+        }
+        const ordonnes = listeProximite
+            ? avecNoteEtDistance
+            : [...avecNoteEtDistance].sort((a, b) => b.noteMoyenne - a.noteMoyenne);
+        const prestataires = ordonnes.map(({ prestataire, noteMoyenne, nbAvis, distanceMetres }) => ({
             id: prestataire.id,
             nom: prestataire.nom,
             adresse: prestataire.adresse,
@@ -185,6 +232,7 @@ let PrestatairesService = class PrestatairesService {
                 }))
                 : [],
         }));
+        return { listeProximite, prestataires };
     }
     async createOrUpdateAvis(userId, prestataireId, note, commentaire) {
         const particulier = await this.prisma.particulier.findUnique({
@@ -242,12 +290,22 @@ let PrestatairesService = class PrestatairesService {
                     : undefined;
         const hasTarif = tarifMin != null || tarifMax != null;
         const hasService = !!serviceId && serviceId.trim() !== '';
-        const where = {
+        const hasDateFilter = date != null && String(date).trim() !== '';
+        const hadFilters = hasService || hasTarif || hasDateFilter;
+        const baseWhere = {
             actif: true,
             statutVerification: client_js_1.StatutVerificationPrestataire.VERIFIE,
             latitude: { not: null },
             longitude: { not: null },
         };
+        const include = {
+            avis: { select: { note: true } },
+            servicesProposes: {
+                where: { actif: true },
+                include: { service: true },
+            },
+        };
+        let where = { ...baseWhere };
         if (hasService || hasTarif) {
             const serviceFilter = { actif: true };
             if (hasService) {
@@ -256,18 +314,21 @@ let PrestatairesService = class PrestatairesService {
             if (tarifFilter) {
                 serviceFilter.tarifHoraire = tarifFilter;
             }
-            where.servicesProposes = { some: serviceFilter };
+            where = {
+                ...baseWhere,
+                servicesProposes: { some: serviceFilter },
+            };
         }
-        const prestataires = await this.prisma.prestataire.findMany({
-            where,
-            include: {
-                avis: { select: { note: true } },
-                servicesProposes: {
-                    where: { actif: true },
-                    include: { service: true },
-                },
-            },
+        let prestataires = await this.prisma.prestataire.findMany({
+            where: where,
+            include,
         });
+        if (prestataires.length === 0 && hadFilters) {
+            prestataires = await this.prisma.prestataire.findMany({
+                where: baseWhere,
+                include,
+            });
+        }
         const avecNoteEtDistance = prestataires.map((p) => {
             const notes = p.avis.map((a) => a.note);
             const noteMoyenne = notes.length > 0
@@ -346,7 +407,12 @@ let PrestatairesService = class PrestatairesService {
     async updateStatutVerification(prestataireId, statut, motifRefus) {
         const prestataire = await this.prisma.prestataire.update({
             where: { id: prestataireId },
-            data: { statutVerification: statut },
+            data: {
+                statutVerification: statut,
+                ...(statut === client_js_1.StatutVerificationPrestataire.VERIFIE
+                    ? { actif: true }
+                    : {}),
+            },
             include: {
                 user: { select: { id: true } },
             },
@@ -389,6 +455,8 @@ let PrestatairesService = class PrestatairesService {
         if (!prestataire) {
             throw new common_1.BadRequestException('Profil prestataire introuvable');
         }
+        await this.ensureTypeDocumentsExist();
+        let upsertedCount = 0;
         for (const doc of documents) {
             const typeDoc = await this.prisma.typeDocument.findUnique({
                 where: { code: doc.typeCode },
@@ -420,6 +488,10 @@ let PrestatairesService = class PrestatairesService {
                     motifRefus: null,
                 },
             });
+            upsertedCount += 1;
+        }
+        if (upsertedCount === 0) {
+            throw new common_1.BadRequestException('Aucun document valide n’a été envoyé. Vérifiez les types de documents.');
         }
         const updated = await this.prisma.prestataire.update({
             where: { id: prestataire.id },
@@ -430,6 +502,23 @@ let PrestatairesService = class PrestatairesService {
             id: updated.id,
             statutVerification: updated.statutVerification,
         };
+    }
+    async ensureTypeDocumentsExist() {
+        const count = await this.prisma.typeDocument.count();
+        if (count > 0)
+            return;
+        await this.prisma.typeDocument.createMany({
+            data: [
+                { code: 'cni_recto', libelle: 'CNI / Passeport (recto)', ordre: 1 },
+                { code: 'cni_verso', libelle: 'CNI / Passeport (verso)', ordre: 2 },
+                { code: 'casier_judiciaire', libelle: 'Casier judiciaire', ordre: 3 },
+                {
+                    code: 'certificat_bonne_moeurs',
+                    libelle: 'Certificat de bonne mœurs',
+                    ordre: 4,
+                },
+            ],
+        });
     }
     async getMyVerificationStatus(userId) {
         const prestataire = await this.prisma.prestataire.findUnique({
@@ -608,6 +697,10 @@ let PrestatairesService = class PrestatairesService {
         if (lng != null) {
             data.longitude = lng;
         }
+        if (dto.avatarUrl !== undefined) {
+            const raw = (dto.avatarUrl ?? '').trim();
+            data.avatarUrl = raw.length > 0 ? raw : null;
+        }
         if (Object.keys(data).length === 0 && dto.serviceIds === undefined) {
             throw new common_1.BadRequestException('Aucune donnée à mettre à jour');
         }
@@ -660,6 +753,9 @@ let PrestatairesService = class PrestatairesService {
             id: updated.id,
             nom: updated.nom,
             telephone: updated.telephone,
+            adresse: updated.adresse,
+            bio: updated.bio,
+            avatarUrl: updated.avatarUrl,
             latitude: updated.latitude != null ? Number(updated.latitude) : null,
             longitude: updated.longitude != null ? Number(updated.longitude) : null,
         };

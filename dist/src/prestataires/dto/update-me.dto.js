@@ -19,6 +19,7 @@ class UpdateMePrestataireDto {
     latitude;
     longitude;
     serviceIds;
+    avatarUrl;
 }
 exports.UpdateMePrestataireDto = UpdateMePrestataireDto;
 __decorate([
@@ -57,4 +58,10 @@ __decorate([
     (0, class_validator_1.IsString)({ each: true }),
     __metadata("design:type", Array)
 ], UpdateMePrestataireDto.prototype, "serviceIds", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(2048),
+    __metadata("design:type", String)
+], UpdateMePrestataireDto.prototype, "avatarUrl", void 0);
 //# sourceMappingURL=update-me.dto.js.map
