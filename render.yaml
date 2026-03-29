@@ -1,0 +1,11 @@
+# Blueprint Render — voir https://render.com/docs/blueprint-spec
+#
+# Si le dépôt Git = ce dossier uniquement : laisser tel quel.
+# Si le dépôt = monorepo (racine au-dessus de milleService-backend) : ajouter sous « type: web » :
+#   rootDir: milleService-backend
+#
+services:
+  - type: web
+    runtime: node
+    buildCommand: npm install && npm run build
+    startCommand: npm run start:prod
