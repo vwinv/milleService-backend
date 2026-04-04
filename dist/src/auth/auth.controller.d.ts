@@ -54,8 +54,8 @@ export declare class AuthController {
             offre: {
                 prix: number;
                 id: string;
-                code: string;
                 libelle: string;
+                code: string;
                 dureeMois: number;
             };
         } | null;
@@ -87,8 +87,8 @@ export declare class AuthController {
             offre: {
                 prix: number;
                 id: string;
-                code: string;
                 libelle: string;
+                code: string;
                 dureeMois: number;
             };
         } | null;
@@ -137,8 +137,8 @@ export declare class AuthController {
             offre: {
                 prix: number;
                 id: string;
-                code: string;
                 libelle: string;
+                code: string;
                 dureeMois: number;
             };
         } | null;

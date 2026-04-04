@@ -60,8 +60,8 @@ export declare class WalletsController {
             createdAt: Date;
             updatedAt: Date;
             prestataireId: string;
-            meta: import("@prisma/client/runtime/client.js").JsonValue | null;
             method: import("../../generated/prisma/enums.js").WithdrawalMethod;
+            meta: import("@prisma/client/runtime/client.js").JsonValue | null;
             status: import("../../generated/prisma/enums.js").WithdrawalStatus;
         };
     }>;
