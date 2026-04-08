@@ -58,6 +58,8 @@ export class PrestatairesController {
       query.tarifMin,
       query.tarifMax,
       query.date,
+      query.lat,
+      query.lng,
     );
   }
 

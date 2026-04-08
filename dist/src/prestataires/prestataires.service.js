@@ -59,7 +59,7 @@ let PrestatairesService = class PrestatairesService {
     async getPrestatairesFavoris(userId, lat, lng) {
         const particulier = await this.prisma.particulier.findUnique({
             where: { userId },
-            select: { latitude: true, longitude: true },
+            select: { latitude: true, longitude: true, adresse: true },
         });
         if (!particulier) {
             throw new common_1.BadRequestException('Profil particulier introuvable');
@@ -71,7 +71,27 @@ let PrestatairesService = class PrestatairesService {
             userLng = lng;
         }
         if (userLat == null || userLng == null) {
-            throw new common_1.BadRequestException('Position requise : renseignez latitude et longitude dans votre profil ou en paramètres (lat, lng)');
+            const addr = particulier.adresse?.trim();
+            if (addr && addr.length >= 3) {
+                try {
+                    const geo = await this.geocodingService.geocodeWithFallbacks(addr);
+                    if (geo) {
+                        userLat = geo.lat;
+                        userLng = geo.lng;
+                        void this.prisma.particulier
+                            .update({
+                            where: { userId },
+                            data: { latitude: geo.lat, longitude: geo.lng },
+                        })
+                            .catch(() => { });
+                    }
+                }
+                catch {
+                }
+            }
+        }
+        if (userLat == null || userLng == null) {
+            return { listeProximite: false, prestataires: [] };
         }
         const { debut, fin } = getCurrentWeekBounds();
         const prestationsCetteSemaine = await this.prisma.prestation.findMany({
@@ -268,18 +288,42 @@ let PrestatairesService = class PrestatairesService {
         });
         return avis;
     }
-    async search(userId, serviceId, tarifMin, tarifMax, date) {
+    async search(userId, serviceId, tarifMin, tarifMax, date, lat, lng) {
         const particulier = await this.prisma.particulier.findUnique({
             where: { userId },
-            select: { latitude: true, longitude: true },
+            select: { latitude: true, longitude: true, adresse: true },
         });
         if (!particulier) {
             throw new common_1.BadRequestException('Profil particulier introuvable');
         }
-        const userLat = toNumber(particulier.latitude);
-        const userLng = toNumber(particulier.longitude);
+        let userLat = toNumber(particulier.latitude);
+        let userLng = toNumber(particulier.longitude);
+        if (lat != null && lng != null) {
+            userLat = lat;
+            userLng = lng;
+        }
         if (userLat == null || userLng == null) {
-            throw new common_1.BadRequestException('Position requise : renseignez latitude et longitude dans votre profil');
+            const addr = particulier.adresse?.trim();
+            if (addr && addr.length >= 3) {
+                try {
+                    const geo = await this.geocodingService.geocodeWithFallbacks(addr);
+                    if (geo) {
+                        userLat = geo.lat;
+                        userLng = geo.lng;
+                        void this.prisma.particulier
+                            .update({
+                            where: { userId },
+                            data: { latitude: geo.lat, longitude: geo.lng },
+                        })
+                            .catch(() => { });
+                    }
+                }
+                catch {
+                }
+            }
+        }
+        if (userLat == null || userLng == null) {
+            throw new common_1.BadRequestException('Renseignez une adresse complète dans votre profil, ou activez la localisation pour lancer une recherche.');
         }
         const tarifFilter = tarifMin != null && tarifMax != null
             ? { gte: tarifMin, lte: tarifMax }

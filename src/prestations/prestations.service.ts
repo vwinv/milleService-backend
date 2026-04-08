@@ -194,6 +194,19 @@ export class PrestationsService {
     const updated = await this.prisma.prestation.update({
       where: { id: prestationId },
       data: { statut: StatutPrestation.EN_COURS },
+      include: {
+        particulier: { select: { userId: true, prenom: true, nom: true } },
+        prestataire: { select: { nom: true } },
+        prestataireService: { include: { service: true } },
+      },
+    });
+
+    const serviceLibelle = updated.prestataireService?.service?.libelle ?? 'prestation';
+    await this.notifications.sendToUser(updated.particulier.userId, {
+      title: 'Le prestataire est arrivé',
+      body: `${updated.prestataire.nom} est arrivé à votre adresse pour « ${serviceLibelle} ».`,
+      type: 'prestation_prestataire_arrived',
+      data: { prestationId: updated.id },
     });
 
     return this.formatPrestation(updated);

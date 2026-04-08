@@ -255,26 +255,68 @@ let AuthService = AuthService_1 = class AuthService {
             throw err;
         }
     }
-    async login(dto) {
-        const telephone = dto.telephone?.trim();
-        const email = dto.email?.trim().toLowerCase();
-        if (!telephone && !email) {
-            throw new common_1.UnauthorizedException('Identifiants manquants');
+    normalizePhoneDigits(raw) {
+        if (!raw)
+            return '';
+        return raw.replace(/\D/g, '');
+    }
+    async findUserWithProfilesForLogin(dto) {
+        let email = dto.email?.trim().toLowerCase() || undefined;
+        let telephone = dto.telephone?.trim() || undefined;
+        if (email === '')
+            email = undefined;
+        if (telephone === '')
+            telephone = undefined;
+        if (!email && telephone?.includes('@')) {
+            email = telephone.toLowerCase();
+            telephone = undefined;
         }
-        const user = email
-            ? await this.prisma.user.findUnique({
+        if (email) {
+            return this.prisma.user.findUnique({
                 where: { email },
                 include: { particulier: true, prestataire: true },
-            })
-            : await this.prisma.user.findFirst({
-                where: {
-                    OR: [
-                        { particulier: { is: { telephone } } },
-                        { prestataire: { is: { telephone } } },
-                    ],
-                },
-                include: { particulier: true, prestataire: true },
             });
+        }
+        if (!telephone) {
+            return null;
+        }
+        const norm = this.normalizePhoneDigits(telephone);
+        if (norm.length >= 8) {
+            const rows = await this.prisma.$queryRaw(client_js_1.Prisma.sql `
+          SELECT DISTINCT u.id::text AS id
+          FROM users u
+          LEFT JOIN particuliers p ON p.user_id = u.id
+          LEFT JOIN prestataires pr ON pr.user_id = u.id
+          WHERE regexp_replace(COALESCE(p.telephone, ''), '[^0-9]', '', 'g') = ${norm}
+             OR regexp_replace(COALESCE(pr.telephone, ''), '[^0-9]', '', 'g') = ${norm}
+        `);
+            const ids = [...new Set(rows.map((r) => r.id))];
+            if (ids.length > 1) {
+                this.logger.warn(`Login téléphone ${norm}: ${ids.length} comptes distincts, refus sécurité.`);
+                return null;
+            }
+            if (ids.length === 1) {
+                return this.prisma.user.findUnique({
+                    where: { id: ids[0] },
+                    include: { particulier: true, prestataire: true },
+                });
+            }
+        }
+        return this.prisma.user.findFirst({
+            where: {
+                OR: [
+                    { particulier: { is: { telephone } } },
+                    { prestataire: { is: { telephone } } },
+                ],
+            },
+            include: { particulier: true, prestataire: true },
+        });
+    }
+    async login(dto) {
+        if (!dto.telephone?.trim() && !dto.email?.trim()) {
+            throw new common_1.UnauthorizedException('Identifiants manquants');
+        }
+        const user = await this.findUserWithProfilesForLogin(dto);
         if (!user) {
             throw new common_1.UnauthorizedException('Identifiant ou mot de passe incorrect');
         }
@@ -282,27 +324,44 @@ let AuthService = AuthService_1 = class AuthService {
         if (!ok) {
             throw new common_1.UnauthorizedException('Identifiant ou mot de passe incorrect');
         }
-        if (dto.role && user.role !== dto.role) {
-            if (dto.role === client_js_1.Role.PRESTATAIRE) {
-                throw new common_1.UnauthorizedException('Ce compte est actuellement client. Connectez-vous depuis l’espace particulier.');
+        let sessionUser = user;
+        if (dto.role != null) {
+            if (dto.role === client_js_1.Role.PARTICULIER && !sessionUser.particulier) {
+                throw new common_1.UnauthorizedException("Ce compte n'a pas de profil client. Connectez-vous via l'espace professionnel ou créez un compte particulier.");
             }
-            if (dto.role === client_js_1.Role.PARTICULIER) {
-                throw new common_1.UnauthorizedException('Ce compte est actuellement prestataire. Connectez-vous depuis l’espace prestataire.');
+            if (dto.role === client_js_1.Role.PRESTATAIRE && !sessionUser.prestataire) {
+                throw new common_1.UnauthorizedException("Ce compte n'a pas de profil professionnel. Connectez-vous via l'espace client ou créez un profil prestataire.");
             }
-            throw new common_1.UnauthorizedException('Rôle de connexion invalide pour ce compte.');
+            if (dto.role === client_js_1.Role.ADMIN && sessionUser.role !== client_js_1.Role.ADMIN) {
+                throw new common_1.UnauthorizedException('Accès administrateur refusé.');
+            }
+            if (dto.role !== client_js_1.Role.ADMIN &&
+                sessionUser.role !== dto.role) {
+                await this.prisma.user.update({
+                    where: { id: sessionUser.id },
+                    data: { role: dto.role },
+                });
+                sessionUser = { ...sessionUser, role: dto.role };
+            }
         }
-        this.assertPrestataireMayAuthenticate(user);
-        if (user.role === client_js_1.Role.PARTICULIER &&
-            user.particulier &&
-            user.particulier.statut === client_js_1.ParticulierStatut.INACTIF) {
+        if (sessionUser.role === client_js_1.Role.PRESTATAIRE) {
+            this.assertPrestataireMayAuthenticate(sessionUser);
+        }
+        if (sessionUser.role === client_js_1.Role.PARTICULIER &&
+            sessionUser.particulier &&
+            sessionUser.particulier.statut === client_js_1.ParticulierStatut.INACTIF) {
             throw new common_1.UnauthorizedException('Ce compte a été désactivé. Pour toute question, contactez le support.');
         }
-        const access_token = this.jwtService.sign({ sub: user.id, email: user.email, role: user.role }, { expiresIn: '24h' });
-        const refresh_token = this.jwtService.sign({ sub: user.id, type: 'refresh' }, { expiresIn: '7d' });
+        const access_token = this.jwtService.sign({
+            sub: sessionUser.id,
+            email: sessionUser.email,
+            role: sessionUser.role,
+        }, { expiresIn: '24h' });
+        const refresh_token = this.jwtService.sign({ sub: sessionUser.id, type: 'refresh' }, { expiresIn: '7d' });
         let abonnement = null;
-        if (user.role === client_js_1.Role.PRESTATAIRE) {
+        if (sessionUser.role === client_js_1.Role.PRESTATAIRE) {
             try {
-                abonnement = await this.abonnementsService.getAbonnementCourant(user.id);
+                abonnement = await this.abonnementsService.getAbonnementCourant(sessionUser.id);
             }
             catch {
                 abonnement = null;
@@ -311,7 +370,7 @@ let AuthService = AuthService_1 = class AuthService {
         return {
             access_token,
             refresh_token,
-            user: this.sanitizeUser(user),
+            user: this.sanitizeUser(sessionUser),
             abonnement,
         };
     }

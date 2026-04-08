@@ -78,7 +78,7 @@ export class PrestatairesService {
   ) {
     const particulier = await this.prisma.particulier.findUnique({
       where: { userId },
-      select: { latitude: true, longitude: true },
+      select: { latitude: true, longitude: true, adresse: true },
     });
     if (!particulier) {
       throw new BadRequestException('Profil particulier introuvable');
@@ -90,10 +90,30 @@ export class PrestatairesService {
       userLat = lat;
       userLng = lng;
     }
+
     if (userLat == null || userLng == null) {
-      throw new BadRequestException(
-        'Position requise : renseignez latitude et longitude dans votre profil ou en paramètres (lat, lng)',
-      );
+      const addr = particulier.adresse?.trim();
+      if (addr && addr.length >= 3) {
+        try {
+          const geo = await this.geocodingService.geocodeWithFallbacks(addr);
+          if (geo) {
+            userLat = geo.lat;
+            userLng = geo.lng;
+            void this.prisma.particulier
+              .update({
+                where: { userId },
+                data: { latitude: geo.lat, longitude: geo.lng },
+              })
+              .catch(() => {});
+          }
+        } catch {
+          // adresse invalide ou service de géocodage indisponible
+        }
+      }
+    }
+
+    if (userLat == null || userLng == null) {
+      return { listeProximite: false, prestataires: [] };
     }
 
     const { debut, fin } = getCurrentWeekBounds();
@@ -344,20 +364,48 @@ export class PrestatairesService {
     tarifMin?: number,
     tarifMax?: number,
     date?: string,
+    lat?: number,
+    lng?: number,
   ) {
     const particulier = await this.prisma.particulier.findUnique({
       where: { userId },
-      select: { latitude: true, longitude: true },
+      select: { latitude: true, longitude: true, adresse: true },
     });
     if (!particulier) {
       throw new BadRequestException('Profil particulier introuvable');
     }
 
-    const userLat = toNumber(particulier.latitude);
-    const userLng = toNumber(particulier.longitude);
+    let userLat = toNumber(particulier.latitude);
+    let userLng = toNumber(particulier.longitude);
+    if (lat != null && lng != null) {
+      userLat = lat;
+      userLng = lng;
+    }
+
+    if (userLat == null || userLng == null) {
+      const addr = particulier.adresse?.trim();
+      if (addr && addr.length >= 3) {
+        try {
+          const geo = await this.geocodingService.geocodeWithFallbacks(addr);
+          if (geo) {
+            userLat = geo.lat;
+            userLng = geo.lng;
+            void this.prisma.particulier
+              .update({
+                where: { userId },
+                data: { latitude: geo.lat, longitude: geo.lng },
+              })
+              .catch(() => {});
+          }
+        } catch {
+          // adresse invalide ou géocodage indisponible
+        }
+      }
+    }
+
     if (userLat == null || userLng == null) {
       throw new BadRequestException(
-        'Position requise : renseignez latitude et longitude dans votre profil',
+        'Renseignez une adresse complète dans votre profil, ou activez la localisation pour lancer une recherche.',
       );
     }
 

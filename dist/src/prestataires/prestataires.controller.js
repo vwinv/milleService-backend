@@ -38,7 +38,7 @@ let PrestatairesController = class PrestatairesController {
         return this.prestatairesService.getPrestatairesFavoris(user.userId, query.lat, query.lng);
     }
     search(user, query) {
-        return this.prestatairesService.search(user.userId, query.serviceId, query.tarifMin, query.tarifMax, query.date);
+        return this.prestatairesService.search(user.userId, query.serviceId, query.tarifMin, query.tarifMax, query.date, query.lat, query.lng);
     }
     getPrestationStats(user) {
         return this.prestatairesService.getPrestationStats(user.userId);

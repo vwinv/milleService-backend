@@ -172,6 +172,9 @@ export class NotificationsService {
       const data: Record<string, string> = { ...(dataPayload ?? {}) };
       data.title = payload.title;
       data.body = payload.body ?? '';
+      if (payload.type != null && String(payload.type).trim() !== '') {
+        data.type = String(payload.type);
+      }
 
       const message: FcmOutgoingMessage = {
         token: fcmToken,

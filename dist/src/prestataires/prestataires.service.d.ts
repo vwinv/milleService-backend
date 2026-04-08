@@ -37,7 +37,7 @@ export declare class PrestatairesService {
         note: number;
         commentaire: string | null;
     }>;
-    search(userId: string, serviceId?: string, tarifMin?: number, tarifMax?: number, date?: string): Promise<{
+    search(userId: string, serviceId?: string, tarifMin?: number, tarifMax?: number, date?: string, lat?: number, lng?: number): Promise<{
         id: string;
         nom: string;
         adresse: string | null;

@@ -155,6 +155,9 @@ let NotificationsService = NotificationsService_1 = class NotificationsService {
             const data = { ...(dataPayload ?? {}) };
             data.title = payload.title;
             data.body = payload.body ?? '';
+            if (payload.type != null && String(payload.type).trim() !== '') {
+                data.type = String(payload.type);
+            }
             const message = {
                 token: fcmToken,
                 notification: {
