@@ -56,11 +56,13 @@ __decorate([
 ], RegisterDto.prototype, "email", void 0);
 __decorate([
     (0, class_validator_1.IsString)(),
-    (0, class_validator_1.MinLength)(8, { message: 'Le mot de passe doit contenir au moins 8 caractères' }),
+    (0, class_validator_1.MinLength)(8, {
+        message: "Le mot de passe doit contenir au moins 8 caractères",
+    }),
     __metadata("design:type", String)
 ], RegisterDto.prototype, "password", void 0);
 __decorate([
-    (0, class_validator_1.IsIn)(['PARTICULIER', 'PRESTATAIRE']),
+    (0, class_validator_1.IsIn)(["PARTICULIER", "PRESTATAIRE"]),
     __metadata("design:type", String)
 ], RegisterDto.prototype, "role", void 0);
 __decorate([
@@ -95,8 +97,9 @@ __decorate([
     __metadata("design:type", Array)
 ], RegisterDto.prototype, "zoneIntervention", void 0);
 __decorate([
-    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.ValidateIf)((o) => o.role === "PARTICULIER" || o.role === "PRESTATAIRE"),
     (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MinLength)(3, { message: "L'adresse est requise" }),
     __metadata("design:type", String)
 ], RegisterDto.prototype, "adresse", void 0);
 __decorate([

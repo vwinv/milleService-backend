@@ -1,5 +1,5 @@
-import { NotificationsService } from './notifications.service.js';
-import { CurrentUserPayload } from '../auth/decorators/current-user.decorator.js';
+import { NotificationsService } from "./notifications.service.js";
+import { CurrentUserPayload } from "../auth/decorators/current-user.decorator.js";
 export declare class NotificationsController {
     private readonly notifications;
     private readonly logger;

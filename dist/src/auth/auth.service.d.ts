@@ -1,12 +1,13 @@
-import { JwtService } from '@nestjs/jwt';
-import { PrismaService } from '../prisma/prisma.service.js';
-import { Role } from '../../generated/prisma/client.js';
-import type { RegisterDto } from './dto/register.dto.js';
-import type { LoginDto } from './dto/login.dto.js';
-import type { UpdateParticulierDto } from './dto/update-particulier.dto.js';
-import { GeocodingService } from '../geocoding/geocoding.service.js';
-import { AbonnementsService } from '../abonnements/abonnements.service.js';
-import { WalletsService } from '../wallets/wallets.service.js';
+import { JwtService } from "@nestjs/jwt";
+import { PrismaService } from "../prisma/prisma.service.js";
+import { Role } from "../../generated/prisma/client.js";
+import type { RegisterDto } from "./dto/register.dto.js";
+import type { LoginDto } from "./dto/login.dto.js";
+import type { ForgotPasswordDto } from "./dto/forgot-password.dto.js";
+import type { UpdateParticulierDto } from "./dto/update-particulier.dto.js";
+import { GeocodingService } from "../geocoding/geocoding.service.js";
+import { AbonnementsService } from "../abonnements/abonnements.service.js";
+import { WalletsService } from "../wallets/wallets.service.js";
 export declare class AuthService {
     private readonly prisma;
     private readonly jwtService;
@@ -37,6 +38,7 @@ export declare class AuthService {
         };
     }>;
     private normalizePhoneDigits;
+    private assertNoDuplicateTelephoneForSameProfileType;
     private findUserWithProfilesForLogin;
     login(dto: LoginDto): Promise<{
         access_token: string;
@@ -65,11 +67,15 @@ export declare class AuthService {
             offre: {
                 prix: number;
                 id: string;
-                code: string;
                 libelle: string;
+                code: string;
                 dureeMois: number;
             };
         } | null;
+    }>;
+    forgotPassword(dto: ForgotPasswordDto): Promise<{
+        success: boolean;
+        message: string;
     }>;
     refresh(refreshToken: string): Promise<{
         access_token: string;
@@ -98,8 +104,8 @@ export declare class AuthService {
             offre: {
                 prix: number;
                 id: string;
-                code: string;
                 libelle: string;
+                code: string;
                 dureeMois: number;
             };
         } | null;
@@ -148,8 +154,8 @@ export declare class AuthService {
             offre: {
                 prix: number;
                 id: string;
-                code: string;
                 libelle: string;
+                code: string;
                 dureeMois: number;
             };
         } | null;

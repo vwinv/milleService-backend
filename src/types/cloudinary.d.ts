@@ -2,7 +2,7 @@
  * Declarations for the 'cloudinary' module (fixes "Cannot find module" with nodenext).
  * The package is in dependencies; this file only satisfies TypeScript resolution.
  */
-declare module 'cloudinary' {
+declare module "cloudinary" {
   export interface UploadApiResponse {
     secure_url?: string;
     public_id?: string;

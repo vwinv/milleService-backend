@@ -19,19 +19,19 @@ const multer_1 = require("multer");
 const cloudinary_service_js_1 = require("../cloudinary/cloudinary.service.js");
 const MAX_SIZE = 10 * 1024 * 1024;
 const ALLOWED_MIMES = [
-    'image/jpeg',
-    'image/png',
-    'image/gif',
-    'image/webp',
-    'image/heic',
-    'image/heif',
-    'application/pdf',
+    "image/jpeg",
+    "image/png",
+    "image/gif",
+    "image/webp",
+    "image/heic",
+    "image/heif",
+    "application/pdf",
 ];
 const ALLOWED_NAME = /\.(jpe?g|png|gif|webp|pdf|heic|heif)$/i;
 function isAllowedUpload(file) {
     if (ALLOWED_MIMES.includes(file.mimetype))
         return true;
-    if (file.mimetype === 'application/octet-stream' &&
+    if (file.mimetype === "application/octet-stream" &&
         ALLOWED_NAME.test(file.originalname)) {
         return true;
     }
@@ -44,10 +44,10 @@ let DocumentsController = class DocumentsController {
     }
     async upload(file) {
         if (!file) {
-            throw new common_1.BadRequestException('Aucun fichier envoyé');
+            throw new common_1.BadRequestException("Aucun fichier envoyé");
         }
         if (!isAllowedUpload(file)) {
-            throw new common_1.BadRequestException('Type de fichier non autorisé. Utilisez: JPEG, PNG, GIF, WebP, HEIC ou PDF.');
+            throw new common_1.BadRequestException("Type de fichier non autorisé. Utilisez: JPEG, PNG, GIF, WebP, HEIC ou PDF.");
         }
         const result = await this.cloudinary.uploadDocument(file.buffer, file.originalname, file.mimetype);
         return {
@@ -59,8 +59,8 @@ let DocumentsController = class DocumentsController {
 };
 exports.DocumentsController = DocumentsController;
 __decorate([
-    (0, common_1.Post)('upload'),
-    (0, common_1.UseInterceptors)((0, platform_express_1.FileInterceptor)('file', {
+    (0, common_1.Post)("upload"),
+    (0, common_1.UseInterceptors)((0, platform_express_1.FileInterceptor)("file", {
         storage: (0, multer_1.memoryStorage)(),
         limits: { fileSize: MAX_SIZE },
     })),
@@ -70,7 +70,7 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], DocumentsController.prototype, "upload", null);
 exports.DocumentsController = DocumentsController = __decorate([
-    (0, common_1.Controller)('documents'),
+    (0, common_1.Controller)("documents"),
     __metadata("design:paramtypes", [cloudinary_service_js_1.CloudinaryService])
 ], DocumentsController);
 //# sourceMappingURL=documents.controller.js.map

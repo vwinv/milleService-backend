@@ -12,12 +12,13 @@ const abonnements_controller_js_1 = require("./abonnements.controller.js");
 const abonnements_service_js_1 = require("./abonnements.service.js");
 const prisma_module_js_1 = require("../prisma/prisma.module.js");
 const wallets_module_js_1 = require("../wallets/wallets.module.js");
+const paydunya_module_js_1 = require("../paydunya/paydunya.module.js");
 let AbonnementsModule = class AbonnementsModule {
 };
 exports.AbonnementsModule = AbonnementsModule;
 exports.AbonnementsModule = AbonnementsModule = __decorate([
     (0, common_1.Module)({
-        imports: [prisma_module_js_1.PrismaModule, wallets_module_js_1.WalletsModule],
+        imports: [prisma_module_js_1.PrismaModule, wallets_module_js_1.WalletsModule, paydunya_module_js_1.PaydunyaModule],
         controllers: [abonnements_controller_js_1.AbonnementsController],
         providers: [abonnements_service_js_1.AbonnementsService],
         exports: [abonnements_service_js_1.AbonnementsService],

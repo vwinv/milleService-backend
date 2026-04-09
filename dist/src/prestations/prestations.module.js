@@ -9,16 +9,24 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.PrestationsModule = void 0;
 const common_1 = require("@nestjs/common");
 const prestations_controller_js_1 = require("./prestations.controller.js");
+const prestations_paydunya_webhook_controller_js_1 = require("./prestations-paydunya-webhook.controller.js");
 const prestations_service_js_1 = require("./prestations.service.js");
 const notifications_module_js_1 = require("../notifications/notifications.module.js");
 const wallets_module_js_1 = require("../wallets/wallets.module.js");
+const paydunya_module_js_1 = require("../paydunya/paydunya.module.js");
+const abonnements_module_js_1 = require("../abonnements/abonnements.module.js");
 let PrestationsModule = class PrestationsModule {
 };
 exports.PrestationsModule = PrestationsModule;
 exports.PrestationsModule = PrestationsModule = __decorate([
     (0, common_1.Module)({
-        imports: [notifications_module_js_1.NotificationsModule, wallets_module_js_1.WalletsModule],
-        controllers: [prestations_controller_js_1.PrestationsController],
+        imports: [
+            notifications_module_js_1.NotificationsModule,
+            wallets_module_js_1.WalletsModule,
+            paydunya_module_js_1.PaydunyaModule,
+            abonnements_module_js_1.AbonnementsModule,
+        ],
+        controllers: [prestations_controller_js_1.PrestationsController, prestations_paydunya_webhook_controller_js_1.PrestationsPaydunyaWebhookController],
         providers: [prestations_service_js_1.PrestationsService],
     })
 ], PrestationsModule);

@@ -1,21 +1,35 @@
-import { Controller, Get, Post, UseGuards, Query, Body, BadRequestException } from '@nestjs/common';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
-import { RolesGuard } from '../auth/guards/roles.guard.js';
-import { Roles } from '../auth/decorators/roles.decorator.js';
-import { CurrentUser, CurrentUserPayload } from '../auth/decorators/current-user.decorator.js';
-import { PrismaService } from '../prisma/prisma.service.js';
-import { WalletType } from '../../generated/prisma/client.js';
-import { RequestWithdrawalDto } from './dto/request-withdrawal.dto.js';
+import {
+  Controller,
+  Get,
+  Post,
+  UseGuards,
+  Query,
+  Body,
+  BadRequestException,
+} from "@nestjs/common";
+import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard.js";
+import { RolesGuard } from "../auth/guards/roles.guard.js";
+import { Roles } from "../auth/decorators/roles.decorator.js";
+import {
+  CurrentUser,
+  CurrentUserPayload,
+} from "../auth/decorators/current-user.decorator.js";
+import { PrismaService } from "../prisma/prisma.service.js";
+import { WalletType } from "../../generated/prisma/client.js";
+import { RequestWithdrawalDto } from "./dto/request-withdrawal.dto.js";
 
-@Controller('wallets')
+@Controller("wallets")
 @UseGuards(JwtAuthGuard)
 export class WalletsController {
   constructor(private readonly prisma: PrismaService) {}
 
-  @Get('me')
+  @Get("me")
   @UseGuards(RolesGuard)
-  @Roles('PRESTATAIRE')
-  async me(@CurrentUser() user: CurrentUserPayload, @Query('limit') limit?: string) {
+  @Roles("PRESTATAIRE")
+  async me(
+    @CurrentUser() user: CurrentUserPayload,
+    @Query("limit") limit?: string,
+  ) {
     const prestataire = await this.prisma.prestataire.findUnique({
       where: { userId: user.userId },
       select: { id: true },
@@ -40,7 +54,7 @@ export class WalletsController {
     const transactions = wallet
       ? await this.prisma.walletTransaction.findMany({
           where: { walletId: wallet.id },
-          orderBy: { createdAt: 'desc' },
+          orderBy: { createdAt: "desc" },
           take,
         })
       : [];
@@ -51,17 +65,22 @@ export class WalletsController {
             ...wallet,
             balance: Number(wallet.balance),
             balancePlafond:
-              wallet.balancePlafond != null ? Number(wallet.balancePlafond) : null,
+              wallet.balancePlafond != null
+                ? Number(wallet.balancePlafond)
+                : null,
           }
         : null,
-      transactions: transactions.map((t) => ({ ...t, amount: Number(t.amount) })),
+      transactions: transactions.map((t) => ({
+        ...t,
+        amount: Number(t.amount),
+      })),
     };
   }
 
-  @Get('general')
+  @Get("general")
   @UseGuards(RolesGuard)
-  @Roles('ADMIN')
-  async general(@Query('limit') limit?: string) {
+  @Roles("ADMIN")
+  async general(@Query("limit") limit?: string) {
     const wallet = await this.prisma.wallet.findFirst({
       where: { type: WalletType.GENERAL },
     });
@@ -69,19 +88,22 @@ export class WalletsController {
     const transactions = wallet
       ? await this.prisma.walletTransaction.findMany({
           where: { walletId: wallet.id },
-          orderBy: { createdAt: 'desc' },
+          orderBy: { createdAt: "desc" },
           take,
         })
       : [];
     return {
       wallet: wallet ? { ...wallet, balance: Number(wallet.balance) } : null,
-      transactions: transactions.map((t) => ({ ...t, amount: Number(t.amount) })),
+      transactions: transactions.map((t) => ({
+        ...t,
+        amount: Number(t.amount),
+      })),
     };
   }
 
-  @Post('withdrawals/request')
+  @Post("withdrawals/request")
   @UseGuards(RolesGuard)
-  @Roles('PRESTATAIRE')
+  @Roles("PRESTATAIRE")
   async requestWithdrawal(
     @CurrentUser() user: CurrentUserPayload,
     @Body() dto: RequestWithdrawalDto,
@@ -92,7 +114,7 @@ export class WalletsController {
     });
 
     if (!prestataire) {
-      throw new BadRequestException('Profil prestataire introuvable');
+      throw new BadRequestException("Profil prestataire introuvable");
     }
 
     const prestWallet = await this.prisma.wallet.findUnique({
@@ -100,23 +122,23 @@ export class WalletsController {
       select: { statutPrestataire: true, balance: true },
     });
     if (!prestWallet) {
-      throw new BadRequestException('Wallet prestataire introuvable');
+      throw new BadRequestException("Wallet prestataire introuvable");
     }
-    if (prestWallet.statutPrestataire === 'BLOQUE') {
+    if (prestWallet.statutPrestataire === "BLOQUE") {
       throw new BadRequestException(
-        'Votre wallet est gelé : les retraits ne sont pas autorisés pour le moment.',
+        "Votre wallet est gelé : les retraits ne sont pas autorisés pour le moment.",
       );
     }
 
     const amount = Number(dto.amount);
     if (Number.isNaN(amount) || amount <= 0) {
-      throw new BadRequestException('Montant invalide');
+      throw new BadRequestException("Montant invalide");
     }
 
     const balance = Number(prestWallet.balance);
     if (amount > balance) {
       throw new BadRequestException(
-        'Le montant demandé dépasse le solde disponible sur votre wallet.',
+        "Le montant demandé dépasse le solde disponible sur votre wallet.",
       );
     }
 
@@ -134,4 +156,3 @@ export class WalletsController {
     };
   }
 }
-

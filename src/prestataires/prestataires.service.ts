@@ -1,14 +1,15 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service.js';
+import { Injectable, BadRequestException } from "@nestjs/common";
+import { PrismaService } from "../prisma/prisma.service.js";
+import { resolveHourlyTarifForPrestation } from "../prestations/service-catalog-tarif.util.js";
 import {
   StatutDocument,
   StatutPrestation,
   StatutVerificationPrestataire,
-} from '../../generated/prisma/client.js';
-import { CreatePrestatairePhotoDto } from './dto/create-photo.dto.js';
-import { GeocodingService } from '../geocoding/geocoding.service.js';
-import { UpdateMePrestataireDto } from './dto/update-me.dto.js';
-import { NotificationsService } from '../notifications/notifications.service.js';
+} from "../../generated/prisma/client.js";
+import { CreatePrestatairePhotoDto } from "./dto/create-photo.dto.js";
+import { GeocodingService } from "../geocoding/geocoding.service.js";
+import { UpdateMePrestataireDto } from "./dto/update-me.dto.js";
+import { NotificationsService } from "../notifications/notifications.service.js";
 
 const RAYON_METRES = 500;
 const NOTE_MAX = 5;
@@ -71,17 +72,13 @@ export class PrestatairesService {
    *
    * Réponse : `{ listeProximite, prestataires }` (`listeProximite` true uniquement pour le palier 3).
    */
-  async getPrestatairesFavoris(
-    userId: string,
-    lat?: number,
-    lng?: number,
-  ) {
+  async getPrestatairesFavoris(userId: string, lat?: number, lng?: number) {
     const particulier = await this.prisma.particulier.findUnique({
       where: { userId },
       select: { latitude: true, longitude: true, adresse: true },
     });
     if (!particulier) {
-      throw new BadRequestException('Profil particulier introuvable');
+      throw new BadRequestException("Profil particulier introuvable");
     }
 
     let userLat = toNumber(particulier.latitude);
@@ -126,7 +123,9 @@ export class PrestatairesService {
       },
       select: { prestataireId: true },
     });
-    const prestataireIds = [...new Set(prestationsCetteSemaine.map((p) => p.prestataireId))];
+    const prestataireIds = [
+      ...new Set(prestationsCetteSemaine.map((p) => p.prestataireId)),
+    ];
 
     let avecNoteEtDistance: {
       prestataire: any;
@@ -161,7 +160,7 @@ export class PrestatairesService {
           const plat = toNumber(p.latitude);
           const plng = toNumber(p.longitude);
           if (plat == null || plng == null) return null;
-          const distance = haversineDistance(userLat!, userLng!, plat, plng);
+          const distance = haversineDistance(userLat, userLng, plat, plng);
           const notes = p.avis.map((a) => a.note);
           const noteMoyenne =
             notes.length > 0
@@ -202,7 +201,7 @@ export class PrestatairesService {
           const plat = toNumber(p.latitude);
           const plng = toNumber(p.longitude);
           if (plat == null || plng == null) return null;
-          const distance = haversineDistance(userLat!, userLng!, plat, plng);
+          const distance = haversineDistance(userLat, userLng, plat, plng);
           const notes = p.avis.map((a) => a.note);
           const noteMoyenne =
             notes.length > 0
@@ -243,7 +242,7 @@ export class PrestatairesService {
           const plat = toNumber(p.latitude);
           const plng = toNumber(p.longitude);
           if (plat == null || plng == null) return null;
-          const distance = haversineDistance(userLat!, userLng!, plat, plng);
+          const distance = haversineDistance(userLat, userLng, plat, plng);
           const notes = p.avis.map((a) => a.note);
           const noteMoyenne =
             notes.length > 0
@@ -294,8 +293,7 @@ export class PrestatairesService {
               prestataireServiceId: ps.id,
               libelle: ps.service?.libelle,
               slug: ps.service?.slug,
-              tarifHoraire:
-                ps.tarifHoraire != null ? Number(ps.tarifHoraire) : null,
+              tarifHoraire: resolveHourlyTarifForPrestation(ps),
               description: ps.description ?? null,
             }))
           : [],
@@ -320,14 +318,14 @@ export class PrestatairesService {
       select: { id: true },
     });
     if (!particulier) {
-      throw new BadRequestException('Profil particulier introuvable');
+      throw new BadRequestException("Profil particulier introuvable");
     }
 
     const prestataire = await this.prisma.prestataire.findUnique({
       where: { id: prestataireId },
     });
     if (!prestataire) {
-      throw new BadRequestException('Prestataire introuvable');
+      throw new BadRequestException("Prestataire introuvable");
     }
 
     const avis = await this.prisma.avisPrestataire.upsert({
@@ -372,7 +370,7 @@ export class PrestatairesService {
       select: { latitude: true, longitude: true, adresse: true },
     });
     if (!particulier) {
-      throw new BadRequestException('Profil particulier introuvable');
+      throw new BadRequestException("Profil particulier introuvable");
     }
 
     let userLat = toNumber(particulier.latitude);
@@ -405,7 +403,7 @@ export class PrestatairesService {
 
     if (userLat == null || userLng == null) {
       throw new BadRequestException(
-        'Renseignez une adresse complète dans votre profil, ou activez la localisation pour lancer une recherche.',
+        "Renseignez une adresse complète dans votre profil, ou activez la localisation pour lancer une recherche.",
       );
     }
 
@@ -419,8 +417,8 @@ export class PrestatairesService {
             : undefined;
 
     const hasTarif = tarifMin != null || tarifMax != null;
-    const hasService = !!serviceId && serviceId.trim() !== '';
-    const hasDateFilter = date != null && String(date).trim() !== '';
+    const hasService = !!serviceId && serviceId.trim() !== "";
+    const hasDateFilter = date != null && String(date).trim() !== "";
     const hadFilters = hasService || hasTarif || hasDateFilter;
 
     const baseWhere: Record<string, unknown> = {
@@ -469,9 +467,7 @@ export class PrestatairesService {
     const avecNoteEtDistance = prestataires.map((p) => {
       const notes = p.avis.map((a) => a.note);
       const noteMoyenne =
-        notes.length > 0
-          ? notes.reduce((s, n) => s + n, 0) / notes.length
-          : 0;
+        notes.length > 0 ? notes.reduce((s, n) => s + n, 0) / notes.length : 0;
 
       // Distance par rapport à la position de référence (profil particulier)
       let distanceMetres = Number.MAX_SAFE_INTEGER;
@@ -522,8 +518,7 @@ export class PrestatairesService {
               prestataireServiceId: ps.id,
               libelle: ps.service?.libelle,
               slug: ps.service?.slug,
-              tarifHoraire:
-                ps.tarifHoraire != null ? Number(ps.tarifHoraire) : null,
+              tarifHoraire: resolveHourlyTarifForPrestation(ps),
               description: ps.description ?? null,
             }))
           : [],
@@ -540,7 +535,7 @@ export class PrestatairesService {
       select: { id: true },
     });
     if (!prestataire) {
-      throw new BadRequestException('Profil prestataire introuvable');
+      throw new BadRequestException("Profil prestataire introuvable");
     }
     const [enAttente, terminee] = await Promise.all([
       this.prisma.prestation.count({
@@ -586,17 +581,17 @@ export class PrestatairesService {
     let type: string | undefined;
 
     if (statut === StatutVerificationPrestataire.VERIFIE) {
-      title = 'Profil vérifié';
+      title = "Profil vérifié";
       body =
-        'Vos documents ont été validés. Votre profil est maintenant visible dans les recherches.';
-      type = 'prestataire_documents_valides';
+        "Vos documents ont été validés. Votre profil est maintenant visible dans les recherches.";
+      type = "prestataire_documents_valides";
     } else if (statut === StatutVerificationPrestataire.REFUSE) {
-      title = 'Profil refusé';
+      title = "Profil refusé";
       body =
         motifRefus && motifRefus.trim().length > 0
           ? motifRefus
           : "Vos documents n'ont pas été validés. Merci de vérifier les informations envoyées et de les soumettre à nouveau.";
-      type = 'prestataire_documents_refuses';
+      type = "prestataire_documents_refuses";
     }
 
     if (title) {
@@ -629,7 +624,7 @@ export class PrestatairesService {
       select: { id: true },
     });
     if (!prestataire) {
-      throw new BadRequestException('Profil prestataire introuvable');
+      throw new BadRequestException("Profil prestataire introuvable");
     }
 
     await this.ensureTypeDocumentsExist();
@@ -673,7 +668,7 @@ export class PrestatairesService {
 
     if (upsertedCount === 0) {
       throw new BadRequestException(
-        'Aucun document valide n’a été envoyé. Vérifiez les types de documents.',
+        "Aucun document valide n’a été envoyé. Vérifiez les types de documents.",
       );
     }
 
@@ -695,12 +690,12 @@ export class PrestatairesService {
     if (count > 0) return;
     await this.prisma.typeDocument.createMany({
       data: [
-        { code: 'cni_recto', libelle: 'CNI / Passeport (recto)', ordre: 1 },
-        { code: 'cni_verso', libelle: 'CNI / Passeport (verso)', ordre: 2 },
-        { code: 'casier_judiciaire', libelle: 'Casier judiciaire', ordre: 3 },
+        { code: "cni_recto", libelle: "CNI / Passeport (recto)", ordre: 1 },
+        { code: "cni_verso", libelle: "CNI / Passeport (verso)", ordre: 2 },
+        { code: "casier_judiciaire", libelle: "Casier judiciaire", ordre: 3 },
         {
-          code: 'certificat_bonne_moeurs',
-          libelle: 'Certificat de bonne mœurs',
+          code: "certificat_bonne_moeurs",
+          libelle: "Certificat de bonne mœurs",
           ordre: 4,
         },
       ],
@@ -717,12 +712,12 @@ export class PrestatairesService {
       select: { id: true, statutVerification: true },
     });
     if (!prestataire) {
-      throw new BadRequestException('Profil prestataire introuvable');
+      throw new BadRequestException("Profil prestataire introuvable");
     }
 
     const docs = await this.prisma.prestataireDocument.findMany({
       where: { prestataireId: prestataire.id },
-      orderBy: [{ createdAt: 'asc' }],
+      orderBy: [{ createdAt: "asc" }],
       include: {
         typeDocument: {
           select: {
@@ -767,11 +762,11 @@ export class PrestatairesService {
       select: { id: true },
     });
     if (!prestataire) {
-      throw new BadRequestException('Profil prestataire introuvable');
+      throw new BadRequestException("Profil prestataire introuvable");
     }
     return this.prisma.prestatairePhoto.findMany({
       where: { prestataireId: prestataire.id },
-      orderBy: [{ ordre: 'asc' }, { createdAt: 'asc' }],
+      orderBy: [{ ordre: "asc" }, { createdAt: "asc" }],
     });
   }
 
@@ -784,7 +779,7 @@ export class PrestatairesService {
       select: { id: true },
     });
     if (!prestataire) {
-      throw new BadRequestException('Profil prestataire introuvable');
+      throw new BadRequestException("Profil prestataire introuvable");
     }
     const created = await this.prisma.prestatairePhoto.create({
       data: {
@@ -807,7 +802,7 @@ export class PrestatairesService {
       select: { id: true },
     });
     if (!prestataire) {
-      throw new BadRequestException('Profil prestataire introuvable');
+      throw new BadRequestException("Profil prestataire introuvable");
     }
     const rows = await this.prisma.prestataireService.findMany({
       where: { prestataireId: prestataire.id, actif: true },
@@ -824,7 +819,7 @@ export class PrestatairesService {
   async getPhotosByPrestataire(prestataireId: string) {
     return this.prisma.prestatairePhoto.findMany({
       where: { prestataireId },
-      orderBy: [{ ordre: 'asc' }, { createdAt: 'asc' }],
+      orderBy: [{ ordre: "asc" }, { createdAt: "asc" }],
     });
   }
 
@@ -834,14 +829,18 @@ export class PrestatairesService {
   async getAvisByPrestataireId(prestataireId: string) {
     const rows = await this.prisma.avisPrestataire.findMany({
       where: { prestataireId },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
       include: {
         particulier: { select: { nom: true, prenom: true } },
       },
     });
     return rows.map((a) => ({
       id: a.id,
-      nomClient: [a.particulier.prenom, a.particulier.nom].filter(Boolean).join(' ').trim() || 'Client',
+      nomClient:
+        [a.particulier.prenom, a.particulier.nom]
+          .filter(Boolean)
+          .join(" ")
+          .trim() || "Client",
       note: a.note,
       commentaire: a.commentaire ?? null,
     }));
@@ -853,7 +852,7 @@ export class PrestatairesService {
   async getAvisPublicLanding(limit = 80) {
     const rows = await this.prisma.avisPrestataire.findMany({
       take: limit,
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
       include: {
         particulier: {
           select: { nom: true, prenom: true, avatarUrl: true },
@@ -863,7 +862,10 @@ export class PrestatairesService {
     return rows.map((a) => ({
       id: a.id,
       nomClient:
-        [a.particulier.prenom, a.particulier.nom].filter(Boolean).join(' ').trim() || 'Client',
+        [a.particulier.prenom, a.particulier.nom]
+          .filter(Boolean)
+          .join(" ")
+          .trim() || "Client",
       note: a.note,
       commentaire: a.commentaire ?? null,
       avatarUrl: a.particulier.avatarUrl ?? null,
@@ -880,13 +882,11 @@ export class PrestatairesService {
       select: { id: true },
     });
     if (!prestataire) {
-      throw new BadRequestException('Profil prestataire introuvable');
+      throw new BadRequestException("Profil prestataire introuvable");
     }
 
     let lat =
-      dto.latitude != null && !Number.isNaN(dto.latitude)
-        ? dto.latitude
-        : null;
+      dto.latitude != null && !Number.isNaN(dto.latitude) ? dto.latitude : null;
     let lng =
       dto.longitude != null && !Number.isNaN(dto.longitude)
         ? dto.longitude
@@ -895,9 +895,8 @@ export class PrestatairesService {
     const adresse = dto.adresse?.trim();
     if ((lat == null || lng == null) && adresse && adresse.length >= 3) {
       try {
-        const coords = await this.geocodingService.geocodeWithFallbacks(
-          adresse,
-        );
+        const coords =
+          await this.geocodingService.geocodeWithFallbacks(adresse);
         if (coords) {
           lat = coords.lat;
           lng = coords.lng;
@@ -911,7 +910,7 @@ export class PrestatairesService {
     if (dto.nom !== undefined) {
       const nom = dto.nom.trim();
       if (!nom) {
-        throw new BadRequestException('Le nom ne peut pas être vide');
+        throw new BadRequestException("Le nom ne peut pas être vide");
       }
       data.nom = nom;
     }
@@ -932,12 +931,12 @@ export class PrestatairesService {
       data.longitude = lng;
     }
     if (dto.avatarUrl !== undefined) {
-      const raw = (dto.avatarUrl ?? '').trim();
+      const raw = (dto.avatarUrl ?? "").trim();
       data.avatarUrl = raw.length > 0 ? raw : null;
     }
 
     if (Object.keys(data).length === 0 && dto.serviceIds === undefined) {
-      throw new BadRequestException('Aucune donnée à mettre à jour');
+      throw new BadRequestException("Aucune donnée à mettre à jour");
     }
 
     const updated = Object.keys(data).length
@@ -952,7 +951,7 @@ export class PrestatairesService {
     const serviceIdsRaw = dto.serviceIds;
     if (serviceIdsRaw !== undefined) {
       const serviceIds = serviceIdsRaw
-        .filter((id) => typeof id === 'string' && id.trim().length > 0)
+        .filter((id) => typeof id === "string" && id.trim().length > 0)
         .map((id) => id.trim());
 
       if (serviceIds.length > 0) {
@@ -1000,10 +999,8 @@ export class PrestatairesService {
       adresse: updated.adresse,
       bio: updated.bio,
       avatarUrl: updated.avatarUrl,
-      latitude:
-        updated.latitude != null ? Number(updated.latitude) : null,
-      longitude:
-        updated.longitude != null ? Number(updated.longitude) : null,
+      latitude: updated.latitude != null ? Number(updated.latitude) : null,
+      longitude: updated.longitude != null ? Number(updated.longitude) : null,
     };
   }
 }

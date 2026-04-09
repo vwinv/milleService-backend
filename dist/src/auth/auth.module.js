@@ -25,10 +25,10 @@ exports.AuthModule = AuthModule = __decorate([
             geocoding_module_js_1.GeocodingModule,
             abonnements_module_js_1.AbonnementsModule,
             wallets_module_js_1.WalletsModule,
-            passport_1.PassportModule.register({ defaultStrategy: 'jwt' }),
+            passport_1.PassportModule.register({ defaultStrategy: "jwt" }),
             jwt_1.JwtModule.register({
-                secret: process.env.JWT_SECRET || 'change-me-in-production',
-                signOptions: { expiresIn: '24h' },
+                secret: process.env.JWT_SECRET || "change-me-in-production",
+                signOptions: { expiresIn: "24h" },
             }),
         ],
         controllers: [auth_controller_js_1.AuthController],

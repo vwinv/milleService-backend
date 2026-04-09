@@ -1,12 +1,14 @@
-import { PrismaService } from '../prisma/prisma.service.js';
-import { CurrentUserPayload } from '../auth/decorators/current-user.decorator.js';
-import { NotificationsService } from '../notifications/notifications.service.js';
-import { PrestataireWalletStatut, Role, StatutDocument, StatutPrestation, StatutVerificationPrestataire, WithdrawalMethod, WithdrawalStatus } from '../../generated/prisma/client.js';
+import { PrismaService } from "../prisma/prisma.service.js";
+import { CurrentUserPayload } from "../auth/decorators/current-user.decorator.js";
+import { NotificationsService } from "../notifications/notifications.service.js";
+import { WalletsService } from "../wallets/wallets.service.js";
+import { PrestataireWalletStatut, Role, StatutDocument, StatutPrestation, StatutVerificationPrestataire, WithdrawalMethod, WithdrawalStatus } from "../../generated/prisma/client.js";
 export declare class AdminController {
     private readonly prisma;
     private readonly notifications;
+    private readonly wallets;
     private readonly logger;
-    constructor(prisma: PrismaService, notifications: NotificationsService);
+    constructor(prisma: PrismaService, notifications: NotificationsService, wallets: WalletsService);
     getStats(): Promise<{
         clientsActifs: number;
         prestatairesActifs: number;
@@ -18,7 +20,7 @@ export declare class AdminController {
         body?: string;
         type?: string;
         data?: Record<string, unknown>;
-        audience?: 'TOUT' | 'ALL' | 'PARTICULIER' | 'PRESTATAIRE';
+        audience?: "TOUT" | "ALL" | "PARTICULIER" | "PRESTATAIRE";
     }): Promise<{
         ok: boolean;
         sent: number;
@@ -60,6 +62,13 @@ export declare class AdminController {
         soldesPrestataires: number;
         retraitTotal: number;
     }>;
+    withdrawGeneralWallet(admin: CurrentUserPayload, body: {
+        amount?: number;
+        payoutMethod?: WithdrawalMethod;
+        note?: string;
+    }): Promise<{
+        ok: true;
+    }>;
     listWithdrawalRequests(limit?: string, offset?: string): Promise<{
         total: number;
         items: {
@@ -84,6 +93,14 @@ export declare class AdminController {
         status: "TRAITE";
     }>;
     getTransactions(limit?: string): Promise<({
+        id: any;
+        date: any;
+        prestataireNom: string;
+        montant: number;
+        wallet: string;
+        statut: string;
+        category: "RETRAIT_PLATEFORME";
+    } | {
         id: any;
         date: any;
         prestataireNom: string;
@@ -299,6 +316,7 @@ export declare class AdminController {
             id: string;
             libelle: string;
             slug: string;
+            tarif: number | null;
             actif: boolean;
             createdAt: string;
             prestatairesCount: number;
@@ -306,10 +324,12 @@ export declare class AdminController {
     }>;
     createService(body: {
         libelle?: string;
+        tarif?: number | string;
     }): Promise<{
         id: string;
         libelle: string;
         slug: string;
+        tarif: number | null;
         actif: boolean;
         createdAt: string;
         prestatairesCount: number;
@@ -317,14 +337,18 @@ export declare class AdminController {
     updateService(serviceId: string, body: {
         actif?: boolean;
         libelle?: string;
+        tarif?: number | string | null;
     }): Promise<{
         id: string;
         libelle: string;
         slug: string;
+        tarif: number | null;
         actif: boolean;
         createdAt: string;
         prestatairesCount: number;
     }>;
+    private parsePositiveTarif;
+    private parseServiceTarifValue;
     private slugifyServiceLabel;
     private ensureUniqueServiceSlug;
     getPrestatairesByService(serviceId: string): Promise<{

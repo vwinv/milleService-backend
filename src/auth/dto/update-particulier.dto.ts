@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsNumber, MaxLength } from 'class-validator';
+import { IsOptional, IsString, IsNumber, MaxLength } from "class-validator";
 
 export class UpdateParticulierDto {
   @IsOptional()
@@ -31,4 +31,3 @@ export class UpdateParticulierDto {
   @MaxLength(2048)
   avatarUrl?: string;
 }
-

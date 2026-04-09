@@ -5,8 +5,8 @@ import {
   IsDateString,
   Min,
   Max,
-} from 'class-validator';
-import { Type } from 'class-transformer';
+} from "class-validator";
+import { Type } from "class-transformer";
 
 export class SearchQueryDto {
   /** Position actuelle (GPS app) ; si absent, le serveur utilise le profil puis géocode l’adresse. */

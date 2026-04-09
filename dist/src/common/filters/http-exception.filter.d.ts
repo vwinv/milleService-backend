@@ -1,4 +1,4 @@
-import { ExceptionFilter, ArgumentsHost } from '@nestjs/common';
+import { ExceptionFilter, ArgumentsHost } from "@nestjs/common";
 export interface ErrorApiResponse {
     success: boolean;
     data: null;

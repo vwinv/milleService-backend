@@ -7,12 +7,15 @@ import {
   Patch,
   Query,
   UseGuards,
-} from '@nestjs/common';
-import { NotificationsService } from './notifications.service.js';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
-import { CurrentUser, CurrentUserPayload } from '../auth/decorators/current-user.decorator.js';
+} from "@nestjs/common";
+import { NotificationsService } from "./notifications.service.js";
+import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard.js";
+import {
+  CurrentUser,
+  CurrentUserPayload,
+} from "../auth/decorators/current-user.decorator.js";
 
-@Controller('notifications')
+@Controller("notifications")
 @UseGuards(JwtAuthGuard)
 export class NotificationsController {
   private readonly logger = new Logger(NotificationsController.name);
@@ -22,18 +25,18 @@ export class NotificationsController {
   @Get()
   list(
     @CurrentUser() user: CurrentUserPayload,
-    @Query('unreadOnly') unreadOnly?: string,
+    @Query("unreadOnly") unreadOnly?: string,
   ) {
-    return this.notifications.listForUser(user.userId, unreadOnly === 'true');
+    return this.notifications.listForUser(user.userId, unreadOnly === "true");
   }
 
-  @Patch('mark-read')
+  @Patch("mark-read")
   markAllAsRead(@CurrentUser() user: CurrentUserPayload) {
     return this.notifications.markAllAsRead(user.userId);
   }
 
   /** Avant toute route `@Patch(':id/...')` pour éviter qu’un segment littéral soit capturé par `:id`. */
-  @Patch('fcm-token')
+  @Patch("fcm-token")
   async registerFcmToken(
     @CurrentUser() user: CurrentUserPayload,
     @Body() body: { fcmToken: string | null },
@@ -41,14 +44,17 @@ export class NotificationsController {
     const raw = body?.fcmToken;
     const len = raw != null ? String(raw).length : 0;
     this.logger.log(
-      `[FCM trace] PATCH /notifications/fcm-token userId=${user.userId} body.fcmToken=${raw == null ? 'null' : `présent (len=${len})`}`,
+      `[FCM trace] PATCH /notifications/fcm-token userId=${user.userId} body.fcmToken=${raw == null ? "null" : `présent (len=${len})`}`,
     );
-    await this.notifications.registerFcmToken(user.userId, body?.fcmToken ?? null);
+    await this.notifications.registerFcmToken(
+      user.userId,
+      body?.fcmToken ?? null,
+    );
     return { ok: true };
   }
 
-  @Patch(':id/read')
-  markAsRead(@CurrentUser() user: CurrentUserPayload, @Param('id') id: string) {
+  @Patch(":id/read")
+  markAsRead(@CurrentUser() user: CurrentUserPayload, @Param("id") id: string) {
     return this.notifications.markAsRead(user.userId, id);
   }
 }

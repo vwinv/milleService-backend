@@ -1,5 +1,5 @@
-import { IsEnum, IsOptional, IsString } from 'class-validator';
-import { StatutVerificationPrestataire } from '../../../generated/prisma/client.js';
+import { IsEnum, IsOptional, IsString } from "class-validator";
+import { StatutVerificationPrestataire } from "../../../generated/prisma/client.js";
 
 export class UpdateStatutVerificationPrestataireDto {
   @IsEnum(StatutVerificationPrestataire)
@@ -9,4 +9,3 @@ export class UpdateStatutVerificationPrestataireDto {
   @IsString()
   motifRefus?: string;
 }
-

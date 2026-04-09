@@ -12,7 +12,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.RolesGuard = exports.ROLES_KEY = void 0;
 const common_1 = require("@nestjs/common");
 const core_1 = require("@nestjs/core");
-exports.ROLES_KEY = 'roles';
+exports.ROLES_KEY = "roles";
 let RolesGuard = class RolesGuard {
     reflector;
     constructor(reflector) {
@@ -25,7 +25,7 @@ let RolesGuard = class RolesGuard {
         const { user } = context.switchToHttp().getRequest();
         const hasRole = requiredRoles.some((role) => user?.role === role);
         if (!hasRole) {
-            throw new common_1.ForbiddenException('Accès non autorisé');
+            throw new common_1.ForbiddenException("Accès non autorisé");
         }
         return true;
     }

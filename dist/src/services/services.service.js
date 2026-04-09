@@ -20,7 +20,7 @@ let ServicesService = class ServicesService {
     async findAll() {
         const rows = await this.prisma.service.findMany({
             where: { actif: true },
-            orderBy: { libelle: 'asc' },
+            orderBy: { libelle: "asc" },
             select: { id: true, libelle: true, slug: true },
         });
         return rows;

@@ -25,12 +25,12 @@ class CreatePrestationDto {
 }
 exports.CreatePrestationDto = CreatePrestationDto;
 __decorate([
-    (0, class_validator_1.IsNotEmpty)({ message: 'Le prestataire est requis' }),
+    (0, class_validator_1.IsNotEmpty)({ message: "Le prestataire est requis" }),
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], CreatePrestationDto.prototype, "prestataireId", void 0);
 __decorate([
-    (0, class_validator_1.IsNotEmpty)({ message: 'Le service est requis' }),
+    (0, class_validator_1.IsNotEmpty)({ message: "Le service est requis" }),
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], CreatePrestationDto.prototype, "prestataireServiceId", void 0);

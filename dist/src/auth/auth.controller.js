@@ -19,6 +19,7 @@ const register_dto_js_1 = require("./dto/register.dto.js");
 const login_dto_js_1 = require("./dto/login.dto.js");
 const refresh_token_dto_js_1 = require("./dto/refresh-token.dto.js");
 const update_particulier_dto_js_1 = require("./dto/update-particulier.dto.js");
+const forgot_password_dto_js_1 = require("./dto/forgot-password.dto.js");
 const jwt_auth_guard_js_1 = require("./guards/jwt-auth.guard.js");
 const current_user_decorator_js_1 = require("./decorators/current-user.decorator.js");
 let AuthController = class AuthController {
@@ -35,6 +36,9 @@ let AuthController = class AuthController {
     refresh(dto) {
         return this.authService.refresh(dto.refresh_token);
     }
+    forgotPassword(dto) {
+        return this.authService.forgotPassword(dto);
+    }
     deactivate(user) {
         return this.authService.deactivateAccount(user.userId);
     }
@@ -50,28 +54,35 @@ let AuthController = class AuthController {
 };
 exports.AuthController = AuthController;
 __decorate([
-    (0, common_1.Post)('register'),
+    (0, common_1.Post)("register"),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [register_dto_js_1.RegisterDto]),
     __metadata("design:returntype", Promise)
 ], AuthController.prototype, "register", null);
 __decorate([
-    (0, common_1.Post)('login'),
+    (0, common_1.Post)("login"),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [login_dto_js_1.LoginDto]),
     __metadata("design:returntype", void 0)
 ], AuthController.prototype, "login", null);
 __decorate([
-    (0, common_1.Post)('refresh'),
+    (0, common_1.Post)("refresh"),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [refresh_token_dto_js_1.RefreshTokenDto]),
     __metadata("design:returntype", void 0)
 ], AuthController.prototype, "refresh", null);
 __decorate([
-    (0, common_1.Post)('me/deactivate'),
+    (0, common_1.Post)("forgot-password"),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [forgot_password_dto_js_1.ForgotPasswordDto]),
+    __metadata("design:returntype", void 0)
+], AuthController.prototype, "forgotPassword", null);
+__decorate([
+    (0, common_1.Post)("me/deactivate"),
     (0, common_1.UseGuards)(jwt_auth_guard_js_1.JwtAuthGuard),
     __param(0, (0, current_user_decorator_js_1.CurrentUser)()),
     __metadata("design:type", Function),
@@ -79,7 +90,7 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], AuthController.prototype, "deactivate", null);
 __decorate([
-    (0, common_1.Patch)('me/particulier'),
+    (0, common_1.Patch)("me/particulier"),
     (0, common_1.UseGuards)(jwt_auth_guard_js_1.JwtAuthGuard),
     __param(0, (0, current_user_decorator_js_1.CurrentUser)()),
     __param(1, (0, common_1.Body)()),
@@ -88,7 +99,7 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], AuthController.prototype, "updateParticulier", null);
 __decorate([
-    (0, common_1.Post)('me/become-prestataire'),
+    (0, common_1.Post)("me/become-prestataire"),
     (0, common_1.UseGuards)(jwt_auth_guard_js_1.JwtAuthGuard),
     __param(0, (0, current_user_decorator_js_1.CurrentUser)()),
     __metadata("design:type", Function),
@@ -96,7 +107,7 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], AuthController.prototype, "becomePrestataire", null);
 __decorate([
-    (0, common_1.Post)('me/become-particulier'),
+    (0, common_1.Post)("me/become-particulier"),
     (0, common_1.UseGuards)(jwt_auth_guard_js_1.JwtAuthGuard),
     __param(0, (0, current_user_decorator_js_1.CurrentUser)()),
     __metadata("design:type", Function),
@@ -104,7 +115,7 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], AuthController.prototype, "becomeParticulier", null);
 exports.AuthController = AuthController = __decorate([
-    (0, common_1.Controller)('auth'),
+    (0, common_1.Controller)("auth"),
     __metadata("design:paramtypes", [auth_service_js_1.AuthService])
 ], AuthController);
 //# sourceMappingURL=auth.controller.js.map

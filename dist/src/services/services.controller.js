@@ -29,7 +29,7 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], ServicesController.prototype, "findAll", null);
 exports.ServicesController = ServicesController = __decorate([
-    (0, common_1.Controller)('services'),
+    (0, common_1.Controller)("services"),
     __metadata("design:paramtypes", [services_service_js_1.ServicesService])
 ], ServicesController);
 //# sourceMappingURL=services.controller.js.map

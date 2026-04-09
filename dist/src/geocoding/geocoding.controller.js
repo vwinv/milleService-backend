@@ -21,7 +21,7 @@ let GeocodingController = class GeocodingController {
         this.geocodingService = geocodingService;
     }
     async geocode(address) {
-        const q = (address ?? '').trim();
+        const q = (address ?? "").trim();
         if (q.length < 3) {
             return { lat: null, lng: null, found: false };
         }
@@ -31,7 +31,7 @@ let GeocodingController = class GeocodingController {
         return { lat: null, lng: null, found: false };
     }
     async autocomplete(q) {
-        const query = (q ?? '').trim();
+        const query = (q ?? "").trim();
         if (query.length < 2)
             return [];
         return this.geocodingService.autocomplete(query);
@@ -40,20 +40,20 @@ let GeocodingController = class GeocodingController {
 exports.GeocodingController = GeocodingController;
 __decorate([
     (0, common_1.Get)(),
-    __param(0, (0, common_1.Query)('address')),
+    __param(0, (0, common_1.Query)("address")),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], GeocodingController.prototype, "geocode", null);
 __decorate([
-    (0, common_1.Get)('autocomplete'),
-    __param(0, (0, common_1.Query)('q')),
+    (0, common_1.Get)("autocomplete"),
+    __param(0, (0, common_1.Query)("q")),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], GeocodingController.prototype, "autocomplete", null);
 exports.GeocodingController = GeocodingController = __decorate([
-    (0, common_1.Controller)('geocoding'),
+    (0, common_1.Controller)("geocoding"),
     __metadata("design:paramtypes", [geocoding_service_js_1.GeocodingService])
 ], GeocodingController);
 //# sourceMappingURL=geocoding.controller.js.map

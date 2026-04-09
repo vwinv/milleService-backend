@@ -1,11 +1,11 @@
-import { IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsNotEmpty, IsNumber, IsOptional, IsString } from "class-validator";
 
 export class CreatePrestationDto {
-  @IsNotEmpty({ message: 'Le prestataire est requis' })
+  @IsNotEmpty({ message: "Le prestataire est requis" })
   @IsString()
   prestataireId: string;
 
-  @IsNotEmpty({ message: 'Le service est requis' })
+  @IsNotEmpty({ message: "Le service est requis" })
   @IsString()
   prestataireServiceId: string;
 

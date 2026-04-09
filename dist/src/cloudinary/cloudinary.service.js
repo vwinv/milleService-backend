@@ -12,7 +12,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.CloudinaryService = exports.CLOUDINARY_FOLDER = void 0;
 const common_1 = require("@nestjs/common");
 const cloudinary_1 = require("cloudinary");
-exports.CLOUDINARY_FOLDER = 'milleservices/documents';
+exports.CLOUDINARY_FOLDER = "milleservices/documents";
 let CloudinaryService = class CloudinaryService {
     constructor() {
         cloudinary_1.v2.config({
@@ -22,11 +22,11 @@ let CloudinaryService = class CloudinaryService {
         });
     }
     async uploadDocument(buffer, originalName, mimetype) {
-        const mt = (mimetype ?? '').toLowerCase();
+        const mt = (mimetype ?? "").toLowerCase();
         const isPdf = /\.pdf$/i.test(originalName) ||
-            mt === 'application/pdf' ||
-            mt === 'application/x-pdf';
-        const resourceType = isPdf ? 'raw' : 'image';
+            mt === "application/pdf" ||
+            mt === "application/x-pdf";
+        const resourceType = isPdf ? "raw" : "image";
         return new Promise((resolve, reject) => {
             const uploadStream = cloudinary_1.v2.uploader.upload_stream({
                 folder: exports.CLOUDINARY_FOLDER,
@@ -37,12 +37,12 @@ let CloudinaryService = class CloudinaryService {
                 if (error)
                     return reject(error);
                 if (!result || !result.secure_url) {
-                    return reject(new Error('Upload failed: no result'));
+                    return reject(new Error("Upload failed: no result"));
                 }
                 resolve({
                     url: result.secure_url,
                     secureUrl: result.secure_url,
-                    publicId: result.public_id ?? '',
+                    publicId: result.public_id ?? "",
                 });
             });
             uploadStream.end(buffer);

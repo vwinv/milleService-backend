@@ -5,21 +5,21 @@ const adapter_pg_1 = require("@prisma/adapter-pg");
 const client_1 = require("../../generated/prisma/client");
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
-    throw new Error('DATABASE_URL is not set in environment');
+    throw new Error("DATABASE_URL is not set in environment");
 }
 const adapter = new adapter_pg_1.PrismaPg({ connectionString });
 const prisma = new client_1.PrismaClient({ adapter });
 async function main() {
     const particulier = await prisma.particulier.findFirst({
-        orderBy: { createdAt: 'asc' },
+        orderBy: { createdAt: "asc" },
         select: { id: true },
     });
     if (!particulier) {
-        console.log('Aucun particulier trouvé, impossible de créer des avis.');
+        console.log("Aucun particulier trouvé, impossible de créer des avis.");
         return;
     }
     const prestataires = await prisma.prestataire.findMany({
-        orderBy: { createdAt: 'asc' },
+        orderBy: { createdAt: "asc" },
         take: 2,
         select: { id: true, nom: true },
     });
@@ -42,11 +42,11 @@ async function main() {
             particulierId: particulier.id,
             prestataireId: p1.id,
             note: 5,
-            commentaire: 'Note ajoutée automatiquement (5/5).',
+            commentaire: "Note ajoutée automatiquement (5/5).",
         },
         update: {
             note: 5,
-            commentaire: 'Note mise à jour automatiquement (5/5).',
+            commentaire: "Note mise à jour automatiquement (5/5).",
         },
     });
     await prisma.avisPrestataire.upsert({
@@ -60,18 +60,18 @@ async function main() {
             particulierId: particulier.id,
             prestataireId: p2.id,
             note: 4,
-            commentaire: 'Note ajoutée automatiquement (4/5).',
+            commentaire: "Note ajoutée automatiquement (4/5).",
         },
         update: {
             note: 4,
-            commentaire: 'Note mise à jour automatiquement (4/5).',
+            commentaire: "Note mise à jour automatiquement (4/5).",
         },
     });
-    console.log('Avis créés / mis à jour avec succès.');
+    console.log("Avis créés / mis à jour avec succès.");
 }
 main()
     .catch((e) => {
-    console.error('Erreur lors du seed des avis :', e);
+    console.error("Erreur lors du seed des avis :", e);
     process.exitCode = 1;
 })
     .finally(async () => {

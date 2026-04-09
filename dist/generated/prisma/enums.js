@@ -45,7 +45,8 @@ exports.PrestataireWalletStatut = {
 };
 exports.TransactionType = {
     PRESTATION: 'PRESTATION',
-    ABONNEMENT: 'ABONNEMENT'
+    ABONNEMENT: 'ABONNEMENT',
+    RETRAIT_PLATEFORME: 'RETRAIT_PLATEFORME'
 };
 exports.WithdrawalMethod = {
     ORANGE_MONEY: 'ORANGE_MONEY',

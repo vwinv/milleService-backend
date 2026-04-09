@@ -25,7 +25,7 @@ __decorate([
 __decorate([
     (0, class_transformer_1.Type)(() => Number),
     (0, class_validator_1.IsNumber)({ maxDecimalPlaces: 2 }),
-    (0, class_validator_1.Min)(0.01, { message: 'Le montant doit être strictement positif' }),
+    (0, class_validator_1.Min)(0.01, { message: "Le montant doit être strictement positif" }),
     __metadata("design:type", Number)
 ], RequestWithdrawalDto.prototype, "amount", void 0);
 //# sourceMappingURL=request-withdrawal.dto.js.map

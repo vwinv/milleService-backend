@@ -25,7 +25,7 @@ let NotificationsController = NotificationsController_1 = class NotificationsCon
         this.notifications = notifications;
     }
     list(user, unreadOnly) {
-        return this.notifications.listForUser(user.userId, unreadOnly === 'true');
+        return this.notifications.listForUser(user.userId, unreadOnly === "true");
     }
     markAllAsRead(user) {
         return this.notifications.markAllAsRead(user.userId);
@@ -33,7 +33,7 @@ let NotificationsController = NotificationsController_1 = class NotificationsCon
     async registerFcmToken(user, body) {
         const raw = body?.fcmToken;
         const len = raw != null ? String(raw).length : 0;
-        this.logger.log(`[FCM trace] PATCH /notifications/fcm-token userId=${user.userId} body.fcmToken=${raw == null ? 'null' : `présent (len=${len})`}`);
+        this.logger.log(`[FCM trace] PATCH /notifications/fcm-token userId=${user.userId} body.fcmToken=${raw == null ? "null" : `présent (len=${len})`}`);
         await this.notifications.registerFcmToken(user.userId, body?.fcmToken ?? null);
         return { ok: true };
     }
@@ -45,20 +45,20 @@ exports.NotificationsController = NotificationsController;
 __decorate([
     (0, common_1.Get)(),
     __param(0, (0, current_user_decorator_js_1.CurrentUser)()),
-    __param(1, (0, common_1.Query)('unreadOnly')),
+    __param(1, (0, common_1.Query)("unreadOnly")),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)
 ], NotificationsController.prototype, "list", null);
 __decorate([
-    (0, common_1.Patch)('mark-read'),
+    (0, common_1.Patch)("mark-read"),
     __param(0, (0, current_user_decorator_js_1.CurrentUser)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], NotificationsController.prototype, "markAllAsRead", null);
 __decorate([
-    (0, common_1.Patch)('fcm-token'),
+    (0, common_1.Patch)("fcm-token"),
     __param(0, (0, current_user_decorator_js_1.CurrentUser)()),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -66,15 +66,15 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], NotificationsController.prototype, "registerFcmToken", null);
 __decorate([
-    (0, common_1.Patch)(':id/read'),
+    (0, common_1.Patch)(":id/read"),
     __param(0, (0, current_user_decorator_js_1.CurrentUser)()),
-    __param(1, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Param)("id")),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)
 ], NotificationsController.prototype, "markAsRead", null);
 exports.NotificationsController = NotificationsController = NotificationsController_1 = __decorate([
-    (0, common_1.Controller)('notifications'),
+    (0, common_1.Controller)("notifications"),
     (0, common_1.UseGuards)(jwt_auth_guard_js_1.JwtAuthGuard),
     __metadata("design:paramtypes", [notifications_service_js_1.NotificationsService])
 ], NotificationsController);

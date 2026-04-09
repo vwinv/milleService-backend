@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsOptional, IsString, IsInt, Min } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, IsInt, Min } from "class-validator";
 
 export class CreatePrestatairePhotoDto {
   @IsString()
@@ -18,4 +18,3 @@ export class CreatePrestatairePhotoDto {
   @IsOptional()
   ordre?: number;
 }
-

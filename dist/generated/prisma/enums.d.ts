@@ -51,6 +51,7 @@ export type PrestataireWalletStatut = (typeof PrestataireWalletStatut)[keyof typ
 export declare const TransactionType: {
     readonly PRESTATION: "PRESTATION";
     readonly ABONNEMENT: "ABONNEMENT";
+    readonly RETRAIT_PLATEFORME: "RETRAIT_PLATEFORME";
 };
 export type TransactionType = (typeof TransactionType)[keyof typeof TransactionType];
 export declare const WithdrawalMethod: {

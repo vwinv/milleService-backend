@@ -50,7 +50,7 @@ let WalletsController = class WalletsController {
         const transactions = wallet
             ? await this.prisma.walletTransaction.findMany({
                 where: { walletId: wallet.id },
-                orderBy: { createdAt: 'desc' },
+                orderBy: { createdAt: "desc" },
                 take,
             })
             : [];
@@ -59,10 +59,15 @@ let WalletsController = class WalletsController {
                 ? {
                     ...wallet,
                     balance: Number(wallet.balance),
-                    balancePlafond: wallet.balancePlafond != null ? Number(wallet.balancePlafond) : null,
+                    balancePlafond: wallet.balancePlafond != null
+                        ? Number(wallet.balancePlafond)
+                        : null,
                 }
                 : null,
-            transactions: transactions.map((t) => ({ ...t, amount: Number(t.amount) })),
+            transactions: transactions.map((t) => ({
+                ...t,
+                amount: Number(t.amount),
+            })),
         };
     }
     async general(limit) {
@@ -73,13 +78,16 @@ let WalletsController = class WalletsController {
         const transactions = wallet
             ? await this.prisma.walletTransaction.findMany({
                 where: { walletId: wallet.id },
-                orderBy: { createdAt: 'desc' },
+                orderBy: { createdAt: "desc" },
                 take,
             })
             : [];
         return {
             wallet: wallet ? { ...wallet, balance: Number(wallet.balance) } : null,
-            transactions: transactions.map((t) => ({ ...t, amount: Number(t.amount) })),
+            transactions: transactions.map((t) => ({
+                ...t,
+                amount: Number(t.amount),
+            })),
         };
     }
     async requestWithdrawal(user, dto) {
@@ -88,25 +96,25 @@ let WalletsController = class WalletsController {
             select: { id: true },
         });
         if (!prestataire) {
-            throw new common_1.BadRequestException('Profil prestataire introuvable');
+            throw new common_1.BadRequestException("Profil prestataire introuvable");
         }
         const prestWallet = await this.prisma.wallet.findUnique({
             where: { prestataireId: prestataire.id },
             select: { statutPrestataire: true, balance: true },
         });
         if (!prestWallet) {
-            throw new common_1.BadRequestException('Wallet prestataire introuvable');
+            throw new common_1.BadRequestException("Wallet prestataire introuvable");
         }
-        if (prestWallet.statutPrestataire === 'BLOQUE') {
-            throw new common_1.BadRequestException('Votre wallet est gelé : les retraits ne sont pas autorisés pour le moment.');
+        if (prestWallet.statutPrestataire === "BLOQUE") {
+            throw new common_1.BadRequestException("Votre wallet est gelé : les retraits ne sont pas autorisés pour le moment.");
         }
         const amount = Number(dto.amount);
         if (Number.isNaN(amount) || amount <= 0) {
-            throw new common_1.BadRequestException('Montant invalide');
+            throw new common_1.BadRequestException("Montant invalide");
         }
         const balance = Number(prestWallet.balance);
         if (amount > balance) {
-            throw new common_1.BadRequestException('Le montant demandé dépasse le solde disponible sur votre wallet.');
+            throw new common_1.BadRequestException("Le montant demandé dépasse le solde disponible sur votre wallet.");
         }
         const req = await this.prisma.withdrawalRequest.create({
             data: {
@@ -123,28 +131,28 @@ let WalletsController = class WalletsController {
 };
 exports.WalletsController = WalletsController;
 __decorate([
-    (0, common_1.Get)('me'),
+    (0, common_1.Get)("me"),
     (0, common_1.UseGuards)(roles_guard_js_1.RolesGuard),
-    (0, roles_decorator_js_1.Roles)('PRESTATAIRE'),
+    (0, roles_decorator_js_1.Roles)("PRESTATAIRE"),
     __param(0, (0, current_user_decorator_js_1.CurrentUser)()),
-    __param(1, (0, common_1.Query)('limit')),
+    __param(1, (0, common_1.Query)("limit")),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", Promise)
 ], WalletsController.prototype, "me", null);
 __decorate([
-    (0, common_1.Get)('general'),
+    (0, common_1.Get)("general"),
     (0, common_1.UseGuards)(roles_guard_js_1.RolesGuard),
-    (0, roles_decorator_js_1.Roles)('ADMIN'),
-    __param(0, (0, common_1.Query)('limit')),
+    (0, roles_decorator_js_1.Roles)("ADMIN"),
+    __param(0, (0, common_1.Query)("limit")),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], WalletsController.prototype, "general", null);
 __decorate([
-    (0, common_1.Post)('withdrawals/request'),
+    (0, common_1.Post)("withdrawals/request"),
     (0, common_1.UseGuards)(roles_guard_js_1.RolesGuard),
-    (0, roles_decorator_js_1.Roles)('PRESTATAIRE'),
+    (0, roles_decorator_js_1.Roles)("PRESTATAIRE"),
     __param(0, (0, current_user_decorator_js_1.CurrentUser)()),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -152,7 +160,7 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], WalletsController.prototype, "requestWithdrawal", null);
 exports.WalletsController = WalletsController = __decorate([
-    (0, common_1.Controller)('wallets'),
+    (0, common_1.Controller)("wallets"),
     (0, common_1.UseGuards)(jwt_auth_guard_js_1.JwtAuthGuard),
     __metadata("design:paramtypes", [prisma_service_js_1.PrismaService])
 ], WalletsController);

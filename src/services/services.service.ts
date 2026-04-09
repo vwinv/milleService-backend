@@ -1,5 +1,5 @@
-import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service.js';
+import { Injectable } from "@nestjs/common";
+import { PrismaService } from "../prisma/prisma.service.js";
 
 export interface ServiceDto {
   id: string;
@@ -17,7 +17,7 @@ export class ServicesService {
   async findAll(): Promise<ServiceDto[]> {
     const rows = await this.prisma.service.findMany({
       where: { actif: true },
-      orderBy: { libelle: 'asc' },
+      orderBy: { libelle: "asc" },
       select: { id: true, libelle: true, slug: true },
     });
     return rows;

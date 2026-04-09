@@ -21,13 +21,13 @@ let JwtStrategy = class JwtStrategy extends (0, passport_1.PassportStrategy)(pas
         super({
             jwtFromRequest: passport_jwt_1.ExtractJwt.fromAuthHeaderAsBearerToken(),
             ignoreExpiration: false,
-            secretOrKey: process.env.JWT_SECRET || 'change-me-in-production',
+            secretOrKey: process.env.JWT_SECRET || "change-me-in-production",
         });
         this.prisma = prisma;
     }
     async validate(payload) {
         if (!payload?.sub) {
-            throw new common_1.UnauthorizedException('Token invalide');
+            throw new common_1.UnauthorizedException("Token invalide");
         }
         if (payload.role === client_js_1.Role.PARTICULIER) {
             const p = await this.prisma.particulier.findUnique({
@@ -35,7 +35,7 @@ let JwtStrategy = class JwtStrategy extends (0, passport_1.PassportStrategy)(pas
                 select: { statut: true },
             });
             if (p?.statut === client_js_1.ParticulierStatut.INACTIF) {
-                throw new common_1.UnauthorizedException('Ce compte client a été désactivé. Contactez le support si besoin.');
+                throw new common_1.UnauthorizedException("Ce compte client a été désactivé. Contactez le support si besoin.");
             }
         }
         return {

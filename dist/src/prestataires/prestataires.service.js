@@ -12,6 +12,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.PrestatairesService = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_service_js_1 = require("../prisma/prisma.service.js");
+const service_catalog_tarif_util_js_1 = require("../prestations/service-catalog-tarif.util.js");
 const client_js_1 = require("../../generated/prisma/client.js");
 const geocoding_service_js_1 = require("../geocoding/geocoding.service.js");
 const notifications_service_js_1 = require("../notifications/notifications.service.js");
@@ -62,7 +63,7 @@ let PrestatairesService = class PrestatairesService {
             select: { latitude: true, longitude: true, adresse: true },
         });
         if (!particulier) {
-            throw new common_1.BadRequestException('Profil particulier introuvable');
+            throw new common_1.BadRequestException("Profil particulier introuvable");
         }
         let userLat = toNumber(particulier.latitude);
         let userLng = toNumber(particulier.longitude);
@@ -101,7 +102,9 @@ let PrestatairesService = class PrestatairesService {
             },
             select: { prestataireId: true },
         });
-        const prestataireIds = [...new Set(prestationsCetteSemaine.map((p) => p.prestataireId))];
+        const prestataireIds = [
+            ...new Set(prestationsCetteSemaine.map((p) => p.prestataireId)),
+        ];
         let avecNoteEtDistance = [];
         let listeProximite = false;
         if (prestataireIds.length > 0) {
@@ -247,7 +250,7 @@ let PrestatairesService = class PrestatairesService {
                     prestataireServiceId: ps.id,
                     libelle: ps.service?.libelle,
                     slug: ps.service?.slug,
-                    tarifHoraire: ps.tarifHoraire != null ? Number(ps.tarifHoraire) : null,
+                    tarifHoraire: (0, service_catalog_tarif_util_js_1.resolveHourlyTarifForPrestation)(ps),
                     description: ps.description ?? null,
                 }))
                 : [],
@@ -260,13 +263,13 @@ let PrestatairesService = class PrestatairesService {
             select: { id: true },
         });
         if (!particulier) {
-            throw new common_1.BadRequestException('Profil particulier introuvable');
+            throw new common_1.BadRequestException("Profil particulier introuvable");
         }
         const prestataire = await this.prisma.prestataire.findUnique({
             where: { id: prestataireId },
         });
         if (!prestataire) {
-            throw new common_1.BadRequestException('Prestataire introuvable');
+            throw new common_1.BadRequestException("Prestataire introuvable");
         }
         const avis = await this.prisma.avisPrestataire.upsert({
             where: {
@@ -294,7 +297,7 @@ let PrestatairesService = class PrestatairesService {
             select: { latitude: true, longitude: true, adresse: true },
         });
         if (!particulier) {
-            throw new common_1.BadRequestException('Profil particulier introuvable');
+            throw new common_1.BadRequestException("Profil particulier introuvable");
         }
         let userLat = toNumber(particulier.latitude);
         let userLng = toNumber(particulier.longitude);
@@ -323,7 +326,7 @@ let PrestatairesService = class PrestatairesService {
             }
         }
         if (userLat == null || userLng == null) {
-            throw new common_1.BadRequestException('Renseignez une adresse complète dans votre profil, ou activez la localisation pour lancer une recherche.');
+            throw new common_1.BadRequestException("Renseignez une adresse complète dans votre profil, ou activez la localisation pour lancer une recherche.");
         }
         const tarifFilter = tarifMin != null && tarifMax != null
             ? { gte: tarifMin, lte: tarifMax }
@@ -333,8 +336,8 @@ let PrestatairesService = class PrestatairesService {
                     ? { lte: tarifMax }
                     : undefined;
         const hasTarif = tarifMin != null || tarifMax != null;
-        const hasService = !!serviceId && serviceId.trim() !== '';
-        const hasDateFilter = date != null && String(date).trim() !== '';
+        const hasService = !!serviceId && serviceId.trim() !== "";
+        const hasDateFilter = date != null && String(date).trim() !== "";
         const hadFilters = hasService || hasTarif || hasDateFilter;
         const baseWhere = {
             actif: true,
@@ -375,9 +378,7 @@ let PrestatairesService = class PrestatairesService {
         }
         const avecNoteEtDistance = prestataires.map((p) => {
             const notes = p.avis.map((a) => a.note);
-            const noteMoyenne = notes.length > 0
-                ? notes.reduce((s, n) => s + n, 0) / notes.length
-                : 0;
+            const noteMoyenne = notes.length > 0 ? notes.reduce((s, n) => s + n, 0) / notes.length : 0;
             let distanceMetres = Number.MAX_SAFE_INTEGER;
             const plat = toNumber(p.latitude);
             const plng = toNumber(p.longitude);
@@ -418,7 +419,7 @@ let PrestatairesService = class PrestatairesService {
                     prestataireServiceId: ps.id,
                     libelle: ps.service?.libelle,
                     slug: ps.service?.slug,
-                    tarifHoraire: ps.tarifHoraire != null ? Number(ps.tarifHoraire) : null,
+                    tarifHoraire: (0, service_catalog_tarif_util_js_1.resolveHourlyTarifForPrestation)(ps),
                     description: ps.description ?? null,
                 }))
                 : [],
@@ -430,7 +431,7 @@ let PrestatairesService = class PrestatairesService {
             select: { id: true },
         });
         if (!prestataire) {
-            throw new common_1.BadRequestException('Profil prestataire introuvable');
+            throw new common_1.BadRequestException("Profil prestataire introuvable");
         }
         const [enAttente, terminee] = await Promise.all([
             this.prisma.prestation.count({
@@ -465,18 +466,18 @@ let PrestatairesService = class PrestatairesService {
         let body = null;
         let type;
         if (statut === client_js_1.StatutVerificationPrestataire.VERIFIE) {
-            title = 'Profil vérifié';
+            title = "Profil vérifié";
             body =
-                'Vos documents ont été validés. Votre profil est maintenant visible dans les recherches.';
-            type = 'prestataire_documents_valides';
+                "Vos documents ont été validés. Votre profil est maintenant visible dans les recherches.";
+            type = "prestataire_documents_valides";
         }
         else if (statut === client_js_1.StatutVerificationPrestataire.REFUSE) {
-            title = 'Profil refusé';
+            title = "Profil refusé";
             body =
                 motifRefus && motifRefus.trim().length > 0
                     ? motifRefus
                     : "Vos documents n'ont pas été validés. Merci de vérifier les informations envoyées et de les soumettre à nouveau.";
-            type = 'prestataire_documents_refuses';
+            type = "prestataire_documents_refuses";
         }
         if (title) {
             await this.notifications.sendToUser(prestataire.userId, {
@@ -497,7 +498,7 @@ let PrestatairesService = class PrestatairesService {
             select: { id: true },
         });
         if (!prestataire) {
-            throw new common_1.BadRequestException('Profil prestataire introuvable');
+            throw new common_1.BadRequestException("Profil prestataire introuvable");
         }
         await this.ensureTypeDocumentsExist();
         let upsertedCount = 0;
@@ -535,7 +536,7 @@ let PrestatairesService = class PrestatairesService {
             upsertedCount += 1;
         }
         if (upsertedCount === 0) {
-            throw new common_1.BadRequestException('Aucun document valide n’a été envoyé. Vérifiez les types de documents.');
+            throw new common_1.BadRequestException("Aucun document valide n’a été envoyé. Vérifiez les types de documents.");
         }
         const updated = await this.prisma.prestataire.update({
             where: { id: prestataire.id },
@@ -553,12 +554,12 @@ let PrestatairesService = class PrestatairesService {
             return;
         await this.prisma.typeDocument.createMany({
             data: [
-                { code: 'cni_recto', libelle: 'CNI / Passeport (recto)', ordre: 1 },
-                { code: 'cni_verso', libelle: 'CNI / Passeport (verso)', ordre: 2 },
-                { code: 'casier_judiciaire', libelle: 'Casier judiciaire', ordre: 3 },
+                { code: "cni_recto", libelle: "CNI / Passeport (recto)", ordre: 1 },
+                { code: "cni_verso", libelle: "CNI / Passeport (verso)", ordre: 2 },
+                { code: "casier_judiciaire", libelle: "Casier judiciaire", ordre: 3 },
                 {
-                    code: 'certificat_bonne_moeurs',
-                    libelle: 'Certificat de bonne mœurs',
+                    code: "certificat_bonne_moeurs",
+                    libelle: "Certificat de bonne mœurs",
                     ordre: 4,
                 },
             ],
@@ -570,11 +571,11 @@ let PrestatairesService = class PrestatairesService {
             select: { id: true, statutVerification: true },
         });
         if (!prestataire) {
-            throw new common_1.BadRequestException('Profil prestataire introuvable');
+            throw new common_1.BadRequestException("Profil prestataire introuvable");
         }
         const docs = await this.prisma.prestataireDocument.findMany({
             where: { prestataireId: prestataire.id },
-            orderBy: [{ createdAt: 'asc' }],
+            orderBy: [{ createdAt: "asc" }],
             include: {
                 typeDocument: {
                     select: {
@@ -610,11 +611,11 @@ let PrestatairesService = class PrestatairesService {
             select: { id: true },
         });
         if (!prestataire) {
-            throw new common_1.BadRequestException('Profil prestataire introuvable');
+            throw new common_1.BadRequestException("Profil prestataire introuvable");
         }
         return this.prisma.prestatairePhoto.findMany({
             where: { prestataireId: prestataire.id },
-            orderBy: [{ ordre: 'asc' }, { createdAt: 'asc' }],
+            orderBy: [{ ordre: "asc" }, { createdAt: "asc" }],
         });
     }
     async addPhoto(userId, dto) {
@@ -623,7 +624,7 @@ let PrestatairesService = class PrestatairesService {
             select: { id: true },
         });
         if (!prestataire) {
-            throw new common_1.BadRequestException('Profil prestataire introuvable');
+            throw new common_1.BadRequestException("Profil prestataire introuvable");
         }
         const created = await this.prisma.prestatairePhoto.create({
             data: {
@@ -642,7 +643,7 @@ let PrestatairesService = class PrestatairesService {
             select: { id: true },
         });
         if (!prestataire) {
-            throw new common_1.BadRequestException('Profil prestataire introuvable');
+            throw new common_1.BadRequestException("Profil prestataire introuvable");
         }
         const rows = await this.prisma.prestataireService.findMany({
             where: { prestataireId: prestataire.id, actif: true },
@@ -655,20 +656,23 @@ let PrestatairesService = class PrestatairesService {
     async getPhotosByPrestataire(prestataireId) {
         return this.prisma.prestatairePhoto.findMany({
             where: { prestataireId },
-            orderBy: [{ ordre: 'asc' }, { createdAt: 'asc' }],
+            orderBy: [{ ordre: "asc" }, { createdAt: "asc" }],
         });
     }
     async getAvisByPrestataireId(prestataireId) {
         const rows = await this.prisma.avisPrestataire.findMany({
             where: { prestataireId },
-            orderBy: { createdAt: 'desc' },
+            orderBy: { createdAt: "desc" },
             include: {
                 particulier: { select: { nom: true, prenom: true } },
             },
         });
         return rows.map((a) => ({
             id: a.id,
-            nomClient: [a.particulier.prenom, a.particulier.nom].filter(Boolean).join(' ').trim() || 'Client',
+            nomClient: [a.particulier.prenom, a.particulier.nom]
+                .filter(Boolean)
+                .join(" ")
+                .trim() || "Client",
             note: a.note,
             commentaire: a.commentaire ?? null,
         }));
@@ -676,7 +680,7 @@ let PrestatairesService = class PrestatairesService {
     async getAvisPublicLanding(limit = 80) {
         const rows = await this.prisma.avisPrestataire.findMany({
             take: limit,
-            orderBy: { createdAt: 'desc' },
+            orderBy: { createdAt: "desc" },
             include: {
                 particulier: {
                     select: { nom: true, prenom: true, avatarUrl: true },
@@ -685,7 +689,10 @@ let PrestatairesService = class PrestatairesService {
         });
         return rows.map((a) => ({
             id: a.id,
-            nomClient: [a.particulier.prenom, a.particulier.nom].filter(Boolean).join(' ').trim() || 'Client',
+            nomClient: [a.particulier.prenom, a.particulier.nom]
+                .filter(Boolean)
+                .join(" ")
+                .trim() || "Client",
             note: a.note,
             commentaire: a.commentaire ?? null,
             avatarUrl: a.particulier.avatarUrl ?? null,
@@ -697,11 +704,9 @@ let PrestatairesService = class PrestatairesService {
             select: { id: true },
         });
         if (!prestataire) {
-            throw new common_1.BadRequestException('Profil prestataire introuvable');
+            throw new common_1.BadRequestException("Profil prestataire introuvable");
         }
-        let lat = dto.latitude != null && !Number.isNaN(dto.latitude)
-            ? dto.latitude
-            : null;
+        let lat = dto.latitude != null && !Number.isNaN(dto.latitude) ? dto.latitude : null;
         let lng = dto.longitude != null && !Number.isNaN(dto.longitude)
             ? dto.longitude
             : null;
@@ -721,7 +726,7 @@ let PrestatairesService = class PrestatairesService {
         if (dto.nom !== undefined) {
             const nom = dto.nom.trim();
             if (!nom) {
-                throw new common_1.BadRequestException('Le nom ne peut pas être vide');
+                throw new common_1.BadRequestException("Le nom ne peut pas être vide");
             }
             data.nom = nom;
         }
@@ -742,11 +747,11 @@ let PrestatairesService = class PrestatairesService {
             data.longitude = lng;
         }
         if (dto.avatarUrl !== undefined) {
-            const raw = (dto.avatarUrl ?? '').trim();
+            const raw = (dto.avatarUrl ?? "").trim();
             data.avatarUrl = raw.length > 0 ? raw : null;
         }
         if (Object.keys(data).length === 0 && dto.serviceIds === undefined) {
-            throw new common_1.BadRequestException('Aucune donnée à mettre à jour');
+            throw new common_1.BadRequestException("Aucune donnée à mettre à jour");
         }
         const updated = Object.keys(data).length
             ? await this.prisma.prestataire.update({
@@ -759,7 +764,7 @@ let PrestatairesService = class PrestatairesService {
         const serviceIdsRaw = dto.serviceIds;
         if (serviceIdsRaw !== undefined) {
             const serviceIds = serviceIdsRaw
-                .filter((id) => typeof id === 'string' && id.trim().length > 0)
+                .filter((id) => typeof id === "string" && id.trim().length > 0)
                 .map((id) => id.trim());
             if (serviceIds.length > 0) {
                 await Promise.all(serviceIds.map((serviceId) => this.prisma.prestataireService.upsert({

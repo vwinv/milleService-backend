@@ -1,11 +1,12 @@
 # Blueprint Render — voir https://render.com/docs/blueprint-spec
 #
-# Si le dépôt Git = ce dossier uniquement : laisser tel quel.
-# Si le dépôt = monorepo (racine au-dessus de milleService-backend) : ajouter sous « type: web » :
-#   rootDir: milleService-backend
+# Monorepo (dépôt = dossier parent contenant milleService-backend) : rootDir est requis pour que
+# « npm install » installe bien firebase-admin et les deps du backend (sinon MODULE_NOT_FOUND).
+# Si le dépôt Git n’est QUE le backend (pas de sous-dossier) : supprimez la ligne rootDir.
 #
 services:
   - type: web
+    rootDir: milleService-backend
     runtime: node
     buildCommand: npm install && npm run build
     startCommand: npm run start:prod

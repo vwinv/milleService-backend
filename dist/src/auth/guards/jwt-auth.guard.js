@@ -13,8 +13,8 @@ exports.JwtAuthGuard = exports.IS_PUBLIC_KEY = void 0;
 const common_1 = require("@nestjs/common");
 const passport_1 = require("@nestjs/passport");
 const core_1 = require("@nestjs/core");
-exports.IS_PUBLIC_KEY = 'isPublic';
-let JwtAuthGuard = class JwtAuthGuard extends (0, passport_1.AuthGuard)('jwt') {
+exports.IS_PUBLIC_KEY = "isPublic";
+let JwtAuthGuard = class JwtAuthGuard extends (0, passport_1.AuthGuard)("jwt") {
     reflector;
     constructor(reflector) {
         super();
@@ -32,7 +32,7 @@ let JwtAuthGuard = class JwtAuthGuard extends (0, passport_1.AuthGuard)('jwt') {
     }
     handleRequest(err, user) {
         if (err || !user) {
-            throw err || new common_1.UnauthorizedException('Authentification requise');
+            throw err || new common_1.UnauthorizedException("Authentification requise");
         }
         return user;
     }

@@ -1,7 +1,7 @@
-import { CurrentUserPayload } from '../auth/decorators/current-user.decorator.js';
-import { PrismaService } from '../prisma/prisma.service.js';
-import { WalletType } from '../../generated/prisma/client.js';
-import { RequestWithdrawalDto } from './dto/request-withdrawal.dto.js';
+import { CurrentUserPayload } from "../auth/decorators/current-user.decorator.js";
+import { PrismaService } from "../prisma/prisma.service.js";
+import { WalletType } from "../../generated/prisma/client.js";
+import { RequestWithdrawalDto } from "./dto/request-withdrawal.dto.js";
 export declare class WalletsController {
     private readonly prisma;
     constructor(prisma: PrismaService);
@@ -21,8 +21,8 @@ export declare class WalletsController {
             id: string;
             createdAt: Date;
             offreId: string | null;
-            type: import("../../generated/prisma/enums.js").TransactionType;
             walletId: string;
+            type: import("../../generated/prisma/enums.js").TransactionType;
             prestationId: string | null;
             abonnementId: string | null;
             meta: import("@prisma/client/runtime/client.js").JsonValue | null;
@@ -45,8 +45,8 @@ export declare class WalletsController {
             id: string;
             createdAt: Date;
             offreId: string | null;
-            type: import("../../generated/prisma/enums.js").TransactionType;
             walletId: string;
+            type: import("../../generated/prisma/enums.js").TransactionType;
             prestationId: string | null;
             abonnementId: string | null;
             meta: import("@prisma/client/runtime/client.js").JsonValue | null;
@@ -59,9 +59,9 @@ export declare class WalletsController {
             id: string;
             createdAt: Date;
             updatedAt: Date;
+            method: import("../../generated/prisma/enums.js").WithdrawalMethod;
             prestataireId: string;
             meta: import("@prisma/client/runtime/client.js").JsonValue | null;
-            method: import("../../generated/prisma/enums.js").WithdrawalMethod;
             status: import("../../generated/prisma/enums.js").WithdrawalStatus;
         };
     }>;

@@ -1,4 +1,4 @@
-import { PrismaService } from '../prisma/prisma.service.js';
+import { PrismaService } from "../prisma/prisma.service.js";
 export interface SendNotificationPayload {
     title: string;
     body?: string;
@@ -8,6 +8,7 @@ export interface SendNotificationPayload {
 export declare class NotificationsService {
     private readonly prisma;
     private readonly logger;
+    private static firebaseAdminMissingLogged;
     constructor(prisma: PrismaService);
     sendToUser(userId: string, payload: SendNotificationPayload): Promise<void>;
     private sendPush;

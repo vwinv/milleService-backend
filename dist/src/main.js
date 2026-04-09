@@ -7,23 +7,26 @@ const app_module_js_1 = require("./app.module.js");
 const response_interceptor_js_1 = require("./common/interceptors/response.interceptor.js");
 const http_exception_filter_js_1 = require("./common/filters/http-exception.filter.js");
 const LOCAL_DEV_ORIGINS = [
-    'http://localhost:3000',
-    'http://127.0.0.1:3000',
-    'http://[::1]:3000',
-    'http://localhost:3001',
-    'http://127.0.0.1:3001',
-    'http://[::1]:3001',
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://[::1]:3000",
+    "http://localhost:3001",
+    "http://127.0.0.1:3001",
+    "http://[::1]:3001",
 ];
 function resolveCorsOrigin() {
     const raw = process.env.CORS_ORIGINS?.trim();
-    if (raw === '*')
+    if (raw === "*")
         return true;
     if (raw)
-        return raw.split(',').map((o) => o.trim()).filter(Boolean);
-    if (process.env.NODE_ENV === 'production') {
+        return raw
+            .split(",")
+            .map((o) => o.trim())
+            .filter(Boolean);
+    if (process.env.NODE_ENV === "production") {
         return [
-            'https://mille-services.com',
-            'https://www.mille-services.com',
+            "https://mille-services.com",
+            "https://www.mille-services.com",
             ...LOCAL_DEV_ORIGINS,
         ];
     }
@@ -40,8 +43,8 @@ async function bootstrap() {
     }));
     app.enableCors({
         origin: resolveCorsOrigin(),
-        methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
-        allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+        methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"],
+        allowedHeaders: ["Content-Type", "Authorization", "Accept"],
     });
     await app.listen(process.env.PORT ?? 3001);
 }

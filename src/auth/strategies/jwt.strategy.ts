@@ -1,8 +1,8 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { PassportStrategy } from '@nestjs/passport';
-import { ExtractJwt, Strategy } from 'passport-jwt';
-import { PrismaService } from '../../prisma/prisma.service.js';
-import { ParticulierStatut, Role } from '../../../generated/prisma/client.js';
+import { Injectable, UnauthorizedException } from "@nestjs/common";
+import { PassportStrategy } from "@nestjs/passport";
+import { ExtractJwt, Strategy } from "passport-jwt";
+import { PrismaService } from "../../prisma/prisma.service.js";
+import { ParticulierStatut, Role } from "../../../generated/prisma/client.js";
 
 export interface JwtPayload {
   sub: string;
@@ -16,13 +16,13 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: process.env.JWT_SECRET || 'change-me-in-production',
+      secretOrKey: process.env.JWT_SECRET || "change-me-in-production",
     });
   }
 
   async validate(payload: JwtPayload) {
     if (!payload?.sub) {
-      throw new UnauthorizedException('Token invalide');
+      throw new UnauthorizedException("Token invalide");
     }
     if (payload.role === Role.PARTICULIER) {
       const p = await this.prisma.particulier.findUnique({
@@ -31,7 +31,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       });
       if (p?.statut === ParticulierStatut.INACTIF) {
         throw new UnauthorizedException(
-          'Ce compte client a été désactivé. Contactez le support si besoin.',
+          "Ce compte client a été désactivé. Contactez le support si besoin.",
         );
       }
     }

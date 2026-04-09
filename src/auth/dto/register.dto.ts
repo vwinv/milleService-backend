@@ -8,8 +8,8 @@ import {
   IsArray,
   ValidateNested,
   ValidateIf,
-} from 'class-validator';
-import { Type } from 'class-transformer';
+} from "class-validator";
+import { Type } from "class-transformer";
 
 /** Un document envoyé à l'inscription prestataire (URL après upload Cloudinary). */
 export class RegisterDocumentDto {
@@ -31,11 +31,13 @@ export class RegisterDto {
   email?: string;
 
   @IsString()
-  @MinLength(8, { message: 'Le mot de passe doit contenir au moins 8 caractères' })
+  @MinLength(8, {
+    message: "Le mot de passe doit contenir au moins 8 caractères",
+  })
   password: string;
 
-  @IsIn(['PARTICULIER', 'PRESTATAIRE'])
-  role: 'PARTICULIER' | 'PRESTATAIRE';
+  @IsIn(["PARTICULIER", "PRESTATAIRE"])
+  role: "PARTICULIER" | "PRESTATAIRE";
 
   // Particulier
   @IsOptional()
@@ -64,8 +66,9 @@ export class RegisterDto {
   @IsString({ each: true })
   zoneIntervention?: string[];
 
-  @IsOptional()
+  @ValidateIf((o) => o.role === "PARTICULIER" || o.role === "PRESTATAIRE")
   @IsString()
+  @MinLength(3, { message: "L'adresse est requise" })
   adresse?: string;
 
   @IsOptional()

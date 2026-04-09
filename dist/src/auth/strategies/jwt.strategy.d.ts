@@ -1,5 +1,5 @@
-import { Strategy } from 'passport-jwt';
-import { PrismaService } from '../../prisma/prisma.service.js';
+import { Strategy } from "passport-jwt";
+import { PrismaService } from "../../prisma/prisma.service.js";
 export interface JwtPayload {
     sub: string;
     email: string;

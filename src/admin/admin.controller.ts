@@ -10,13 +10,17 @@ import {
   Post,
   Query,
   UseGuards,
-} from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service.js';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
-import { RolesGuard } from '../auth/guards/roles.guard.js';
-import { Roles } from '../auth/decorators/roles.decorator.js';
-import { CurrentUser, CurrentUserPayload } from '../auth/decorators/current-user.decorator.js';
-import { NotificationsService } from '../notifications/notifications.service.js';
+} from "@nestjs/common";
+import { PrismaService } from "../prisma/prisma.service.js";
+import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard.js";
+import { RolesGuard } from "../auth/guards/roles.guard.js";
+import { Roles } from "../auth/decorators/roles.decorator.js";
+import {
+  CurrentUser,
+  CurrentUserPayload,
+} from "../auth/decorators/current-user.decorator.js";
+import { NotificationsService } from "../notifications/notifications.service.js";
+import { WalletsService } from "../wallets/wallets.service.js";
 import {
   ParticulierStatut,
   PrestataireWalletStatut,
@@ -29,26 +33,26 @@ import {
   WalletType,
   WithdrawalMethod,
   WithdrawalStatus,
-} from '../../generated/prisma/client.js';
+} from "../../generated/prisma/client.js";
 
 function metaWithdrawalAmount(meta: unknown): number | null {
-  if (!meta || typeof meta !== 'object') return null;
+  if (!meta || typeof meta !== "object") return null;
   const m = meta as Record<string, unknown>;
   const a = m.amount;
-  if (typeof a === 'number' && !Number.isNaN(a) && a >= 0) return a;
+  if (typeof a === "number" && !Number.isNaN(a) && a >= 0) return a;
   return null;
 }
 
 function withdrawalMethodLabel(method: WithdrawalMethod): string {
   switch (method) {
     case WithdrawalMethod.ORANGE_MONEY:
-      return 'Orange money';
+      return "Orange money";
     case WithdrawalMethod.WAVE:
-      return 'Wave';
+      return "Wave";
     case WithdrawalMethod.FREE_MONEY:
-      return 'Free money';
+      return "Free money";
     case WithdrawalMethod.RIB:
-      return 'Carte bancaire';
+      return "Carte bancaire";
     default:
       return method;
   }
@@ -57,19 +61,19 @@ function withdrawalMethodLabel(method: WithdrawalMethod): string {
 function statutPrestationLabelFr(statut: StatutPrestation): string {
   switch (statut) {
     case StatutPrestation.EN_ATTENTE:
-      return 'En attente';
+      return "En attente";
     case StatutPrestation.ACCEPTEE:
-      return 'Acceptée';
+      return "Acceptée";
     case StatutPrestation.REFUSEE:
-      return 'Refusée';
+      return "Refusée";
     case StatutPrestation.EN_COURS:
-      return 'En cours';
+      return "En cours";
     case StatutPrestation.TERMINEE:
-      return 'Terminée';
+      return "Terminée";
     case StatutPrestation.ANNULEE:
-      return 'Annulée';
+      return "Annulée";
     case StatutPrestation.PAYEE:
-      return 'Payée';
+      return "Payée";
     default:
       return statut;
   }
@@ -78,9 +82,9 @@ function statutPrestationLabelFr(statut: StatutPrestation): string {
 /** Base sans migration `particuliers.statut` (P2022 ou message colonne statut). */
 function isParticulierStatutMissingError(err: unknown): boolean {
   if (!(err instanceof Prisma.PrismaClientKnownRequestError)) return false;
-  if (err.code === 'P2022') return true;
-  const msg = String((err as { message?: string }).message ?? '');
-  return msg.includes('statut') && msg.toLowerCase().includes('particulier');
+  if (err.code === "P2022") return true;
+  const msg = String((err as { message?: string }).message ?? "");
+  return msg.includes("statut") && msg.toLowerCase().includes("particulier");
 }
 
 /** Select détail admin : wallet limité au solde (colonnes plafond/statut chargées à part si la migration est appliquée). */
@@ -106,7 +110,7 @@ function prestataireAdminDetailSelect() {
       },
     },
     documents: {
-      orderBy: { createdAt: 'asc' },
+      orderBy: { createdAt: "asc" },
       select: {
         id: true,
         fichierUrl: true,
@@ -126,15 +130,16 @@ function prestataireAdminDetailSelect() {
   } as const;
 }
 
-@Controller('admin')
+@Controller("admin")
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles('ADMIN')
+@Roles("ADMIN")
 export class AdminController {
   private readonly logger = new Logger(AdminController.name);
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
+    private readonly wallets: WalletsService,
   ) {}
 
   /**
@@ -144,12 +149,14 @@ export class AdminController {
    * - crédit = solde wallet général
    * - métiers = nb services enregistrés
    */
-  @Get('stats')
+  @Get("stats")
   async getStats() {
     try {
       const [clientsActifs, prestatairesActifs, metiersCount, generalWallet] =
         await Promise.all([
-          this.prisma.particulier.count({ where: { statut: ParticulierStatut.ACTIF } }),
+          this.prisma.particulier.count({
+            where: { statut: ParticulierStatut.ACTIF },
+          }),
           this.prisma.prestataire.count({ where: { actif: true } }),
           this.prisma.service.count(),
           this.prisma.wallet.findFirst({
@@ -167,7 +174,7 @@ export class AdminController {
     } catch (err) {
       if (!isParticulierStatutMissingError(err)) throw err;
       this.logger.warn(
-        'KPI clients : colonne particuliers.statut absente — repli sur email vérifié. Exécutez: npx prisma migrate deploy',
+        "KPI clients : colonne particuliers.statut absente — repli sur email vérifié. Exécutez: npx prisma migrate deploy",
       );
       const [clientsActifs, prestatairesActifs, metiersCount, generalWallet] =
         await Promise.all([
@@ -195,7 +202,7 @@ export class AdminController {
    * - générale : envoie une notification à tous les utilisateurs (PARTICULIER + PRESTATAIRE)
    * - ciblée : envoie une notification à un utilisateur (userId)
    */
-  @Post('notifications/general')
+  @Post("notifications/general")
   async createGeneralNotification(
     @Body()
     body: {
@@ -203,19 +210,19 @@ export class AdminController {
       body?: string;
       type?: string;
       data?: Record<string, unknown>;
-      audience?: 'TOUT' | 'ALL' | 'PARTICULIER' | 'PRESTATAIRE';
+      audience?: "TOUT" | "ALL" | "PARTICULIER" | "PRESTATAIRE";
     },
   ) {
-    const title = String(body?.title ?? '').trim();
+    const title = String(body?.title ?? "").trim();
     if (!title) {
-      throw new BadRequestException('title requis');
+      throw new BadRequestException("title requis");
     }
 
-    const audience = body?.audience ?? 'TOUT';
+    const audience = body?.audience ?? "TOUT";
     const roleFilter =
-      audience === 'PARTICULIER'
+      audience === "PARTICULIER"
         ? { role: Role.PARTICULIER }
-        : audience === 'PRESTATAIRE'
+        : audience === "PRESTATAIRE"
           ? { role: Role.PRESTATAIRE }
           : { role: { in: [Role.PARTICULIER, Role.PRESTATAIRE] } };
 
@@ -245,7 +252,7 @@ export class AdminController {
     return { ok: true, sent };
   }
 
-  @Post('notifications/targeted')
+  @Post("notifications/targeted")
   async createTargetedNotification(
     @Body()
     body: {
@@ -256,10 +263,10 @@ export class AdminController {
       data?: Record<string, unknown>;
     },
   ) {
-    const userId = String(body?.userId ?? '').trim();
-    const title = String(body?.title ?? '').trim();
-    if (!userId) throw new BadRequestException('userId requis');
-    if (!title) throw new BadRequestException('title requis');
+    const userId = String(body?.userId ?? "").trim();
+    const title = String(body?.title ?? "").trim();
+    if (!userId) throw new BadRequestException("userId requis");
+    if (!title) throw new BadRequestException("title requis");
 
     this.logger.log(
       `[FCM trace] admin POST notifications/targeted userId=${userId} title="${title.slice(0, 80)}"`,
@@ -281,25 +288,25 @@ export class AdminController {
    * Liste admin des notifications envoyées (pour audit / support).
    * audience = "TOUT" | "PARTICULIER" | "PRESTATAIRE"
    */
-  @Get('notifications')
+  @Get("notifications")
   async listAdminNotifications(
-    @Query('limit') limit?: string,
-    @Query('offset') offset?: string,
-    @Query('audience') audience?: string,
-    @Query('unreadOnly') unreadOnly?: string,
-    @Query('type') type?: string,
-    @Query('search') search?: string,
+    @Query("limit") limit?: string,
+    @Query("offset") offset?: string,
+    @Query("audience") audience?: string,
+    @Query("unreadOnly") unreadOnly?: string,
+    @Query("type") type?: string,
+    @Query("search") search?: string,
   ) {
     const take = Math.min(Math.max(Number(limit ?? 14), 1), 100);
     const skip = Math.max(Number(offset ?? 0), 0);
 
-    const aud = (audience ?? 'TOUT').toUpperCase();
+    const aud = (audience ?? "TOUT").toUpperCase();
     const roleFilter =
-      aud === 'PARTICULIER'
+      aud === "PARTICULIER"
         ? { role: Role.PARTICULIER }
-        : aud === 'PRESTATAIRE'
+        : aud === "PRESTATAIRE"
           ? { role: Role.PRESTATAIRE }
-          : aud === 'ALL'
+          : aud === "ALL"
             ? { role: { in: [Role.PARTICULIER, Role.PRESTATAIRE] } }
             : { role: { in: [Role.PARTICULIER, Role.PRESTATAIRE] } };
 
@@ -307,15 +314,15 @@ export class AdminController {
 
     const where: Prisma.NotificationWhereInput = {
       user: roleFilter,
-      ...(unreadOnly === 'true' ? { lu: false } : {}),
+      ...(unreadOnly === "true" ? { lu: false } : {}),
       ...(type?.trim() ? { type: type.trim() } : {}),
       ...(q
         ? {
             OR: [
-              { title: { contains: q, mode: 'insensitive' } },
-              { body: q ? { contains: q, mode: 'insensitive' } : undefined },
-              { type: { contains: q, mode: 'insensitive' } },
-              { user: { email: { contains: q, mode: 'insensitive' } } },
+              { title: { contains: q, mode: "insensitive" } },
+              { body: q ? { contains: q, mode: "insensitive" } : undefined },
+              { type: { contains: q, mode: "insensitive" } },
+              { user: { email: { contains: q, mode: "insensitive" } } },
             ],
           }
         : {}),
@@ -325,7 +332,7 @@ export class AdminController {
       this.prisma.notification.count({ where }),
       this.prisma.notification.findMany({
         where,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: "desc" },
         take,
         skip,
         include: {
@@ -348,9 +355,11 @@ export class AdminController {
         const u = n.user;
         const displayName =
           u.role === Role.PARTICULIER
-            ? [u.particulier?.prenom, u.particulier?.nom].filter(Boolean).join(' ')
+            ? [u.particulier?.prenom, u.particulier?.nom]
+                .filter(Boolean)
+                .join(" ")
             : u.role === Role.PRESTATAIRE
-              ? u.prestataire?.nom ?? u.email
+              ? (u.prestataire?.nom ?? u.email)
               : u.email;
 
         return {
@@ -374,33 +383,33 @@ export class AdminController {
    * - prestataires (vert)
    * - clients (jaune)
    */
-  @Get('evolution')
-  async getEvolution(@Query('months') months?: string) {
+  @Get("evolution")
+  async getEvolution(@Query("months") months?: string) {
     const allowed = new Set([1, 3, 6, 12]);
     const parsed = Number(months ?? 12);
     const periodMonths = allowed.has(parsed) ? parsed : 12;
 
     const now = new Date();
-    const start = new Date(now.getFullYear(), now.getMonth() - (periodMonths - 1), 1);
+    const start = new Date(
+      now.getFullYear(),
+      now.getMonth() - (periodMonths - 1),
+      1,
+    );
     const end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
 
-    const [
-      baseClients,
-      basePrestataires,
-      clientRows,
-      prestataireRows,
-    ] = await Promise.all([
-      this.prisma.particulier.count({ where: { createdAt: { lt: start } } }),
-      this.prisma.prestataire.count({ where: { createdAt: { lt: start } } }),
-      this.prisma.particulier.findMany({
-        where: { createdAt: { gte: start, lt: end } },
-        select: { createdAt: true },
-      }),
-      this.prisma.prestataire.findMany({
-        where: { createdAt: { gte: start, lt: end } },
-        select: { createdAt: true },
-      }),
-    ]);
+    const [baseClients, basePrestataires, clientRows, prestataireRows] =
+      await Promise.all([
+        this.prisma.particulier.count({ where: { createdAt: { lt: start } } }),
+        this.prisma.prestataire.count({ where: { createdAt: { lt: start } } }),
+        this.prisma.particulier.findMany({
+          where: { createdAt: { gte: start, lt: end } },
+          select: { createdAt: true },
+        }),
+        this.prisma.prestataire.findMany({
+          where: { createdAt: { gte: start, lt: end } },
+          select: { createdAt: true },
+        }),
+      ]);
 
     const monthKey = (d: Date) => `${d.getFullYear()}-${d.getMonth()}`;
     const clientNewByMonth = new Map<string, number>();
@@ -429,7 +438,7 @@ export class AdminController {
       runningPrestataires += prestataireNewByMonth.get(k) ?? 0;
 
       labels.push(
-        d.toLocaleString('fr-FR', { month: 'short' }).replace('.', ''),
+        d.toLocaleString("fr-FR", { month: "short" }).replace(".", ""),
       );
       clients.push(runningClients);
       prestataires.push(runningPrestataires);
@@ -444,44 +453,88 @@ export class AdminController {
   }
 
   /** Soldes agrégés pour l’écran admin Wallet. */
-  @Get('wallet/summary')
+  @Get("wallet/summary")
   async getWalletSummary() {
-    const [generalRow, prestataireAgg] = await Promise.all([
-      this.prisma.wallet.findFirst({
-        where: { type: WalletType.GENERAL },
-        select: { balance: true },
-      }),
-      this.prisma.wallet.aggregate({
-        where: { prestataireId: { not: null } },
-        _sum: { balance: true },
-      }),
-    ]);
+    const [generalRow, prestataireAgg, withdrawalTraites, retraitsPlateforme] =
+      await Promise.all([
+        this.prisma.wallet.findFirst({
+          where: { type: WalletType.GENERAL },
+          select: { balance: true },
+        }),
+        this.prisma.wallet.aggregate({
+          where: { prestataireId: { not: null } },
+          _sum: { balance: true },
+        }),
+        this.prisma.withdrawalRequest.findMany({
+          where: { status: WithdrawalStatus.TRAITE },
+          select: { meta: true },
+        }),
+        this.prisma.walletTransaction.aggregate({
+          where: { type: TransactionType.RETRAIT_PLATEFORME },
+          _sum: { amount: true },
+        }),
+      ]);
 
     const soldeMilleServices = generalRow ? Number(generalRow.balance) : 0;
     const soldesPrestataires = Number(prestataireAgg._sum.balance ?? 0);
     const totalSolde = soldeMilleServices + soldesPrestataires;
+
+    const retraitPrestataires = withdrawalTraites.reduce(
+      (s, r) => s + (metaWithdrawalAmount(r.meta) ?? 0),
+      0,
+    );
+    const retraitPlateforme = Number(retraitsPlateforme._sum.amount ?? 0);
 
     return {
       totalSolde,
       credit: soldeMilleServices,
       soldeMilleServices,
       soldesPrestataires,
-      retraitTotal: 0,
+      retraitTotal: retraitPrestataires + retraitPlateforme,
     };
   }
 
+  /**
+   * Retrait depuis le wallet général Mille Services (après virement manuel).
+   * Enregistre une écriture `RETRAIT_PLATEFORME` et diminue le solde.
+   */
+  @Post("wallet/general/withdraw")
+  async withdrawGeneralWallet(
+    @CurrentUser() admin: CurrentUserPayload,
+    @Body()
+    body: {
+      amount?: number;
+      payoutMethod?: WithdrawalMethod;
+      note?: string;
+    },
+  ) {
+    const amount = Number(body.amount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      throw new BadRequestException("Montant invalide");
+    }
+    await this.wallets.debitGeneralWallet({
+      amount,
+      createdByUserId: admin.userId,
+      meta: {
+        payoutMethod: body.payoutMethod ?? undefined,
+        note: body.note?.trim() || undefined,
+      },
+    });
+    return { ok: true as const };
+  }
+
   /** Demandes de retrait (admin) : en attente, acceptées et rejetées. */
-  @Get('wallet/withdrawal-requests')
+  @Get("wallet/withdrawal-requests")
   async listWithdrawalRequests(
-    @Query('limit') limit?: string,
-    @Query('offset') offset?: string,
+    @Query("limit") limit?: string,
+    @Query("offset") offset?: string,
   ) {
     const take = Math.min(Math.max(Number(limit ?? 14), 1), 100);
     const skip = Math.max(Number(offset ?? 0), 0);
     const [total, rows] = await Promise.all([
       this.prisma.withdrawalRequest.count({}),
       this.prisma.withdrawalRequest.findMany({
-        orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: "desc" },
         take,
         skip,
         include: {
@@ -504,9 +557,9 @@ export class AdminController {
     };
   }
 
-  @Patch('wallet/withdrawal-requests/:id')
+  @Patch("wallet/withdrawal-requests/:id")
   async decisionWithdrawalRequest(
-    @Param('id') id: string,
+    @Param("id") id: string,
     @Body()
     body: {
       decision?: string;
@@ -515,8 +568,8 @@ export class AdminController {
     },
   ) {
     const decision = body.decision;
-    if (decision !== 'accept' && decision !== 'reject') {
-      throw new BadRequestException('decision invalide (accept ou reject)');
+    if (decision !== "accept" && decision !== "reject") {
+      throw new BadRequestException("decision invalide (accept ou reject)");
     }
     const row = await this.prisma.withdrawalRequest.findUnique({
       where: { id },
@@ -528,12 +581,12 @@ export class AdminController {
       },
     });
     if (!row) {
-      throw new BadRequestException('Demande introuvable');
+      throw new BadRequestException("Demande introuvable");
     }
     if (row.status !== WithdrawalStatus.EN_ATTENTE) {
-      throw new BadRequestException('Cette demande a déjà été traitée');
+      throw new BadRequestException("Cette demande a déjà été traitée");
     }
-    if (decision === 'reject') {
+    if (decision === "reject") {
       await this.prisma.withdrawalRequest.update({
         where: { id: row.id },
         data: { status: WithdrawalStatus.REFUSE },
@@ -544,10 +597,10 @@ export class AdminController {
       body.payoutMethod != null &&
       !Object.values(WithdrawalMethod).includes(body.payoutMethod)
     ) {
-      throw new BadRequestException('Moyen de paiement invalide');
+      throw new BadRequestException("Moyen de paiement invalide");
     }
     const metaBase =
-      row.meta && typeof row.meta === 'object' && !Array.isArray(row.meta)
+      row.meta && typeof row.meta === "object" && !Array.isArray(row.meta)
         ? { ...(row.meta as Record<string, unknown>) }
         : {};
     if (body.payoutMethod != null) {
@@ -562,12 +615,14 @@ export class AdminController {
       select: { id: true, balance: true },
     });
     if (!wallet) {
-      throw new BadRequestException('Wallet du prestataire introuvable');
+      throw new BadRequestException("Wallet du prestataire introuvable");
     }
     if (amount != null && amount > 0) {
       const bal = Number(wallet.balance);
       if (amount > bal) {
-        throw new BadRequestException('Solde insuffisant pour valider ce montant');
+        throw new BadRequestException(
+          "Solde insuffisant pour valider ce montant",
+        );
       }
       await this.prisma.$transaction([
         this.prisma.wallet.update({
@@ -600,8 +655,8 @@ export class AdminController {
    * - paiements d'abonnements prestataires (wallet général)
    * - retraits des prestataires (demandes de retrait)
    */
-  @Get('transactions')
-  async getTransactions(@Query('limit') limit?: string) {
+  @Get("transactions")
+  async getTransactions(@Query("limit") limit?: string) {
     const take = Math.min(Math.max(Number(limit ?? 20), 1), 100);
 
     const generalWallet = await this.prisma.wallet.findFirst({
@@ -614,10 +669,16 @@ export class AdminController {
         ? this.prisma.walletTransaction.findMany({
             where: {
               walletId: generalWallet.id,
-              type: { in: [TransactionType.PRESTATION, TransactionType.ABONNEMENT] },
+              type: {
+                in: [
+                  TransactionType.PRESTATION,
+                  TransactionType.ABONNEMENT,
+                  TransactionType.RETRAIT_PLATEFORME,
+                ],
+              },
             },
             take,
-            orderBy: { createdAt: 'desc' },
+            orderBy: { createdAt: "desc" },
             include: {
               prestation: {
                 select: {
@@ -635,7 +696,7 @@ export class AdminController {
         : Promise.resolve([]),
       this.prisma.withdrawalRequest.findMany({
         take,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: "desc" },
         include: {
           prestataire: { select: { nom: true } },
         },
@@ -643,8 +704,30 @@ export class AdminController {
     ]);
 
     const walletTxs = walletRows.map((row) => {
+      if (row.type === TransactionType.RETRAIT_PLATEFORME) {
+        const meta =
+          row.meta && typeof row.meta === "object" && !Array.isArray(row.meta)
+            ? (row.meta as Record<string, unknown>)
+            : null;
+        const pm = meta?.payoutMethod;
+        const walletLab =
+          pm != null &&
+          typeof pm === "string" &&
+          Object.values(WithdrawalMethod).includes(pm as WithdrawalMethod)
+            ? withdrawalMethodLabel(pm as WithdrawalMethod)
+            : "—";
+        return {
+          id: row.id,
+          date: row.createdAt,
+          prestataireNom: "Retrait plateforme",
+          montant: Number(row.amount),
+          wallet: walletLab,
+          statut: "Retrait",
+          category: "RETRAIT_PLATEFORME" as const,
+        };
+      }
       if (row.type === TransactionType.ABONNEMENT) {
-        const nom = row.abonnement?.prestataire?.nom ?? 'Prestataire';
+        const nom = row.abonnement?.prestataire?.nom ?? "Prestataire";
         const offreLib = row.offre?.libelle?.trim();
         const prestataireNom = offreLib
           ? `${nom} — Abonnement (${offreLib})`
@@ -654,42 +737,42 @@ export class AdminController {
           date: row.createdAt,
           prestataireNom,
           montant: Number(row.amount),
-          wallet: 'Wallet Général',
-          statut: 'Depot',
-          category: 'PAIEMENT_ABONNEMENT' as const,
+          wallet: "Wallet Général",
+          statut: "Depot",
+          category: "PAIEMENT_ABONNEMENT" as const,
         };
       }
       return {
         id: row.id,
         date: row.createdAt,
-        prestataireNom: row.prestation?.prestataire?.nom ?? 'Prestataire',
+        prestataireNom: row.prestation?.prestataire?.nom ?? "Prestataire",
         montant: Number(row.amount),
-        wallet: 'Wallet Général',
-        statut: 'Depot',
-        category: 'PAIEMENT_PRESTATION' as const,
+        wallet: "Wallet Général",
+        statut: "Depot",
+        category: "PAIEMENT_PRESTATION" as const,
       };
     });
 
     const withdrawals = withdrawalRows.map((row) => ({
       id: row.id,
       date: row.createdAt,
-      prestataireNom: row.prestataire?.nom ?? 'Prestataire',
-      montant: null as number | null,
+      prestataireNom: row.prestataire?.nom ?? "Prestataire",
+      montant: metaWithdrawalAmount(row.meta),
       wallet:
-        row.method === 'ORANGE_MONEY'
-          ? 'Orange Money'
-          : row.method === 'FREE_MONEY'
-            ? 'Free Money'
-            : row.method === 'RIB'
-              ? 'RIB'
-              : 'Wave',
+        row.method === "ORANGE_MONEY"
+          ? "Orange Money"
+          : row.method === "FREE_MONEY"
+            ? "Free Money"
+            : row.method === "RIB"
+              ? "RIB"
+              : "Wave",
       statut:
         row.status === WithdrawalStatus.TRAITE
-          ? 'Retrait'
+          ? "Retrait"
           : row.status === WithdrawalStatus.REFUSE
-            ? 'Refuse'
-            : 'En attente',
-      category: 'RETRAIT_PRESTATAIRE' as const,
+            ? "Refuse"
+            : "En attente",
+      category: "RETRAIT_PRESTATAIRE" as const,
     }));
 
     return [...walletTxs, ...withdrawals]
@@ -701,11 +784,11 @@ export class AdminController {
    * Liste admin des clients (particuliers) + stats globales.
    * Actif / inactif : champ `particuliers.statut` (ACTIF / INACTIF).
    */
-  @Get('clients')
+  @Get("clients")
   async getClients(
-    @Query('limit') limit?: string,
-    @Query('offset') offset?: string,
-    @Query('search') search?: string,
+    @Query("limit") limit?: string,
+    @Query("offset") offset?: string,
+    @Query("search") search?: string,
   ) {
     const take = Math.min(Math.max(Number(limit ?? 10), 1), 100);
     const skip = Math.max(Number(offset ?? 0), 0);
@@ -714,9 +797,9 @@ export class AdminController {
     const searchFilter = q
       ? {
           OR: [
-            { nom: { contains: q, mode: 'insensitive' as const } },
-            { prenom: { contains: q, mode: 'insensitive' as const } },
-            { user: { email: { contains: q, mode: 'insensitive' as const } } },
+            { nom: { contains: q, mode: "insensitive" as const } },
+            { prenom: { contains: q, mode: "insensitive" as const } },
+            { user: { email: { contains: q, mode: "insensitive" as const } } },
           ],
         }
       : {};
@@ -736,7 +819,7 @@ export class AdminController {
             where: searchFilter,
             take,
             skip,
-            orderBy: { createdAt: 'desc' },
+            orderBy: { createdAt: "desc" },
             select: {
               id: true,
               nom: true,
@@ -773,19 +856,19 @@ export class AdminController {
             nom: p.nom,
             nomComplet: `${p.prenom} ${p.nom}`.trim(),
             email: p.user.email,
-            telephone: p.telephone ?? '',
-            adresse: p.adresse ?? '',
+            telephone: p.telephone ?? "",
+            adresse: p.adresse ?? "",
             avatarUrl: p.avatarUrl,
             dateAdhesion: p.createdAt.toISOString(),
             actif,
-            statut: actif ? 'Actif' : 'Inactif',
+            statut: actif ? "Actif" : "Inactif",
           };
         }),
       };
     } catch (err) {
       if (!isParticulierStatutMissingError(err)) throw err;
       this.logger.warn(
-        'Liste clients : colonne particuliers.statut absente — repli sur email vérifié. Exécutez: npx prisma migrate deploy',
+        "Liste clients : colonne particuliers.statut absente — repli sur email vérifié. Exécutez: npx prisma migrate deploy",
       );
       const [globalTotal, actifsCount, inactifsCount, filteredTotal, rows] =
         await Promise.all([
@@ -801,7 +884,7 @@ export class AdminController {
             where: searchFilter,
             take,
             skip,
-            orderBy: { createdAt: 'desc' },
+            orderBy: { createdAt: "desc" },
             select: {
               id: true,
               nom: true,
@@ -837,20 +920,20 @@ export class AdminController {
             nom: p.nom,
             nomComplet: `${p.prenom} ${p.nom}`.trim(),
             email: p.user.email,
-            telephone: p.telephone ?? '',
-            adresse: p.adresse ?? '',
+            telephone: p.telephone ?? "",
+            adresse: p.adresse ?? "",
             avatarUrl: p.avatarUrl,
             dateAdhesion: p.createdAt.toISOString(),
             actif,
-            statut: actif ? 'Actif' : 'Inactif',
+            statut: actif ? "Actif" : "Inactif",
           };
         }),
       };
     }
   }
 
-  @Get('clients/:id')
-  async getClientDetails(@Param('id') particulierId: string) {
+  @Get("clients/:id")
+  async getClientDetails(@Param("id") particulierId: string) {
     let p: {
       id: string;
       nom: string;
@@ -895,7 +978,7 @@ export class AdminController {
     } catch (err) {
       if (!isParticulierStatutMissingError(err)) throw err;
       this.logger.warn(
-        'Détail client : colonne particuliers.statut absente — repli sur email vérifié. Exécutez: npx prisma migrate deploy',
+        "Détail client : colonne particuliers.statut absente — repli sur email vérifié. Exécutez: npx prisma migrate deploy",
       );
       p = await this.prisma.particulier.findUnique({
         where: { id: particulierId },
@@ -921,7 +1004,7 @@ export class AdminController {
     }
 
     if (!p) {
-      throw new BadRequestException('Client introuvable');
+      throw new BadRequestException("Client introuvable");
     }
 
     const [prestationsTotal, prestationsAnnulees] = await Promise.all([
@@ -942,8 +1025,8 @@ export class AdminController {
       nom: p.nom,
       nomComplet: `${p.prenom} ${p.nom}`.trim(),
       email: p.user.email,
-      telephone: p.telephone ?? '',
-      adresse: p.adresse ?? '',
+      telephone: p.telephone ?? "",
+      adresse: p.adresse ?? "",
       avatarUrl: p.avatarUrl,
       dateAdhesion: p.createdAt.toISOString(),
       compteCreeLe: p.user.createdAt.toISOString(),
@@ -951,16 +1034,16 @@ export class AdminController {
       prestationsTotal,
       prestationsAnnulees,
       actif,
-      statut: actif ? 'Actif' : 'Inactif',
+      statut: actif ? "Actif" : "Inactif",
     };
   }
 
   /**
    * Active / désactive le compte client (`particuliers.statut`).
    */
-  @Patch('clients/:id/statut')
+  @Patch("clients/:id/statut")
   async setClientActif(
-    @Param('id') particulierId: string,
+    @Param("id") particulierId: string,
     @Body() body: { actif?: boolean },
   ) {
     const actif = Boolean(body?.actif);
@@ -969,7 +1052,7 @@ export class AdminController {
       select: { id: true, userId: true },
     });
     if (!p) {
-      throw new BadRequestException('Client introuvable');
+      throw new BadRequestException("Client introuvable");
     }
     try {
       await this.prisma.particulier.update({
@@ -981,18 +1064,18 @@ export class AdminController {
     } catch (err) {
       if (!isParticulierStatutMissingError(err)) throw err;
       this.logger.warn(
-        'Mise à jour statut client : colonne particuliers.statut absente — repli sur users.email_verified. Exécutez: npx prisma migrate deploy',
+        "Mise à jour statut client : colonne particuliers.statut absente — repli sur users.email_verified. Exécutez: npx prisma migrate deploy",
       );
       await this.prisma.user.update({
         where: { id: p.userId },
         data: { emailVerified: actif },
       });
     }
-    return { actif, statut: actif ? 'Actif' : 'Inactif' };
+    return { actif, statut: actif ? "Actif" : "Inactif" };
   }
 
-  @Delete('clients/:id')
-  async deleteClient(@Param('id') particulierId: string) {
+  @Delete("clients/:id")
+  async deleteClient(@Param("id") particulierId: string) {
     const particulier = await this.prisma.particulier.findUnique({
       where: { id: particulierId },
       select: {
@@ -1001,10 +1084,10 @@ export class AdminController {
       },
     });
     if (!particulier) {
-      throw new BadRequestException('Client introuvable');
+      throw new BadRequestException("Client introuvable");
     }
     if (particulier.user.role !== Role.PARTICULIER) {
-      throw new BadRequestException('Utilisateur invalide');
+      throw new BadRequestException("Utilisateur invalide");
     }
     await this.prisma.user.delete({ where: { id: particulier.userId } });
     return { success: true };
@@ -1015,45 +1098,46 @@ export class AdminController {
    * - compteurs total / actifs / inactifs
    * - liste prestataires (email, tel, métier principal, statut)
    */
-  @Get('prestataires')
-  async getPrestataires(@Query('limit') limit?: string) {
+  @Get("prestataires")
+  async getPrestataires(@Query("limit") limit?: string) {
     const take = Math.min(Math.max(Number(limit ?? 200), 1), 1000);
 
-    const [totalPrestataires, actifsCount, inactifsCount, rows] = await Promise.all([
-      this.prisma.prestataire.count(),
-      this.prisma.prestataire.count({ where: { actif: true } }),
-      this.prisma.prestataire.count({ where: { actif: false } }),
-      this.prisma.prestataire.findMany({
-        take,
-        orderBy: { createdAt: 'desc' },
-        select: {
-          id: true,
-          userId: true,
-          nom: true,
-          telephone: true,
-          actif: true,
-          statutVerification: true,
-          user: {
-            select: { email: true },
-          },
-          avis: {
-            select: { note: true },
-          },
-          documents: {
-            select: { id: true, statut: true },
-          },
-          servicesProposes: {
-            where: { actif: true },
-            orderBy: { createdAt: 'asc' },
-            select: {
-              service: {
-                select: { id: true, libelle: true },
+    const [totalPrestataires, actifsCount, inactifsCount, rows] =
+      await Promise.all([
+        this.prisma.prestataire.count(),
+        this.prisma.prestataire.count({ where: { actif: true } }),
+        this.prisma.prestataire.count({ where: { actif: false } }),
+        this.prisma.prestataire.findMany({
+          take,
+          orderBy: { createdAt: "desc" },
+          select: {
+            id: true,
+            userId: true,
+            nom: true,
+            telephone: true,
+            actif: true,
+            statutVerification: true,
+            user: {
+              select: { email: true },
+            },
+            avis: {
+              select: { note: true },
+            },
+            documents: {
+              select: { id: true, statut: true },
+            },
+            servicesProposes: {
+              where: { actif: true },
+              orderBy: { createdAt: "asc" },
+              select: {
+                service: {
+                  select: { id: true, libelle: true },
+                },
               },
             },
           },
-        },
-      }),
-    ]);
+        }),
+      ]);
 
     return {
       stats: {
@@ -1078,11 +1162,11 @@ export class AdminController {
           id: p.id,
           userId: p.userId,
           nom: p.nom,
-          email: p.user?.email ?? '',
-          telephone: p.telephone ?? '',
-          metier: p.servicesProposes[0]?.service?.libelle ?? '—',
+          email: p.user?.email ?? "",
+          telephone: p.telephone ?? "",
+          metier: p.servicesProposes[0]?.service?.libelle ?? "—",
           serviceIds: p.servicesProposes.map((ps) => ps.service.id),
-          statut: p.actif ? 'Actif' : 'Inactif',
+          statut: p.actif ? "Actif" : "Inactif",
           actif: p.actif,
           statutVerification: p.statutVerification,
           noteMoyenne,
@@ -1098,9 +1182,9 @@ export class AdminController {
    * Active ou désactive un prestataire.
    * L’activation n’est autorisée que si statutVerification = VERIFIE.
    */
-  @Patch('prestataires/:id/actif')
+  @Patch("prestataires/:id/actif")
   async setPrestataireActif(
-    @Param('id') prestataireId: string,
+    @Param("id") prestataireId: string,
     @Body() body: { actif?: boolean },
   ) {
     const actif = Boolean(body?.actif);
@@ -1109,11 +1193,14 @@ export class AdminController {
       select: { id: true, statutVerification: true },
     });
     if (!existing) {
-      throw new BadRequestException('Prestataire introuvable');
+      throw new BadRequestException("Prestataire introuvable");
     }
-    if (actif && existing.statutVerification !== StatutVerificationPrestataire.VERIFIE) {
+    if (
+      actif &&
+      existing.statutVerification !== StatutVerificationPrestataire.VERIFIE
+    ) {
       throw new BadRequestException(
-        'Un prestataire ne peut être activé que lorsque son statut de vérification est « Vérifié ».',
+        "Un prestataire ne peut être activé que lorsque son statut de vérification est « Vérifié ».",
       );
     }
 
@@ -1130,11 +1217,11 @@ export class AdminController {
    * Paiements des particuliers vers ce prestataire uniquement
    * (écritures PRESTATION sur le wallet prestataire, liées à une prestation).
    */
-  @Get('prestataires/:id/transactions')
+  @Get("prestataires/:id/transactions")
   async getPrestatairePaiementsParticuliers(
-    @Param('id') prestataireId: string,
-    @Query('limit') limit?: string,
-    @Query('offset') offset?: string,
+    @Param("id") prestataireId: string,
+    @Query("limit") limit?: string,
+    @Query("offset") offset?: string,
   ) {
     const take = Math.min(Math.max(Number(limit ?? 50), 1), 200);
     const skip = Math.max(Number(offset ?? 0), 0);
@@ -1144,7 +1231,7 @@ export class AdminController {
       select: { id: true },
     });
     if (!exists) {
-      throw new BadRequestException('Prestataire introuvable');
+      throw new BadRequestException("Prestataire introuvable");
     }
 
     const prestWallet = await this.prisma.wallet.findUnique({
@@ -1166,7 +1253,7 @@ export class AdminController {
         where,
         take,
         skip,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: "desc" },
         include: {
           prestation: {
             select: {
@@ -1188,14 +1275,11 @@ export class AdminController {
         | null
         | undefined;
       const grossFromMeta =
-        meta &&
-        typeof meta.gross === 'number' &&
-        !Number.isNaN(meta.gross)
+        meta && typeof meta.gross === "number" && !Number.isNaN(meta.gross)
           ? meta.gross
           : null;
       const budget = row.prestation?.budget;
-      const grossFromBudget =
-        budget != null ? Number(budget) : null;
+      const grossFromBudget = budget != null ? Number(budget) : null;
       const montantPayeParClient =
         grossFromMeta ??
         (grossFromBudget != null && !Number.isNaN(grossFromBudget)
@@ -1205,10 +1289,10 @@ export class AdminController {
       const particulier = row.prestation?.particulier;
       const clientNom = particulier
         ? `${particulier.prenom} ${particulier.nom}`.trim()
-        : '—';
+        : "—";
 
       const serviceLibelle =
-        row.prestation?.prestataireService?.service?.libelle ?? '—';
+        row.prestation?.prestataireService?.service?.libelle ?? "—";
 
       return {
         id: row.id,
@@ -1218,15 +1302,15 @@ export class AdminController {
         clientNom,
         serviceLibelle,
         prestationId: row.prestationId,
-        statut: 'Payé',
+        statut: "Payé",
       };
     });
 
     return { total, items };
   }
 
-  @Get('prestataires/:id')
-  async getPrestataireDetails(@Param('id') prestataireId: string) {
+  @Get("prestataires/:id")
+  async getPrestataireDetails(@Param("id") prestataireId: string) {
     /** Toujours solde seul sur le include : évite l’erreur Prisma si `balance_plafond` / `statut_prestataire_wallet` ne sont pas encore migrés. */
     const prestataire = await this.prisma.prestataire.findUnique({
       where: { id: prestataireId },
@@ -1234,10 +1318,11 @@ export class AdminController {
     });
 
     if (!prestataire) {
-      throw new BadRequestException('Prestataire introuvable');
+      throw new BadRequestException("Prestataire introuvable");
     }
 
-    let walletStatutPrestataire: PrestataireWalletStatut = PrestataireWalletStatut.ACTIF;
+    let walletStatutPrestataire: PrestataireWalletStatut =
+      PrestataireWalletStatut.ACTIF;
     let walletBalancePlafond: number | null = null;
     try {
       const wExtra = await this.prisma.wallet.findUnique({
@@ -1267,15 +1352,19 @@ export class AdminController {
         : 0;
     const libelles = prestataire.servicesProposes.map((s) => s.service.libelle);
     const metier =
-      libelles.length === 0 ? '—' : libelles.length === 1 ? libelles[0]! : libelles.join(', ');
+      libelles.length === 0
+        ? "—"
+        : libelles.length === 1
+          ? libelles[0]
+          : libelles.join(", ");
 
     return {
       id: prestataire.id,
       nom: prestataire.nom,
-      email: prestataire.user?.email ?? '',
-      telephone: prestataire.telephone ?? '',
-      adresse: prestataire.adresse ?? '',
-      bio: prestataire.bio ?? '',
+      email: prestataire.user?.email ?? "",
+      telephone: prestataire.telephone ?? "",
+      adresse: prestataire.adresse ?? "",
+      bio: prestataire.bio ?? "",
       avatarUrl: prestataire.avatarUrl,
       actif: prestataire.actif,
       statutVerification: prestataire.statutVerification,
@@ -1283,7 +1372,9 @@ export class AdminController {
       metier,
       noteMoyenne,
       nbAvis: notes.length,
-      walletBalance: prestataire.wallet ? Number(prestataire.wallet.balance) : 0,
+      walletBalance: prestataire.wallet
+        ? Number(prestataire.wallet.balance)
+        : 0,
       walletStatutPrestataire,
       walletBalancePlafond,
       services: prestataire.servicesProposes.map((s) => ({
@@ -1304,23 +1395,25 @@ export class AdminController {
     };
   }
 
-  @Patch('prestataires/:id/wallet/statut')
+  @Patch("prestataires/:id/wallet/statut")
   async patchPrestataireWalletStatut(
-    @Param('id') prestataireId: string,
+    @Param("id") prestataireId: string,
     @Body() body: { statut?: string },
   ) {
     const s = body.statut;
-    if (s !== 'ACTIF' && s !== 'BLOQUE') {
-      throw new BadRequestException('statut doit être ACTIF ou BLOQUE');
+    if (s !== "ACTIF" && s !== "BLOQUE") {
+      throw new BadRequestException("statut doit être ACTIF ou BLOQUE");
     }
     const exists = await this.prisma.prestataire.findUnique({
       where: { id: prestataireId },
       select: { id: true },
     });
     if (!exists) {
-      throw new BadRequestException('Prestataire introuvable');
+      throw new BadRequestException("Prestataire introuvable");
     }
-    let wallet = await this.prisma.wallet.findUnique({ where: { prestataireId } });
+    let wallet = await this.prisma.wallet.findUnique({
+      where: { prestataireId },
+    });
     if (!wallet) {
       wallet = await this.prisma.wallet.create({
         data: {
@@ -1338,14 +1431,14 @@ export class AdminController {
     return { statutPrestataire: wallet.statutPrestataire };
   }
 
-  @Patch('prestataires/:id/wallet/plafond')
+  @Patch("prestataires/:id/wallet/plafond")
   async patchPrestataireWalletPlafond(
-    @Param('id') prestataireId: string,
+    @Param("id") prestataireId: string,
     @Body() body: { montantMax?: number | null },
   ) {
-    if (!('montantMax' in body)) {
+    if (!("montantMax" in body)) {
       throw new BadRequestException(
-        'montantMax requis (nombre positif ou null pour retirer le plafond)',
+        "montantMax requis (nombre positif ou null pour retirer le plafond)",
       );
     }
     const raw = body.montantMax;
@@ -1355,7 +1448,7 @@ export class AdminController {
     } else {
       const n = Number(raw);
       if (!Number.isFinite(n) || n < 0) {
-        throw new BadRequestException('montantMax invalide');
+        throw new BadRequestException("montantMax invalide");
       }
       balancePlafond = n;
     }
@@ -1364,9 +1457,11 @@ export class AdminController {
       select: { id: true },
     });
     if (!exists) {
-      throw new BadRequestException('Prestataire introuvable');
+      throw new BadRequestException("Prestataire introuvable");
     }
-    let wallet = await this.prisma.wallet.findUnique({ where: { prestataireId } });
+    let wallet = await this.prisma.wallet.findUnique({
+      where: { prestataireId },
+    });
     if (!wallet) {
       wallet = await this.prisma.wallet.create({
         data: {
@@ -1396,26 +1491,28 @@ export class AdminController {
     };
   }
 
-  @Delete('prestataires/:prestataireId/documents/:documentId')
+  @Delete("prestataires/:prestataireId/documents/:documentId")
   async deletePrestataireDocument(
-    @Param('prestataireId') prestataireId: string,
-    @Param('documentId') documentId: string,
+    @Param("prestataireId") prestataireId: string,
+    @Param("documentId") documentId: string,
   ) {
     const existing = await this.prisma.prestataireDocument.findFirst({
       where: { id: documentId, prestataireId },
       select: { id: true },
     });
     if (!existing) {
-      throw new BadRequestException('Document introuvable pour ce prestataire');
+      throw new BadRequestException("Document introuvable pour ce prestataire");
     }
-    await this.prisma.prestataireDocument.delete({ where: { id: existing.id } });
+    await this.prisma.prestataireDocument.delete({
+      where: { id: existing.id },
+    });
     return { success: true };
   }
 
-  @Patch('prestataires/:prestataireId/documents/:documentId/validate')
+  @Patch("prestataires/:prestataireId/documents/:documentId/validate")
   async validatePrestataireDocument(
-    @Param('prestataireId') prestataireId: string,
-    @Param('documentId') documentId: string,
+    @Param("prestataireId") prestataireId: string,
+    @Param("documentId") documentId: string,
     @CurrentUser() admin: CurrentUserPayload,
   ) {
     const existing = await this.prisma.prestataireDocument.findFirst({
@@ -1424,7 +1521,7 @@ export class AdminController {
     });
 
     if (!existing) {
-      throw new BadRequestException('Document introuvable pour ce prestataire');
+      throw new BadRequestException("Document introuvable pour ce prestataire");
     }
 
     const now = new Date();
@@ -1469,16 +1566,16 @@ export class AdminController {
     };
   }
 
-  @Patch('prestataires/:prestataireId/documents/:documentId/reject')
+  @Patch("prestataires/:prestataireId/documents/:documentId/reject")
   async rejectPrestataireDocument(
-    @Param('prestataireId') prestataireId: string,
-    @Param('documentId') documentId: string,
+    @Param("prestataireId") prestataireId: string,
+    @Param("documentId") documentId: string,
     @Body() body: { motif?: string },
   ) {
-    const motif = (body?.motif ?? '').trim();
+    const motif = (body?.motif ?? "").trim();
     if (motif.length < 3) {
       throw new BadRequestException(
-        'Merci d’indiquer un motif de refus (au moins 3 caractères).',
+        "Merci d’indiquer un motif de refus (au moins 3 caractères).",
       );
     }
 
@@ -1488,7 +1585,7 @@ export class AdminController {
     });
 
     if (!existing) {
-      throw new BadRequestException('Document introuvable pour ce prestataire');
+      throw new BadRequestException("Document introuvable pour ce prestataire");
     }
 
     await this.prisma.prestataireDocument.update({
@@ -1518,11 +1615,11 @@ export class AdminController {
    * Demandes Mille Services : KPIs sur les prestations + liste paginée avec statut.
    * Query optionnelle `statut` : filtre sur la liste (valeur enum, ex. EN_ATTENTE).
    */
-  @Get('demandes-mille-services')
+  @Get("demandes-mille-services")
   async getDemandesMilleServices(
-    @Query('limit') limit?: string,
-    @Query('offset') offset?: string,
-    @Query('statut') statutFilter?: string,
+    @Query("limit") limit?: string,
+    @Query("offset") offset?: string,
+    @Query("statut") statutFilter?: string,
   ) {
     const take = Math.min(Math.max(Number(limit ?? 20), 1), 100);
     const skip = Math.max(Number(offset ?? 0), 0);
@@ -1572,7 +1669,7 @@ export class AdminController {
         where: listWhere,
         take,
         skip,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: "desc" },
         select: {
           id: true,
           statut: true,
@@ -1613,8 +1710,7 @@ export class AdminController {
         statutLabel: statutPrestationLabelFr(r.statut),
         typeDeTache: r.typeDeTache ?? null,
         description: r.description ?? null,
-        budget:
-          r.budget != null ? Number(r.budget) : null,
+        budget: r.budget != null ? Number(r.budget) : null,
         adresse: r.adresse ?? null,
         createdAt: r.createdAt.toISOString(),
         updatedAt: r.updatedAt.toISOString(),
@@ -1634,14 +1730,15 @@ export class AdminController {
   }
 
   /** Liste des métiers (services) avec nombre de prestataires liés (ligne PrestataireService). */
-  @Get('services')
+  @Get("services")
   async getServicesForAdmin() {
     const rows = await this.prisma.service.findMany({
-      orderBy: { libelle: 'asc' },
+      orderBy: { libelle: "asc" },
       select: {
         id: true,
         libelle: true,
         slug: true,
+        tarifs: true,
         actif: true,
         createdAt: true,
         _count: {
@@ -1654,6 +1751,7 @@ export class AdminController {
         id: s.id,
         libelle: s.libelle,
         slug: s.slug,
+        tarif: this.parseServiceTarifValue(s.tarifs),
         actif: s.actif,
         createdAt: s.createdAt.toISOString(),
         prestatairesCount: s._count.prestataires,
@@ -1661,20 +1759,29 @@ export class AdminController {
     };
   }
 
-  @Post('services')
-  async createService(@Body() body: { libelle?: string }) {
+  @Post("services")
+  async createService(
+    @Body() body: { libelle?: string; tarif?: number | string },
+  ) {
     const libelle = body?.libelle?.trim();
     if (!libelle) {
-      throw new BadRequestException('Libellé requis');
+      throw new BadRequestException("Libellé requis");
     }
+    const tarif = this.parsePositiveTarif(body?.tarif, { required: true });
     const base = this.slugifyServiceLabel(libelle);
     const slug = await this.ensureUniqueServiceSlug(base);
     const created = await this.prisma.service.create({
-      data: { libelle, slug, actif: true },
+      data: {
+        libelle,
+        slug,
+        tarifs: tarif != null ? String(tarif) : null,
+        actif: true,
+      },
       select: {
         id: true,
         libelle: true,
         slug: true,
+        tarifs: true,
         actif: true,
         createdAt: true,
         _count: { select: { prestataires: true } },
@@ -1684,23 +1791,25 @@ export class AdminController {
       id: created.id,
       libelle: created.libelle,
       slug: created.slug,
+      tarif: this.parseServiceTarifValue(created.tarifs),
       actif: created.actif,
       createdAt: created.createdAt.toISOString(),
       prestatairesCount: created._count.prestataires,
     };
   }
 
-  @Patch('services/:serviceId')
+  @Patch("services/:serviceId")
   async updateService(
-    @Param('serviceId') serviceId: string,
-    @Body() body: { actif?: boolean; libelle?: string },
+    @Param("serviceId") serviceId: string,
+    @Body()
+    body: { actif?: boolean; libelle?: string; tarif?: number | string | null },
   ) {
     const existing = await this.prisma.service.findUnique({
       where: { id: serviceId },
       select: { id: true },
     });
     if (!existing) {
-      throw new BadRequestException('Métier introuvable');
+      throw new BadRequestException("Métier introuvable");
     }
     if (body.actif === false) {
       const rattaches = await this.prisma.prestataireService.count({
@@ -1712,21 +1821,30 @@ export class AdminController {
         );
       }
     }
-    const data: { actif?: boolean; libelle?: string; slug?: string } = {};
-    if (typeof body.actif === 'boolean') {
+    const data: {
+      actif?: boolean;
+      libelle?: string;
+      slug?: string;
+      tarifs?: string | null;
+    } = {};
+    if (typeof body.actif === "boolean") {
       data.actif = body.actif;
     }
     if (body.libelle !== undefined) {
       const libelle = body.libelle.trim();
       if (!libelle) {
-        throw new BadRequestException('Libellé invalide');
+        throw new BadRequestException("Libellé invalide");
       }
       data.libelle = libelle;
       const base = this.slugifyServiceLabel(libelle);
       data.slug = await this.ensureUniqueServiceSlug(base, serviceId);
     }
+    if (body.tarif !== undefined) {
+      const tarif = this.parsePositiveTarif(body.tarif);
+      data.tarifs = tarif != null ? String(tarif) : null;
+    }
     if (Object.keys(data).length === 0) {
-      throw new BadRequestException('Aucune modification');
+      throw new BadRequestException("Aucune modification");
     }
     const updated = await this.prisma.service.update({
       where: { id: serviceId },
@@ -1735,6 +1853,7 @@ export class AdminController {
         id: true,
         libelle: true,
         slug: true,
+        tarifs: true,
         actif: true,
         createdAt: true,
         _count: { select: { prestataires: true } },
@@ -1744,20 +1863,47 @@ export class AdminController {
       id: updated.id,
       libelle: updated.libelle,
       slug: updated.slug,
+      tarif: this.parseServiceTarifValue(updated.tarifs),
       actif: updated.actif,
       createdAt: updated.createdAt.toISOString(),
       prestatairesCount: updated._count.prestataires,
     };
   }
 
+  private parsePositiveTarif(
+    value: unknown,
+    opts?: { required?: boolean },
+  ): number | null {
+    const required = opts?.required === true;
+    if (value == null || value === "") {
+      if (required) {
+        throw new BadRequestException("Tarif requis");
+      }
+      return null;
+    }
+    const n = Number(value);
+    if (!Number.isFinite(n) || n < 0) {
+      throw new BadRequestException("Tarif invalide");
+    }
+    return Math.round(n * 100) / 100;
+  }
+
+  private parseServiceTarifValue(
+    value: string | null | undefined,
+  ): number | null {
+    if (!value || !value.trim()) return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  }
+
   private slugifyServiceLabel(input: string): string {
     const s = input
-      .normalize('NFD')
-      .replace(/\p{M}/gu, '')
+      .normalize("NFD")
+      .replace(/\p{M}/gu, "")
       .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '');
-    return s || 'service';
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+    return s || "service";
   }
 
   private async ensureUniqueServiceSlug(
@@ -1780,19 +1926,19 @@ export class AdminController {
   }
 
   /** Prestataires inscrits sur un métier (service). */
-  @Get('services/:serviceId/prestataires')
-  async getPrestatairesByService(@Param('serviceId') serviceId: string) {
+  @Get("services/:serviceId/prestataires")
+  async getPrestatairesByService(@Param("serviceId") serviceId: string) {
     const service = await this.prisma.service.findUnique({
       where: { id: serviceId },
       select: { id: true, libelle: true },
     });
     if (!service) {
-      throw new BadRequestException('Métier (service) introuvable');
+      throw new BadRequestException("Métier (service) introuvable");
     }
 
     const links = await this.prisma.prestataireService.findMany({
       where: { serviceId },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
       select: {
         id: true,
         actif: true,
@@ -1814,8 +1960,8 @@ export class AdminController {
       items: links.map((l) => ({
         id: l.prestataire.id,
         nom: l.prestataire.nom,
-        email: l.prestataire.user?.email ?? '',
-        telephone: l.prestataire.telephone ?? '',
+        email: l.prestataire.user?.email ?? "",
+        telephone: l.prestataire.telephone ?? "",
         actif: l.prestataire.actif,
         offreActive: l.actif,
         statutVerification: l.prestataire.statutVerification,
@@ -1824,14 +1970,14 @@ export class AdminController {
   }
 
   /** Supprime un métier uniquement si aucun prestataire n’y est rattaché. */
-  @Delete('services/:serviceId')
-  async deleteService(@Param('serviceId') serviceId: string) {
+  @Delete("services/:serviceId")
+  async deleteService(@Param("serviceId") serviceId: string) {
     const count = await this.prisma.prestataireService.count({
       where: { serviceId },
     });
     if (count > 0) {
       throw new BadRequestException(
-        'Impossible de supprimer : des prestataires sont encore inscrits à ce métier.',
+        "Impossible de supprimer : des prestataires sont encore inscrits à ce métier.",
       );
     }
     await this.prisma.service.delete({ where: { id: serviceId } });
@@ -1839,10 +1985,10 @@ export class AdminController {
   }
 
   /** Liste des offres d'abonnement (admin). */
-  @Get('offres')
+  @Get("offres")
   async getOffresForAdmin() {
     const rows = await this.prisma.offre.findMany({
-      orderBy: [{ ordre: 'asc' }, { createdAt: 'desc' }],
+      orderBy: [{ ordre: "asc" }, { createdAt: "desc" }],
       select: {
         id: true,
         code: true,
@@ -1860,7 +2006,7 @@ export class AdminController {
         id: o.id,
         code: o.code,
         libelle: o.libelle,
-        description: o.description ?? '',
+        description: o.description ?? "",
         prix: Number(o.prix),
         dureeMois: o.dureeMois,
         actif: o.actif,
@@ -1871,7 +2017,7 @@ export class AdminController {
   }
 
   /** Crée une offre d'abonnement (admin). */
-  @Post('offres')
+  @Post("offres")
   async createOffre(
     @Body()
     body: {
@@ -1883,24 +2029,28 @@ export class AdminController {
       ordre?: number;
     },
   ) {
-    const libelle = (body?.libelle ?? '').trim();
-    if (!libelle) throw new BadRequestException('Libellé requis');
+    const libelle = (body?.libelle ?? "").trim();
+    if (!libelle) throw new BadRequestException("Libellé requis");
 
     const prix = Number(body?.prix);
     if (!Number.isFinite(prix) || prix < 0) {
-      throw new BadRequestException('Prix invalide');
+      throw new BadRequestException("Prix invalide");
     }
 
     const dureeMois = Number(body?.dureeMois);
     if (!Number.isInteger(dureeMois) || dureeMois <= 0) {
-      throw new BadRequestException('Durée (mois) invalide');
+      throw new BadRequestException("Durée (mois) invalide");
     }
 
     const ordreRaw = body?.ordre;
     const ordre =
-      ordreRaw == null ? 0 : Number.isFinite(Number(ordreRaw)) ? Number(ordreRaw) : 0;
+      ordreRaw == null
+        ? 0
+        : Number.isFinite(Number(ordreRaw))
+          ? Number(ordreRaw)
+          : 0;
 
-    const rawCode = (body?.code ?? '').trim();
+    const rawCode = (body?.code ?? "").trim();
     const baseCode = rawCode || this.slugifyServiceLabel(libelle);
     const code = await this.ensureUniqueOffreCode(baseCode);
 
@@ -1931,7 +2081,7 @@ export class AdminController {
       id: created.id,
       code: created.code,
       libelle: created.libelle,
-      description: created.description ?? '',
+      description: created.description ?? "",
       prix: Number(created.prix),
       dureeMois: created.dureeMois,
       actif: created.actif,
@@ -1941,9 +2091,9 @@ export class AdminController {
   }
 
   /** Active/désactive une offre d'abonnement (admin). */
-  @Patch('offres/:offreId')
+  @Patch("offres/:offreId")
   async updateOffre(
-    @Param('offreId') offreId: string,
+    @Param("offreId") offreId: string,
     @Body()
     body: {
       actif?: boolean;
@@ -1957,9 +2107,18 @@ export class AdminController {
   ) {
     const existing = await this.prisma.offre.findUnique({
       where: { id: offreId },
-      select: { id: true, code: true, libelle: true, description: true, prix: true, dureeMois: true, ordre: true, actif: true },
+      select: {
+        id: true,
+        code: true,
+        libelle: true,
+        description: true,
+        prix: true,
+        dureeMois: true,
+        ordre: true,
+        actif: true,
+      },
     });
-    if (!existing) throw new BadRequestException('Offre introuvable');
+    if (!existing) throw new BadRequestException("Offre introuvable");
 
     const data: {
       actif?: boolean;
@@ -1971,19 +2130,24 @@ export class AdminController {
       ordre?: number;
     } = {};
 
-    if (typeof body?.actif === 'boolean') data.actif = body.actif;
+    if (typeof body?.actif === "boolean") data.actif = body.actif;
 
     if (body.code !== undefined) {
       const rawCode = body.code.trim();
-      const base = rawCode || this.slugifyServiceLabel(body.libelle?.trim() || existing.libelle);
+      const base =
+        rawCode ||
+        this.slugifyServiceLabel(body.libelle?.trim() || existing.libelle);
       data.code = await this.ensureUniqueOffreCode(base, existing.id);
     }
     if (body.libelle !== undefined) {
       const libelle = body.libelle.trim();
-      if (!libelle) throw new BadRequestException('Libellé requis');
+      if (!libelle) throw new BadRequestException("Libellé requis");
       data.libelle = libelle;
       if (body.code === undefined) {
-        data.code = await this.ensureUniqueOffreCode(this.slugifyServiceLabel(libelle), existing.id);
+        data.code = await this.ensureUniqueOffreCode(
+          this.slugifyServiceLabel(libelle),
+          existing.id,
+        );
       }
     }
     if (body.description !== undefined) {
@@ -1991,23 +2155,25 @@ export class AdminController {
     }
     if (body.prix !== undefined) {
       const prix = Number(body.prix);
-      if (!Number.isFinite(prix) || prix < 0) throw new BadRequestException('Prix invalide');
+      if (!Number.isFinite(prix) || prix < 0)
+        throw new BadRequestException("Prix invalide");
       data.prix = prix;
     }
     if (body.dureeMois !== undefined) {
       const dureeMois = Number(body.dureeMois);
       if (!Number.isInteger(dureeMois) || dureeMois <= 0) {
-        throw new BadRequestException('Durée (mois) invalide');
+        throw new BadRequestException("Durée (mois) invalide");
       }
       data.dureeMois = dureeMois;
     }
     if (body.ordre !== undefined) {
       const ordre = Number(body.ordre);
-      if (!Number.isFinite(ordre)) throw new BadRequestException('Ordre invalide');
+      if (!Number.isFinite(ordre))
+        throw new BadRequestException("Ordre invalide");
       data.ordre = ordre;
     }
     if (Object.keys(data).length === 0) {
-      throw new BadRequestException('Aucune modification');
+      throw new BadRequestException("Aucune modification");
     }
 
     const updated = await this.prisma.offre.update({
@@ -2030,7 +2196,7 @@ export class AdminController {
       id: updated.id,
       code: updated.code,
       libelle: updated.libelle,
-      description: updated.description ?? '',
+      description: updated.description ?? "",
       prix: Number(updated.prix),
       dureeMois: updated.dureeMois,
       actif: updated.actif,

@@ -20,18 +20,20 @@ let HttpExceptionFilter = HttpExceptionFilter_1 = class HttpExceptionFilter {
             status = exception.getStatus();
             const response = exception.getResponse();
             message =
-                typeof response === 'string'
+                typeof response === "string"
                     ? response
                     : response?.message
                         ? Array.isArray(response.message)
-                            ? response.message.join(', ')
+                            ? response.message.join(", ")
                             : response.message
                         : exception.message;
         }
         else {
             status = common_1.HttpStatus.INTERNAL_SERVER_ERROR;
             message =
-                exception instanceof Error ? exception.message : 'Erreur interne du serveur';
+                exception instanceof Error
+                    ? exception.message
+                    : "Erreur interne du serveur";
             this.logger.error(exception instanceof Error ? exception.stack : String(exception));
         }
         const body = {

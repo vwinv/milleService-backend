@@ -11,13 +11,18 @@ const common_1 = require("@nestjs/common");
 const operators_1 = require("rxjs/operators");
 let ResponseInterceptor = class ResponseInterceptor {
     intercept(context, next) {
+        const req = context.switchToHttp().getRequest();
+        const path = req.path ?? req.url ?? "";
+        if (path.includes("webhooks/paydunya")) {
+            return next.handle();
+        }
         const res = context.switchToHttp().getResponse();
         return next.handle().pipe((0, operators_1.map)((data) => {
             const status = res.statusCode ?? 200;
             return {
                 success: true,
                 data,
-                message: 'OK',
+                message: "OK",
                 status,
             };
         }));

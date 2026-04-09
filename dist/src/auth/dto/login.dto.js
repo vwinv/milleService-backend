@@ -23,7 +23,7 @@ __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.ValidateIf)((o) => !o.email || `${o.email}`.trim().length === 0),
     (0, class_validator_1.IsString)(),
-    (0, class_validator_1.MinLength)(1, { message: 'Le telephone est requis' }),
+    (0, class_validator_1.MinLength)(1, { message: "Le telephone est requis" }),
     __metadata("design:type", String)
 ], LoginDto.prototype, "telephone", void 0);
 __decorate([
@@ -34,12 +34,12 @@ __decorate([
 ], LoginDto.prototype, "email", void 0);
 __decorate([
     (0, class_validator_1.IsString)(),
-    (0, class_validator_1.MinLength)(1, { message: 'Le mot de passe est requis' }),
+    (0, class_validator_1.MinLength)(1, { message: "Le mot de passe est requis" }),
     __metadata("design:type", String)
 ], LoginDto.prototype, "password", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsEnum)(client_js_1.Role, { message: 'Rôle invalide' }),
+    (0, class_validator_1.IsEnum)(client_js_1.Role, { message: "Rôle invalide" }),
     __metadata("design:type", String)
 ], LoginDto.prototype, "role", void 0);
 //# sourceMappingURL=login.dto.js.map

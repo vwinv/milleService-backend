@@ -1,5 +1,5 @@
-import { PrismaService } from '../prisma/prisma.service.js';
-import { TransactionType } from '../../generated/prisma/client.js';
+import { PrismaService } from "../prisma/prisma.service.js";
+import { TransactionType } from "../../generated/prisma/client.js";
 export declare class WalletsService {
     private readonly prisma;
     constructor(prisma: PrismaService);
@@ -18,10 +18,19 @@ export declare class WalletsService {
         meta?: any;
         tx?: any;
     }): Promise<any>;
-    splitPrestationAmount(gross: number): {
+    splitPrestationAmount(gross: number, opts?: {
+        baseWorkFcfa: number;
+        serviceFeeFcfa: number;
+    }): {
         gross: number;
         fee: number;
         net: number;
         rate: number;
     };
+    debitGeneralWallet(params: {
+        amount: number;
+        meta?: Record<string, unknown>;
+        createdByUserId?: string;
+        tx?: any;
+    }): Promise<any>;
 }

@@ -1,9 +1,10 @@
-import { AuthService } from './auth.service.js';
-import { RegisterDto } from './dto/register.dto.js';
-import { LoginDto } from './dto/login.dto.js';
-import { RefreshTokenDto } from './dto/refresh-token.dto.js';
-import { UpdateParticulierDto } from './dto/update-particulier.dto.js';
-import { CurrentUserPayload } from './decorators/current-user.decorator.js';
+import { AuthService } from "./auth.service.js";
+import { RegisterDto } from "./dto/register.dto.js";
+import { LoginDto } from "./dto/login.dto.js";
+import { RefreshTokenDto } from "./dto/refresh-token.dto.js";
+import { UpdateParticulierDto } from "./dto/update-particulier.dto.js";
+import { ForgotPasswordDto } from "./dto/forgot-password.dto.js";
+import { CurrentUserPayload } from "./decorators/current-user.decorator.js";
 export declare class AuthController {
     private readonly authService;
     constructor(authService: AuthService);
@@ -54,8 +55,8 @@ export declare class AuthController {
             offre: {
                 prix: number;
                 id: string;
-                code: string;
                 libelle: string;
+                code: string;
                 dureeMois: number;
             };
         } | null;
@@ -87,11 +88,15 @@ export declare class AuthController {
             offre: {
                 prix: number;
                 id: string;
-                code: string;
                 libelle: string;
+                code: string;
                 dureeMois: number;
             };
         } | null;
+    }>;
+    forgotPassword(dto: ForgotPasswordDto): Promise<{
+        success: boolean;
+        message: string;
     }>;
     deactivate(user: CurrentUserPayload): Promise<{
         success: boolean;
@@ -137,8 +142,8 @@ export declare class AuthController {
             offre: {
                 prix: number;
                 id: string;
-                code: string;
                 libelle: string;
+                code: string;
                 dureeMois: number;
             };
         } | null;

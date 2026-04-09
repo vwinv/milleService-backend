@@ -1,12 +1,12 @@
-import { PrestatairesService } from './prestataires.service.js';
-import { CurrentUserPayload } from '../auth/decorators/current-user.decorator.js';
-import { FavorisQueryDto } from './dto/favoris-query.dto.js';
-import { SearchQueryDto } from './dto/search-query.dto.js';
-import { CreateAvisDto } from './dto/create-avis.dto.js';
-import { CreatePrestatairePhotoDto } from './dto/create-photo.dto.js';
-import { UpdateMePrestataireDto } from './dto/update-me.dto.js';
-import { UpdateStatutVerificationPrestataireDto } from './dto/update-statut-verification.dto.js';
-import { UpdatePrestataireDocumentsDto } from './dto/update-documents.dto.js';
+import { PrestatairesService } from "./prestataires.service.js";
+import { CurrentUserPayload } from "../auth/decorators/current-user.decorator.js";
+import { FavorisQueryDto } from "./dto/favoris-query.dto.js";
+import { SearchQueryDto } from "./dto/search-query.dto.js";
+import { CreateAvisDto } from "./dto/create-avis.dto.js";
+import { CreatePrestatairePhotoDto } from "./dto/create-photo.dto.js";
+import { UpdateMePrestataireDto } from "./dto/update-me.dto.js";
+import { UpdateStatutVerificationPrestataireDto } from "./dto/update-statut-verification.dto.js";
+import { UpdatePrestataireDocumentsDto } from "./dto/update-documents.dto.js";
 export declare class PrestatairesController {
     private readonly prestatairesService;
     constructor(prestatairesService: PrestatairesService);

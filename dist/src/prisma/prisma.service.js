@@ -17,7 +17,7 @@ let PrismaService = class PrismaService extends client_js_1.PrismaClient {
     constructor() {
         const connectionString = process.env.DATABASE_URL;
         if (!connectionString) {
-            throw new Error('DATABASE_URL is not set in environment');
+            throw new Error("DATABASE_URL is not set in environment");
         }
         const adapter = new adapter_pg_1.PrismaPg({ connectionString });
         super({ adapter });

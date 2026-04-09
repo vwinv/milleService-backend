@@ -1,4 +1,4 @@
-import { CloudinaryService } from '../cloudinary/cloudinary.service.js';
+import { CloudinaryService } from "../cloudinary/cloudinary.service.js";
 interface MulterFile {
     buffer: Buffer;
     originalname: string;

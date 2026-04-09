@@ -249,7 +249,8 @@ model PrestataireService {
   id             String   @id @default(cuid())
   prestataireId  String   @map("prestataire_id")
   serviceId      String   @map("service_id")
-  tarifHoraire   Decimal? @map("tarif_horaire") @db.Decimal(10, 2) // en €
+  /// Ancien tarif par prestataire ; la facturation utilise surtout `Service.tarifs` (admin).
+  tarifHoraire   Decimal? @map("tarif_horaire") @db.Decimal(10, 2)
   dureeDefautMin Int?     @map("duree_defaut_min") // durée par défaut en minutes
   description    String?  @db.Text
   actif          Boolean  @default(true)
@@ -296,6 +297,8 @@ enum PrestataireWalletStatut {
 enum TransactionType {
   PRESTATION
   ABONNEMENT
+  /// Retrait manuel depuis le wallet général (back-office).
+  RETRAIT_PLATEFORME
 }
 
 enum WithdrawalMethod {

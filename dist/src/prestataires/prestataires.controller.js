@@ -79,9 +79,9 @@ let PrestatairesController = class PrestatairesController {
 };
 exports.PrestatairesController = PrestatairesController;
 __decorate([
-    (0, common_1.Post)('avis'),
+    (0, common_1.Post)("avis"),
     (0, common_1.UseGuards)(jwt_auth_guard_js_1.JwtAuthGuard, roles_guard_js_1.RolesGuard),
-    (0, roles_decorator_js_1.Roles)('PARTICULIER'),
+    (0, roles_decorator_js_1.Roles)("PARTICULIER"),
     __param(0, (0, current_user_decorator_js_1.CurrentUser)()),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -89,9 +89,9 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], PrestatairesController.prototype, "createAvis", null);
 __decorate([
-    (0, common_1.Get)('favoris'),
+    (0, common_1.Get)("favoris"),
     (0, common_1.UseGuards)(jwt_auth_guard_js_1.JwtAuthGuard, roles_guard_js_1.RolesGuard),
-    (0, roles_decorator_js_1.Roles)('PARTICULIER'),
+    (0, roles_decorator_js_1.Roles)("PARTICULIER"),
     __param(0, (0, current_user_decorator_js_1.CurrentUser)()),
     __param(1, (0, common_1.Query)()),
     __metadata("design:type", Function),
@@ -99,9 +99,9 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], PrestatairesController.prototype, "getFavoris", null);
 __decorate([
-    (0, common_1.Get)('search'),
+    (0, common_1.Get)("search"),
     (0, common_1.UseGuards)(jwt_auth_guard_js_1.JwtAuthGuard, roles_guard_js_1.RolesGuard),
-    (0, roles_decorator_js_1.Roles)('PARTICULIER'),
+    (0, roles_decorator_js_1.Roles)("PARTICULIER"),
     __param(0, (0, current_user_decorator_js_1.CurrentUser)()),
     __param(1, (0, common_1.Query)()),
     __metadata("design:type", Function),
@@ -109,27 +109,27 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], PrestatairesController.prototype, "search", null);
 __decorate([
-    (0, common_1.Get)('me/prestation-stats'),
+    (0, common_1.Get)("me/prestation-stats"),
     (0, common_1.UseGuards)(jwt_auth_guard_js_1.JwtAuthGuard, roles_guard_js_1.RolesGuard),
-    (0, roles_decorator_js_1.Roles)('PRESTATAIRE'),
+    (0, roles_decorator_js_1.Roles)("PRESTATAIRE"),
     __param(0, (0, current_user_decorator_js_1.CurrentUser)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], PrestatairesController.prototype, "getPrestationStats", null);
 __decorate([
-    (0, common_1.Get)('me/services'),
+    (0, common_1.Get)("me/services"),
     (0, common_1.UseGuards)(jwt_auth_guard_js_1.JwtAuthGuard, roles_guard_js_1.RolesGuard),
-    (0, roles_decorator_js_1.Roles)('PRESTATAIRE'),
+    (0, roles_decorator_js_1.Roles)("PRESTATAIRE"),
     __param(0, (0, current_user_decorator_js_1.CurrentUser)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], PrestatairesController.prototype, "getMyServiceIds", null);
 __decorate([
-    (0, common_1.Patch)('me'),
+    (0, common_1.Patch)("me"),
     (0, common_1.UseGuards)(jwt_auth_guard_js_1.JwtAuthGuard, roles_guard_js_1.RolesGuard),
-    (0, roles_decorator_js_1.Roles)('PRESTATAIRE'),
+    (0, roles_decorator_js_1.Roles)("PRESTATAIRE"),
     __param(0, (0, current_user_decorator_js_1.CurrentUser)()),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -137,18 +137,18 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], PrestatairesController.prototype, "updateMe", null);
 __decorate([
-    (0, common_1.Get)('me/photos'),
+    (0, common_1.Get)("me/photos"),
     (0, common_1.UseGuards)(jwt_auth_guard_js_1.JwtAuthGuard, roles_guard_js_1.RolesGuard),
-    (0, roles_decorator_js_1.Roles)('PRESTATAIRE'),
+    (0, roles_decorator_js_1.Roles)("PRESTATAIRE"),
     __param(0, (0, current_user_decorator_js_1.CurrentUser)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], PrestatairesController.prototype, "getMyPhotos", null);
 __decorate([
-    (0, common_1.Post)('me/photos'),
+    (0, common_1.Post)("me/photos"),
     (0, common_1.UseGuards)(jwt_auth_guard_js_1.JwtAuthGuard, roles_guard_js_1.RolesGuard),
-    (0, roles_decorator_js_1.Roles)('PRESTATAIRE'),
+    (0, roles_decorator_js_1.Roles)("PRESTATAIRE"),
     __param(0, (0, current_user_decorator_js_1.CurrentUser)()),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -156,47 +156,47 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], PrestatairesController.prototype, "addPhoto", null);
 __decorate([
-    (0, common_1.Get)('public/avis'),
+    (0, common_1.Get)("public/avis"),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", void 0)
 ], PrestatairesController.prototype, "getPublicAvis", null);
 __decorate([
-    (0, common_1.Get)(':id/photos'),
-    __param(0, (0, common_1.Param)('id')),
+    (0, common_1.Get)(":id/photos"),
+    __param(0, (0, common_1.Param)("id")),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], PrestatairesController.prototype, "getPhotosByPrestataire", null);
 __decorate([
-    (0, common_1.Get)(':id/avis'),
-    __param(0, (0, common_1.Param)('id')),
+    (0, common_1.Get)(":id/avis"),
+    __param(0, (0, common_1.Param)("id")),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], PrestatairesController.prototype, "getAvisByPrestataire", null);
 __decorate([
-    (0, common_1.Get)('me/verification-status'),
+    (0, common_1.Get)("me/verification-status"),
     (0, common_1.UseGuards)(jwt_auth_guard_js_1.JwtAuthGuard, roles_guard_js_1.RolesGuard),
-    (0, roles_decorator_js_1.Roles)('PRESTATAIRE'),
+    (0, roles_decorator_js_1.Roles)("PRESTATAIRE"),
     __param(0, (0, current_user_decorator_js_1.CurrentUser)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], PrestatairesController.prototype, "getMyVerificationStatus", null);
 __decorate([
-    (0, common_1.Get)('me/documents'),
+    (0, common_1.Get)("me/documents"),
     (0, common_1.UseGuards)(jwt_auth_guard_js_1.JwtAuthGuard, roles_guard_js_1.RolesGuard),
-    (0, roles_decorator_js_1.Roles)('PRESTATAIRE'),
+    (0, roles_decorator_js_1.Roles)("PRESTATAIRE"),
     __param(0, (0, current_user_decorator_js_1.CurrentUser)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], PrestatairesController.prototype, "getMyDocuments", null);
 __decorate([
-    (0, common_1.Patch)('me/documents'),
+    (0, common_1.Patch)("me/documents"),
     (0, common_1.UseGuards)(jwt_auth_guard_js_1.JwtAuthGuard, roles_guard_js_1.RolesGuard),
-    (0, roles_decorator_js_1.Roles)('PRESTATAIRE'),
+    (0, roles_decorator_js_1.Roles)("PRESTATAIRE"),
     __param(0, (0, current_user_decorator_js_1.CurrentUser)()),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -204,17 +204,17 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], PrestatairesController.prototype, "updateMyDocuments", null);
 __decorate([
-    (0, common_1.Patch)(':id/statut-verification'),
+    (0, common_1.Patch)(":id/statut-verification"),
     (0, common_1.UseGuards)(jwt_auth_guard_js_1.JwtAuthGuard, roles_guard_js_1.RolesGuard),
-    (0, roles_decorator_js_1.Roles)('ADMIN'),
-    __param(0, (0, common_1.Param)('id')),
+    (0, roles_decorator_js_1.Roles)("ADMIN"),
+    __param(0, (0, common_1.Param)("id")),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String, update_statut_verification_dto_js_1.UpdateStatutVerificationPrestataireDto]),
     __metadata("design:returntype", void 0)
 ], PrestatairesController.prototype, "updateStatutVerification", null);
 exports.PrestatairesController = PrestatairesController = __decorate([
-    (0, common_1.Controller)('prestataires'),
+    (0, common_1.Controller)("prestataires"),
     __metadata("design:paramtypes", [prestataires_service_js_1.PrestatairesService])
 ], PrestatairesController);
 //# sourceMappingURL=prestataires.controller.js.map

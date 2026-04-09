@@ -18,14 +18,14 @@ class CreateAvisDto {
 }
 exports.CreateAvisDto = CreateAvisDto;
 __decorate([
-    (0, class_validator_1.IsNotEmpty)({ message: 'prestataireId est requis' }),
+    (0, class_validator_1.IsNotEmpty)({ message: "prestataireId est requis" }),
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], CreateAvisDto.prototype, "prestataireId", void 0);
 __decorate([
     (0, class_validator_1.IsInt)(),
-    (0, class_validator_1.Min)(1, { message: 'La note doit être entre 1 et 5' }),
-    (0, class_validator_1.Max)(5, { message: 'La note doit être entre 1 et 5' }),
+    (0, class_validator_1.Min)(1, { message: "La note doit être entre 1 et 5" }),
+    (0, class_validator_1.Max)(5, { message: "La note doit être entre 1 et 5" }),
     __metadata("design:type", Number)
 ], CreateAvisDto.prototype, "note", void 0);
 __decorate([

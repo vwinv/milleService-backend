@@ -1,11 +1,12 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service.js';
-import * as fs from 'fs';
+import { Injectable, Logger } from "@nestjs/common";
+import { PrismaService } from "../prisma/prisma.service.js";
+import * as fs from "fs";
 import {
   type FirebaseServiceAccountJson,
   type FcmOutgoingMessage,
+  getFirebaseAdminLastLoadError,
   getFirebaseAdminSdk,
-} from './firebase-admin.runtime.js';
+} from "./firebase-admin.runtime.js";
 
 export interface SendNotificationPayload {
   title: string;
@@ -17,7 +18,7 @@ export interface SendNotificationPayload {
 /** Aperçu du token pour les logs (jamais le token complet). */
 function fcmTokenFingerprint(token: string): string {
   const t = token.trim();
-  if (!t) return '(vide)';
+  if (!t) return "(vide)";
   if (t.length < 24) return `(token court len=${t.length})`;
   return `${t.slice(0, 10)}…${t.slice(-8)} (len=${t.length})`;
 }
@@ -30,6 +31,7 @@ function fcmTokenFingerprint(token: string): string {
 @Injectable()
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
+  private static firebaseAdminMissingLogged = false;
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -37,9 +39,9 @@ export class NotificationsService {
     userId: string,
     payload: SendNotificationPayload,
   ): Promise<void> {
-    if (process.env.NODE_ENV !== 'test') {
+    if (process.env.NODE_ENV !== "test") {
       this.logger.log(
-        `[FCM trace] sendToUser début userId=${userId} title="${payload.title}" type=${payload.type ?? '—'}`,
+        `[FCM trace] sendToUser début userId=${userId} title="${payload.title}" type=${payload.type ?? "—"}`,
       );
     }
 
@@ -53,7 +55,7 @@ export class NotificationsService {
       },
     });
 
-    if (process.env.NODE_ENV !== 'test') {
+    if (process.env.NODE_ENV !== "test") {
       this.logger.log(
         `[FCM trace] notification DB créée id=${notif.id} userId=${userId}`,
       );
@@ -64,7 +66,7 @@ export class NotificationsService {
       select: { fcmToken: true },
     });
     if (!user?.fcmToken) {
-      if (process.env.NODE_ENV !== 'test') {
+      if (process.env.NODE_ENV !== "test") {
         this.logger.warn(
           `[FCM trace] STOP: pas de fcmToken en BDD pour userId=${userId} → pas de push (vérifier PATCH /notifications/fcm-token depuis l'app).`,
         );
@@ -72,7 +74,7 @@ export class NotificationsService {
       return;
     }
 
-    if (process.env.NODE_ENV !== 'test') {
+    if (process.env.NODE_ENV !== "test") {
       this.logger.log(
         `[FCM trace] fcmToken BDD trouvé ${fcmTokenFingerprint(user.fcmToken)} → tentative sendPush`,
       );
@@ -88,7 +90,7 @@ export class NotificationsService {
     fcmToken: string,
     payload: SendNotificationPayload,
   ): Promise<void> {
-    if (process.env.NODE_ENV !== 'test') {
+    if (process.env.NODE_ENV !== "test") {
       this.logger.log(
         `[FCM trace] sendPush token=${fcmTokenFingerprint(fcmToken)} notification.title="${payload.title}"`,
       );
@@ -100,7 +102,7 @@ export class NotificationsService {
 
       // Si la config FCM n'est pas présente, on ne bloque pas l'app (les notifications restent en base).
       if (!serviceAccountJson && !serviceAccountFile) {
-        if (process.env.NODE_ENV !== 'test') {
+        if (process.env.NODE_ENV !== "test") {
           this.logger.warn(
             `[FCM trace] STOP: aucune variable FCM_SERVICE_ACCOUNT_JSON ni FCM_SERVICE_ACCOUNT_FILE → push non tentée.`,
           );
@@ -108,9 +110,9 @@ export class NotificationsService {
         return;
       }
 
-      if (process.env.NODE_ENV !== 'test') {
+      if (process.env.NODE_ENV !== "test") {
         this.logger.log(
-          `[FCM trace] config: JSON=${Boolean(serviceAccountJson?.trim())} (len=${serviceAccountJson?.length ?? 0}) file=${serviceAccountFile ? 'oui' : 'non'}`,
+          `[FCM trace] config: JSON=${Boolean(serviceAccountJson?.trim())} (len=${serviceAccountJson?.length ?? 0}) file=${serviceAccountFile ? "oui" : "non"}`,
         );
       }
 
@@ -120,11 +122,11 @@ export class NotificationsService {
           const trimmed = serviceAccountJson.trim();
           serviceAccount = JSON.parse(trimmed) as FirebaseServiceAccountJson;
         } else {
-          const raw = fs.readFileSync(serviceAccountFile as string, 'utf8');
+          const raw = fs.readFileSync(serviceAccountFile as string, "utf8");
           serviceAccount = JSON.parse(raw) as FirebaseServiceAccountJson;
         }
       } catch (parseErr) {
-        if (process.env.NODE_ENV !== 'test') {
+        if (process.env.NODE_ENV !== "test") {
           this.logger.error(
             `[FCM trace] Échec parse JSON compte de service Firebase: ${parseErr instanceof Error ? parseErr.message : String(parseErr)}`,
           );
@@ -133,25 +135,43 @@ export class NotificationsService {
       }
 
       const projectId =
-        (serviceAccount as { project_id?: string }).project_id ?? '—';
-      if (process.env.NODE_ENV !== 'test') {
+        (serviceAccount as { project_id?: string }).project_id ?? "—";
+      if (process.env.NODE_ENV !== "test") {
         this.logger.log(
-          `[FCM trace] compte de service OK project_id=${projectId} client_email=${(serviceAccount as { client_email?: string }).client_email ?? '—'}`,
+          `[FCM trace] compte de service OK project_id=${projectId} client_email=${(serviceAccount as { client_email?: string }).client_email ?? "—"}`,
         );
       }
 
       const admin = getFirebaseAdminSdk();
+      if (!admin) {
+        if (
+          process.env.NODE_ENV !== "test" &&
+          !NotificationsService.firebaseAdminMissingLogged
+        ) {
+          NotificationsService.firebaseAdminMissingLogged = true;
+          const detail = getFirebaseAdminLastLoadError() ?? "inconnu";
+          this.logger.warn(
+            `[FCM trace] Package firebase-admin introuvable (${detail}). Push FCM désactivé. ` +
+              `Sur Render : définir Root Directory sur milleService-backend (monorepo) ou lancer npm install dans ce dossier.`,
+          );
+        }
+        return;
+      }
 
       // Initialiser Firebase Admin une seule fois.
       if (!admin.apps.length) {
         admin.initializeApp({
           credential: admin.credential.cert(serviceAccount),
         });
-        if (process.env.NODE_ENV !== 'test') {
-          this.logger.log(`[FCM trace] Firebase Admin initializeApp (1ère fois)`);
+        if (process.env.NODE_ENV !== "test") {
+          this.logger.log(
+            `[FCM trace] Firebase Admin initializeApp (1ère fois)`,
+          );
         }
-      } else if (process.env.NODE_ENV !== 'test') {
-        this.logger.log(`[FCM trace] Firebase Admin déjà initialisé (app count=${admin.apps.length})`);
+      } else if (process.env.NODE_ENV !== "test") {
+        this.logger.log(
+          `[FCM trace] Firebase Admin déjà initialisé (app count=${admin.apps.length})`,
+        );
       }
 
       const dataPayload =
@@ -159,11 +179,7 @@ export class NotificationsService {
           ? Object.fromEntries(
               Object.entries(payload.data).map(([k, v]) => [
                 k,
-                typeof v === 'string'
-                  ? v
-                  : v == null
-                    ? ''
-                    : JSON.stringify(v),
+                typeof v === "string" ? v : v == null ? "" : JSON.stringify(v),
               ]),
             )
           : undefined;
@@ -171,8 +187,8 @@ export class NotificationsService {
       /** Toujours dupliquer titre/corps en `data` (strings) : sur Android le client peut ne recevoir que `data`, et Flutter lit title/body depuis là. */
       const data: Record<string, string> = { ...(dataPayload ?? {}) };
       data.title = payload.title;
-      data.body = payload.body ?? '';
-      if (payload.type != null && String(payload.type).trim() !== '') {
+      data.body = payload.body ?? "";
+      if (payload.type != null && String(payload.type).trim() !== "") {
         data.type = String(payload.type);
       }
 
@@ -180,33 +196,33 @@ export class NotificationsService {
         token: fcmToken,
         notification: {
           title: payload.title,
-          body: payload.body ?? '',
+          body: payload.body ?? "",
         },
         data,
         android: {
-          priority: 'high',
+          priority: "high",
           notification: {
-            channelId: 'mille_services_default',
-            sound: 'default',
+            channelId: "mille_services_default",
+            sound: "default",
           },
         },
       };
 
-      if (process.env.NODE_ENV !== 'test') {
+      if (process.env.NODE_ENV !== "test") {
         this.logger.log(
-          `[FCM trace] messaging().send() → token=${fcmTokenFingerprint(fcmToken)} dataKeys=${message.data != null ? Object.keys(message.data).join(',') : '—'}`,
+          `[FCM trace] messaging().send() → token=${fcmTokenFingerprint(fcmToken)} dataKeys=${message.data != null ? Object.keys(message.data).join(",") : "—"}`,
         );
       }
 
       const messageId = await admin.messaging().send(message);
-      if (process.env.NODE_ENV !== 'test') {
+      if (process.env.NODE_ENV !== "test") {
         this.logger.log(
           `[FCM trace] SUCCÈS FCM messageId=${messageId} tokenFin=${fcmToken.slice(-8)}`,
         );
       }
     } catch (e) {
       // On ne casse jamais le flow métier : en cas d'erreur FCM, on garde l'enregistrement en base.
-      if (process.env.NODE_ENV !== 'test') {
+      if (process.env.NODE_ENV !== "test") {
         const anyErr = e as {
           code?: string;
           errorInfo?: { code?: string; message?: string };
@@ -214,11 +230,13 @@ export class NotificationsService {
         const code =
           anyErr?.code ??
           anyErr?.errorInfo?.code ??
-          (e instanceof Error ? e.name : 'unknown');
+          (e instanceof Error ? e.name : "unknown");
         const msg = e instanceof Error ? e.message : String(e);
         this.logger.error(`[FCM trace] ÉCHEC FCM code=${code} message=${msg}`);
         if (anyErr?.errorInfo?.message) {
-          this.logger.error(`[FCM trace] errorInfo.message=${anyErr.errorInfo.message}`);
+          this.logger.error(
+            `[FCM trace] errorInfo.message=${anyErr.errorInfo.message}`,
+          );
         }
         if (e instanceof Error && e.stack) {
           this.logger.warn(e.stack);
@@ -230,7 +248,7 @@ export class NotificationsService {
   async listForUser(userId: string, unreadOnly = false) {
     const list = await this.prisma.notification.findMany({
       where: { userId, ...(unreadOnly ? { lu: false } : {}) },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
       take: 50,
     });
     return list.map((n) => ({
@@ -262,20 +280,22 @@ export class NotificationsService {
     const fp =
       fcmToken && fcmToken.trim().length > 0
         ? fcmTokenFingerprint(fcmToken)
-        : 'null';
-    if (process.env.NODE_ENV !== 'test') {
-      this.logger.log(`[FCM trace] registerFcmToken userId=${userId} token=${fp}`);
+        : "null";
+    if (process.env.NODE_ENV !== "test") {
+      this.logger.log(
+        `[FCM trace] registerFcmToken userId=${userId} token=${fp}`,
+      );
     }
     try {
       await this.prisma.user.update({
         where: { id: userId },
         data: { fcmToken: fcmToken ?? null },
       });
-      if (process.env.NODE_ENV !== 'test') {
+      if (process.env.NODE_ENV !== "test") {
         this.logger.log(`[FCM trace] registerFcmToken OK userId=${userId}`);
       }
     } catch (err) {
-      if (process.env.NODE_ENV !== 'test') {
+      if (process.env.NODE_ENV !== "test") {
         this.logger.error(
           `[FCM trace] registerFcmToken ERREUR userId=${userId} ${err instanceof Error ? err.message : String(err)}`,
         );

@@ -31,4 +31,5 @@ export interface FirebaseAdminSdk {
         send(message: FcmOutgoingMessage): Promise<string>;
     };
 }
-export declare function getFirebaseAdminSdk(): FirebaseAdminSdk;
+export declare function getFirebaseAdminSdk(): FirebaseAdminSdk | null;
+export declare function getFirebaseAdminLastLoadError(): string | null;

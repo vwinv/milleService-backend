@@ -21,26 +21,27 @@ const roles_guard_js_1 = require("../auth/guards/roles.guard.js");
 const roles_decorator_js_1 = require("../auth/decorators/roles.decorator.js");
 const current_user_decorator_js_1 = require("../auth/decorators/current-user.decorator.js");
 const notifications_service_js_1 = require("../notifications/notifications.service.js");
+const wallets_service_js_1 = require("../wallets/wallets.service.js");
 const client_js_1 = require("../../generated/prisma/client.js");
 function metaWithdrawalAmount(meta) {
-    if (!meta || typeof meta !== 'object')
+    if (!meta || typeof meta !== "object")
         return null;
     const m = meta;
     const a = m.amount;
-    if (typeof a === 'number' && !Number.isNaN(a) && a >= 0)
+    if (typeof a === "number" && !Number.isNaN(a) && a >= 0)
         return a;
     return null;
 }
 function withdrawalMethodLabel(method) {
     switch (method) {
         case client_js_1.WithdrawalMethod.ORANGE_MONEY:
-            return 'Orange money';
+            return "Orange money";
         case client_js_1.WithdrawalMethod.WAVE:
-            return 'Wave';
+            return "Wave";
         case client_js_1.WithdrawalMethod.FREE_MONEY:
-            return 'Free money';
+            return "Free money";
         case client_js_1.WithdrawalMethod.RIB:
-            return 'Carte bancaire';
+            return "Carte bancaire";
         default:
             return method;
     }
@@ -48,19 +49,19 @@ function withdrawalMethodLabel(method) {
 function statutPrestationLabelFr(statut) {
     switch (statut) {
         case client_js_1.StatutPrestation.EN_ATTENTE:
-            return 'En attente';
+            return "En attente";
         case client_js_1.StatutPrestation.ACCEPTEE:
-            return 'Acceptée';
+            return "Acceptée";
         case client_js_1.StatutPrestation.REFUSEE:
-            return 'Refusée';
+            return "Refusée";
         case client_js_1.StatutPrestation.EN_COURS:
-            return 'En cours';
+            return "En cours";
         case client_js_1.StatutPrestation.TERMINEE:
-            return 'Terminée';
+            return "Terminée";
         case client_js_1.StatutPrestation.ANNULEE:
-            return 'Annulée';
+            return "Annulée";
         case client_js_1.StatutPrestation.PAYEE:
-            return 'Payée';
+            return "Payée";
         default:
             return statut;
     }
@@ -68,10 +69,10 @@ function statutPrestationLabelFr(statut) {
 function isParticulierStatutMissingError(err) {
     if (!(err instanceof client_js_1.Prisma.PrismaClientKnownRequestError))
         return false;
-    if (err.code === 'P2022')
+    if (err.code === "P2022")
         return true;
-    const msg = String(err.message ?? '');
-    return msg.includes('statut') && msg.toLowerCase().includes('particulier');
+    const msg = String(err.message ?? "");
+    return msg.includes("statut") && msg.toLowerCase().includes("particulier");
 }
 function prestataireAdminDetailSelect() {
     return {
@@ -95,7 +96,7 @@ function prestataireAdminDetailSelect() {
             },
         },
         documents: {
-            orderBy: { createdAt: 'asc' },
+            orderBy: { createdAt: "asc" },
             select: {
                 id: true,
                 fichierUrl: true,
@@ -117,15 +118,19 @@ function prestataireAdminDetailSelect() {
 let AdminController = AdminController_1 = class AdminController {
     prisma;
     notifications;
+    wallets;
     logger = new common_1.Logger(AdminController_1.name);
-    constructor(prisma, notifications) {
+    constructor(prisma, notifications, wallets) {
         this.prisma = prisma;
         this.notifications = notifications;
+        this.wallets = wallets;
     }
     async getStats() {
         try {
             const [clientsActifs, prestatairesActifs, metiersCount, generalWallet] = await Promise.all([
-                this.prisma.particulier.count({ where: { statut: client_js_1.ParticulierStatut.ACTIF } }),
+                this.prisma.particulier.count({
+                    where: { statut: client_js_1.ParticulierStatut.ACTIF },
+                }),
                 this.prisma.prestataire.count({ where: { actif: true } }),
                 this.prisma.service.count(),
                 this.prisma.wallet.findFirst({
@@ -143,7 +148,7 @@ let AdminController = AdminController_1 = class AdminController {
         catch (err) {
             if (!isParticulierStatutMissingError(err))
                 throw err;
-            this.logger.warn('KPI clients : colonne particuliers.statut absente — repli sur email vérifié. Exécutez: npx prisma migrate deploy');
+            this.logger.warn("KPI clients : colonne particuliers.statut absente — repli sur email vérifié. Exécutez: npx prisma migrate deploy");
             const [clientsActifs, prestatairesActifs, metiersCount, generalWallet] = await Promise.all([
                 this.prisma.particulier.count({
                     where: { user: { emailVerified: true } },
@@ -164,14 +169,14 @@ let AdminController = AdminController_1 = class AdminController {
         }
     }
     async createGeneralNotification(body) {
-        const title = String(body?.title ?? '').trim();
+        const title = String(body?.title ?? "").trim();
         if (!title) {
-            throw new common_1.BadRequestException('title requis');
+            throw new common_1.BadRequestException("title requis");
         }
-        const audience = body?.audience ?? 'TOUT';
-        const roleFilter = audience === 'PARTICULIER'
+        const audience = body?.audience ?? "TOUT";
+        const roleFilter = audience === "PARTICULIER"
             ? { role: client_js_1.Role.PARTICULIER }
-            : audience === 'PRESTATAIRE'
+            : audience === "PRESTATAIRE"
                 ? { role: client_js_1.Role.PRESTATAIRE }
                 : { role: { in: [client_js_1.Role.PARTICULIER, client_js_1.Role.PRESTATAIRE] } };
         const users = await this.prisma.user.findMany({
@@ -190,12 +195,12 @@ let AdminController = AdminController_1 = class AdminController {
         return { ok: true, sent };
     }
     async createTargetedNotification(body) {
-        const userId = String(body?.userId ?? '').trim();
-        const title = String(body?.title ?? '').trim();
+        const userId = String(body?.userId ?? "").trim();
+        const title = String(body?.title ?? "").trim();
         if (!userId)
-            throw new common_1.BadRequestException('userId requis');
+            throw new common_1.BadRequestException("userId requis");
         if (!title)
-            throw new common_1.BadRequestException('title requis');
+            throw new common_1.BadRequestException("title requis");
         this.logger.log(`[FCM trace] admin POST notifications/targeted userId=${userId} title="${title.slice(0, 80)}"`);
         await this.notifications.sendToUser(userId, {
             title,
@@ -209,26 +214,26 @@ let AdminController = AdminController_1 = class AdminController {
     async listAdminNotifications(limit, offset, audience, unreadOnly, type, search) {
         const take = Math.min(Math.max(Number(limit ?? 14), 1), 100);
         const skip = Math.max(Number(offset ?? 0), 0);
-        const aud = (audience ?? 'TOUT').toUpperCase();
-        const roleFilter = aud === 'PARTICULIER'
+        const aud = (audience ?? "TOUT").toUpperCase();
+        const roleFilter = aud === "PARTICULIER"
             ? { role: client_js_1.Role.PARTICULIER }
-            : aud === 'PRESTATAIRE'
+            : aud === "PRESTATAIRE"
                 ? { role: client_js_1.Role.PRESTATAIRE }
-                : aud === 'ALL'
+                : aud === "ALL"
                     ? { role: { in: [client_js_1.Role.PARTICULIER, client_js_1.Role.PRESTATAIRE] } }
                     : { role: { in: [client_js_1.Role.PARTICULIER, client_js_1.Role.PRESTATAIRE] } };
         const q = search?.trim();
         const where = {
             user: roleFilter,
-            ...(unreadOnly === 'true' ? { lu: false } : {}),
+            ...(unreadOnly === "true" ? { lu: false } : {}),
             ...(type?.trim() ? { type: type.trim() } : {}),
             ...(q
                 ? {
                     OR: [
-                        { title: { contains: q, mode: 'insensitive' } },
-                        { body: q ? { contains: q, mode: 'insensitive' } : undefined },
-                        { type: { contains: q, mode: 'insensitive' } },
-                        { user: { email: { contains: q, mode: 'insensitive' } } },
+                        { title: { contains: q, mode: "insensitive" } },
+                        { body: q ? { contains: q, mode: "insensitive" } : undefined },
+                        { type: { contains: q, mode: "insensitive" } },
+                        { user: { email: { contains: q, mode: "insensitive" } } },
                     ],
                 }
                 : {}),
@@ -237,7 +242,7 @@ let AdminController = AdminController_1 = class AdminController {
             this.prisma.notification.count({ where }),
             this.prisma.notification.findMany({
                 where,
-                orderBy: { createdAt: 'desc' },
+                orderBy: { createdAt: "desc" },
                 take,
                 skip,
                 include: {
@@ -258,9 +263,11 @@ let AdminController = AdminController_1 = class AdminController {
             items: rows.map((n) => {
                 const u = n.user;
                 const displayName = u.role === client_js_1.Role.PARTICULIER
-                    ? [u.particulier?.prenom, u.particulier?.nom].filter(Boolean).join(' ')
+                    ? [u.particulier?.prenom, u.particulier?.nom]
+                        .filter(Boolean)
+                        .join(" ")
                     : u.role === client_js_1.Role.PRESTATAIRE
-                        ? u.prestataire?.nom ?? u.email
+                        ? (u.prestataire?.nom ?? u.email)
                         : u.email;
                 return {
                     id: n.id,
@@ -284,7 +291,7 @@ let AdminController = AdminController_1 = class AdminController {
         const now = new Date();
         const start = new Date(now.getFullYear(), now.getMonth() - (periodMonths - 1), 1);
         const end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-        const [baseClients, basePrestataires, clientRows, prestataireRows,] = await Promise.all([
+        const [baseClients, basePrestataires, clientRows, prestataireRows] = await Promise.all([
             this.prisma.particulier.count({ where: { createdAt: { lt: start } } }),
             this.prisma.prestataire.count({ where: { createdAt: { lt: start } } }),
             this.prisma.particulier.findMany({
@@ -317,7 +324,7 @@ let AdminController = AdminController_1 = class AdminController {
             const k = monthKey(d);
             runningClients += clientNewByMonth.get(k) ?? 0;
             runningPrestataires += prestataireNewByMonth.get(k) ?? 0;
-            labels.push(d.toLocaleString('fr-FR', { month: 'short' }).replace('.', ''));
+            labels.push(d.toLocaleString("fr-FR", { month: "short" }).replace(".", ""));
             clients.push(runningClients);
             prestataires.push(runningPrestataires);
         }
@@ -329,7 +336,7 @@ let AdminController = AdminController_1 = class AdminController {
         };
     }
     async getWalletSummary() {
-        const [generalRow, prestataireAgg] = await Promise.all([
+        const [generalRow, prestataireAgg, withdrawalTraites, retraitsPlateforme] = await Promise.all([
             this.prisma.wallet.findFirst({
                 where: { type: client_js_1.WalletType.GENERAL },
                 select: { balance: true },
@@ -338,17 +345,42 @@ let AdminController = AdminController_1 = class AdminController {
                 where: { prestataireId: { not: null } },
                 _sum: { balance: true },
             }),
+            this.prisma.withdrawalRequest.findMany({
+                where: { status: client_js_1.WithdrawalStatus.TRAITE },
+                select: { meta: true },
+            }),
+            this.prisma.walletTransaction.aggregate({
+                where: { type: client_js_1.TransactionType.RETRAIT_PLATEFORME },
+                _sum: { amount: true },
+            }),
         ]);
         const soldeMilleServices = generalRow ? Number(generalRow.balance) : 0;
         const soldesPrestataires = Number(prestataireAgg._sum.balance ?? 0);
         const totalSolde = soldeMilleServices + soldesPrestataires;
+        const retraitPrestataires = withdrawalTraites.reduce((s, r) => s + (metaWithdrawalAmount(r.meta) ?? 0), 0);
+        const retraitPlateforme = Number(retraitsPlateforme._sum.amount ?? 0);
         return {
             totalSolde,
             credit: soldeMilleServices,
             soldeMilleServices,
             soldesPrestataires,
-            retraitTotal: 0,
+            retraitTotal: retraitPrestataires + retraitPlateforme,
         };
+    }
+    async withdrawGeneralWallet(admin, body) {
+        const amount = Number(body.amount);
+        if (!Number.isFinite(amount) || amount <= 0) {
+            throw new common_1.BadRequestException("Montant invalide");
+        }
+        await this.wallets.debitGeneralWallet({
+            amount,
+            createdByUserId: admin.userId,
+            meta: {
+                payoutMethod: body.payoutMethod ?? undefined,
+                note: body.note?.trim() || undefined,
+            },
+        });
+        return { ok: true };
     }
     async listWithdrawalRequests(limit, offset) {
         const take = Math.min(Math.max(Number(limit ?? 14), 1), 100);
@@ -356,7 +388,7 @@ let AdminController = AdminController_1 = class AdminController {
         const [total, rows] = await Promise.all([
             this.prisma.withdrawalRequest.count({}),
             this.prisma.withdrawalRequest.findMany({
-                orderBy: { createdAt: 'desc' },
+                orderBy: { createdAt: "desc" },
                 take,
                 skip,
                 include: {
@@ -380,8 +412,8 @@ let AdminController = AdminController_1 = class AdminController {
     }
     async decisionWithdrawalRequest(id, body) {
         const decision = body.decision;
-        if (decision !== 'accept' && decision !== 'reject') {
-            throw new common_1.BadRequestException('decision invalide (accept ou reject)');
+        if (decision !== "accept" && decision !== "reject") {
+            throw new common_1.BadRequestException("decision invalide (accept ou reject)");
         }
         const row = await this.prisma.withdrawalRequest.findUnique({
             where: { id },
@@ -393,12 +425,12 @@ let AdminController = AdminController_1 = class AdminController {
             },
         });
         if (!row) {
-            throw new common_1.BadRequestException('Demande introuvable');
+            throw new common_1.BadRequestException("Demande introuvable");
         }
         if (row.status !== client_js_1.WithdrawalStatus.EN_ATTENTE) {
-            throw new common_1.BadRequestException('Cette demande a déjà été traitée');
+            throw new common_1.BadRequestException("Cette demande a déjà été traitée");
         }
-        if (decision === 'reject') {
+        if (decision === "reject") {
             await this.prisma.withdrawalRequest.update({
                 where: { id: row.id },
                 data: { status: client_js_1.WithdrawalStatus.REFUSE },
@@ -407,9 +439,9 @@ let AdminController = AdminController_1 = class AdminController {
         }
         if (body.payoutMethod != null &&
             !Object.values(client_js_1.WithdrawalMethod).includes(body.payoutMethod)) {
-            throw new common_1.BadRequestException('Moyen de paiement invalide');
+            throw new common_1.BadRequestException("Moyen de paiement invalide");
         }
-        const metaBase = row.meta && typeof row.meta === 'object' && !Array.isArray(row.meta)
+        const metaBase = row.meta && typeof row.meta === "object" && !Array.isArray(row.meta)
             ? { ...row.meta }
             : {};
         if (body.payoutMethod != null) {
@@ -423,12 +455,12 @@ let AdminController = AdminController_1 = class AdminController {
             select: { id: true, balance: true },
         });
         if (!wallet) {
-            throw new common_1.BadRequestException('Wallet du prestataire introuvable');
+            throw new common_1.BadRequestException("Wallet du prestataire introuvable");
         }
         if (amount != null && amount > 0) {
             const bal = Number(wallet.balance);
             if (amount > bal) {
-                throw new common_1.BadRequestException('Solde insuffisant pour valider ce montant');
+                throw new common_1.BadRequestException("Solde insuffisant pour valider ce montant");
             }
             await this.prisma.$transaction([
                 this.prisma.wallet.update({
@@ -466,10 +498,16 @@ let AdminController = AdminController_1 = class AdminController {
                 ? this.prisma.walletTransaction.findMany({
                     where: {
                         walletId: generalWallet.id,
-                        type: { in: [client_js_1.TransactionType.PRESTATION, client_js_1.TransactionType.ABONNEMENT] },
+                        type: {
+                            in: [
+                                client_js_1.TransactionType.PRESTATION,
+                                client_js_1.TransactionType.ABONNEMENT,
+                                client_js_1.TransactionType.RETRAIT_PLATEFORME,
+                            ],
+                        },
                     },
                     take,
-                    orderBy: { createdAt: 'desc' },
+                    orderBy: { createdAt: "desc" },
                     include: {
                         prestation: {
                             select: {
@@ -487,15 +525,35 @@ let AdminController = AdminController_1 = class AdminController {
                 : Promise.resolve([]),
             this.prisma.withdrawalRequest.findMany({
                 take,
-                orderBy: { createdAt: 'desc' },
+                orderBy: { createdAt: "desc" },
                 include: {
                     prestataire: { select: { nom: true } },
                 },
             }),
         ]);
         const walletTxs = walletRows.map((row) => {
+            if (row.type === client_js_1.TransactionType.RETRAIT_PLATEFORME) {
+                const meta = row.meta && typeof row.meta === "object" && !Array.isArray(row.meta)
+                    ? row.meta
+                    : null;
+                const pm = meta?.payoutMethod;
+                const walletLab = pm != null &&
+                    typeof pm === "string" &&
+                    Object.values(client_js_1.WithdrawalMethod).includes(pm)
+                    ? withdrawalMethodLabel(pm)
+                    : "—";
+                return {
+                    id: row.id,
+                    date: row.createdAt,
+                    prestataireNom: "Retrait plateforme",
+                    montant: Number(row.amount),
+                    wallet: walletLab,
+                    statut: "Retrait",
+                    category: "RETRAIT_PLATEFORME",
+                };
+            }
             if (row.type === client_js_1.TransactionType.ABONNEMENT) {
-                const nom = row.abonnement?.prestataire?.nom ?? 'Prestataire';
+                const nom = row.abonnement?.prestataire?.nom ?? "Prestataire";
                 const offreLib = row.offre?.libelle?.trim();
                 const prestataireNom = offreLib
                     ? `${nom} — Abonnement (${offreLib})`
@@ -505,39 +563,39 @@ let AdminController = AdminController_1 = class AdminController {
                     date: row.createdAt,
                     prestataireNom,
                     montant: Number(row.amount),
-                    wallet: 'Wallet Général',
-                    statut: 'Depot',
-                    category: 'PAIEMENT_ABONNEMENT',
+                    wallet: "Wallet Général",
+                    statut: "Depot",
+                    category: "PAIEMENT_ABONNEMENT",
                 };
             }
             return {
                 id: row.id,
                 date: row.createdAt,
-                prestataireNom: row.prestation?.prestataire?.nom ?? 'Prestataire',
+                prestataireNom: row.prestation?.prestataire?.nom ?? "Prestataire",
                 montant: Number(row.amount),
-                wallet: 'Wallet Général',
-                statut: 'Depot',
-                category: 'PAIEMENT_PRESTATION',
+                wallet: "Wallet Général",
+                statut: "Depot",
+                category: "PAIEMENT_PRESTATION",
             };
         });
         const withdrawals = withdrawalRows.map((row) => ({
             id: row.id,
             date: row.createdAt,
-            prestataireNom: row.prestataire?.nom ?? 'Prestataire',
-            montant: null,
-            wallet: row.method === 'ORANGE_MONEY'
-                ? 'Orange Money'
-                : row.method === 'FREE_MONEY'
-                    ? 'Free Money'
-                    : row.method === 'RIB'
-                        ? 'RIB'
-                        : 'Wave',
+            prestataireNom: row.prestataire?.nom ?? "Prestataire",
+            montant: metaWithdrawalAmount(row.meta),
+            wallet: row.method === "ORANGE_MONEY"
+                ? "Orange Money"
+                : row.method === "FREE_MONEY"
+                    ? "Free Money"
+                    : row.method === "RIB"
+                        ? "RIB"
+                        : "Wave",
             statut: row.status === client_js_1.WithdrawalStatus.TRAITE
-                ? 'Retrait'
+                ? "Retrait"
                 : row.status === client_js_1.WithdrawalStatus.REFUSE
-                    ? 'Refuse'
-                    : 'En attente',
-            category: 'RETRAIT_PRESTATAIRE',
+                    ? "Refuse"
+                    : "En attente",
+            category: "RETRAIT_PRESTATAIRE",
         }));
         return [...walletTxs, ...withdrawals]
             .sort((a, b) => b.date.getTime() - a.date.getTime())
@@ -550,9 +608,9 @@ let AdminController = AdminController_1 = class AdminController {
         const searchFilter = q
             ? {
                 OR: [
-                    { nom: { contains: q, mode: 'insensitive' } },
-                    { prenom: { contains: q, mode: 'insensitive' } },
-                    { user: { email: { contains: q, mode: 'insensitive' } } },
+                    { nom: { contains: q, mode: "insensitive" } },
+                    { prenom: { contains: q, mode: "insensitive" } },
+                    { user: { email: { contains: q, mode: "insensitive" } } },
                 ],
             }
             : {};
@@ -570,7 +628,7 @@ let AdminController = AdminController_1 = class AdminController {
                     where: searchFilter,
                     take,
                     skip,
-                    orderBy: { createdAt: 'desc' },
+                    orderBy: { createdAt: "desc" },
                     select: {
                         id: true,
                         nom: true,
@@ -606,12 +664,12 @@ let AdminController = AdminController_1 = class AdminController {
                         nom: p.nom,
                         nomComplet: `${p.prenom} ${p.nom}`.trim(),
                         email: p.user.email,
-                        telephone: p.telephone ?? '',
-                        adresse: p.adresse ?? '',
+                        telephone: p.telephone ?? "",
+                        adresse: p.adresse ?? "",
                         avatarUrl: p.avatarUrl,
                         dateAdhesion: p.createdAt.toISOString(),
                         actif,
-                        statut: actif ? 'Actif' : 'Inactif',
+                        statut: actif ? "Actif" : "Inactif",
                     };
                 }),
             };
@@ -619,7 +677,7 @@ let AdminController = AdminController_1 = class AdminController {
         catch (err) {
             if (!isParticulierStatutMissingError(err))
                 throw err;
-            this.logger.warn('Liste clients : colonne particuliers.statut absente — repli sur email vérifié. Exécutez: npx prisma migrate deploy');
+            this.logger.warn("Liste clients : colonne particuliers.statut absente — repli sur email vérifié. Exécutez: npx prisma migrate deploy");
             const [globalTotal, actifsCount, inactifsCount, filteredTotal, rows] = await Promise.all([
                 this.prisma.particulier.count(),
                 this.prisma.particulier.count({
@@ -633,7 +691,7 @@ let AdminController = AdminController_1 = class AdminController {
                     where: searchFilter,
                     take,
                     skip,
-                    orderBy: { createdAt: 'desc' },
+                    orderBy: { createdAt: "desc" },
                     select: {
                         id: true,
                         nom: true,
@@ -668,12 +726,12 @@ let AdminController = AdminController_1 = class AdminController {
                         nom: p.nom,
                         nomComplet: `${p.prenom} ${p.nom}`.trim(),
                         email: p.user.email,
-                        telephone: p.telephone ?? '',
-                        adresse: p.adresse ?? '',
+                        telephone: p.telephone ?? "",
+                        adresse: p.adresse ?? "",
                         avatarUrl: p.avatarUrl,
                         dateAdhesion: p.createdAt.toISOString(),
                         actif,
-                        statut: actif ? 'Actif' : 'Inactif',
+                        statut: actif ? "Actif" : "Inactif",
                     };
                 }),
             };
@@ -708,7 +766,7 @@ let AdminController = AdminController_1 = class AdminController {
         catch (err) {
             if (!isParticulierStatutMissingError(err))
                 throw err;
-            this.logger.warn('Détail client : colonne particuliers.statut absente — repli sur email vérifié. Exécutez: npx prisma migrate deploy');
+            this.logger.warn("Détail client : colonne particuliers.statut absente — repli sur email vérifié. Exécutez: npx prisma migrate deploy");
             p = await this.prisma.particulier.findUnique({
                 where: { id: particulierId },
                 select: {
@@ -732,7 +790,7 @@ let AdminController = AdminController_1 = class AdminController {
             });
         }
         if (!p) {
-            throw new common_1.BadRequestException('Client introuvable');
+            throw new common_1.BadRequestException("Client introuvable");
         }
         const [prestationsTotal, prestationsAnnulees] = await Promise.all([
             this.prisma.prestation.count({ where: { particulierId } }),
@@ -750,8 +808,8 @@ let AdminController = AdminController_1 = class AdminController {
             nom: p.nom,
             nomComplet: `${p.prenom} ${p.nom}`.trim(),
             email: p.user.email,
-            telephone: p.telephone ?? '',
-            adresse: p.adresse ?? '',
+            telephone: p.telephone ?? "",
+            adresse: p.adresse ?? "",
             avatarUrl: p.avatarUrl,
             dateAdhesion: p.createdAt.toISOString(),
             compteCreeLe: p.user.createdAt.toISOString(),
@@ -759,7 +817,7 @@ let AdminController = AdminController_1 = class AdminController {
             prestationsTotal,
             prestationsAnnulees,
             actif,
-            statut: actif ? 'Actif' : 'Inactif',
+            statut: actif ? "Actif" : "Inactif",
         };
     }
     async setClientActif(particulierId, body) {
@@ -769,7 +827,7 @@ let AdminController = AdminController_1 = class AdminController {
             select: { id: true, userId: true },
         });
         if (!p) {
-            throw new common_1.BadRequestException('Client introuvable');
+            throw new common_1.BadRequestException("Client introuvable");
         }
         try {
             await this.prisma.particulier.update({
@@ -782,13 +840,13 @@ let AdminController = AdminController_1 = class AdminController {
         catch (err) {
             if (!isParticulierStatutMissingError(err))
                 throw err;
-            this.logger.warn('Mise à jour statut client : colonne particuliers.statut absente — repli sur users.email_verified. Exécutez: npx prisma migrate deploy');
+            this.logger.warn("Mise à jour statut client : colonne particuliers.statut absente — repli sur users.email_verified. Exécutez: npx prisma migrate deploy");
             await this.prisma.user.update({
                 where: { id: p.userId },
                 data: { emailVerified: actif },
             });
         }
-        return { actif, statut: actif ? 'Actif' : 'Inactif' };
+        return { actif, statut: actif ? "Actif" : "Inactif" };
     }
     async deleteClient(particulierId) {
         const particulier = await this.prisma.particulier.findUnique({
@@ -799,10 +857,10 @@ let AdminController = AdminController_1 = class AdminController {
             },
         });
         if (!particulier) {
-            throw new common_1.BadRequestException('Client introuvable');
+            throw new common_1.BadRequestException("Client introuvable");
         }
         if (particulier.user.role !== client_js_1.Role.PARTICULIER) {
-            throw new common_1.BadRequestException('Utilisateur invalide');
+            throw new common_1.BadRequestException("Utilisateur invalide");
         }
         await this.prisma.user.delete({ where: { id: particulier.userId } });
         return { success: true };
@@ -815,7 +873,7 @@ let AdminController = AdminController_1 = class AdminController {
             this.prisma.prestataire.count({ where: { actif: false } }),
             this.prisma.prestataire.findMany({
                 take,
-                orderBy: { createdAt: 'desc' },
+                orderBy: { createdAt: "desc" },
                 select: {
                     id: true,
                     userId: true,
@@ -834,7 +892,7 @@ let AdminController = AdminController_1 = class AdminController {
                     },
                     servicesProposes: {
                         where: { actif: true },
-                        orderBy: { createdAt: 'asc' },
+                        orderBy: { createdAt: "asc" },
                         select: {
                             service: {
                                 select: { id: true, libelle: true },
@@ -861,11 +919,11 @@ let AdminController = AdminController_1 = class AdminController {
                     id: p.id,
                     userId: p.userId,
                     nom: p.nom,
-                    email: p.user?.email ?? '',
-                    telephone: p.telephone ?? '',
-                    metier: p.servicesProposes[0]?.service?.libelle ?? '—',
+                    email: p.user?.email ?? "",
+                    telephone: p.telephone ?? "",
+                    metier: p.servicesProposes[0]?.service?.libelle ?? "—",
                     serviceIds: p.servicesProposes.map((ps) => ps.service.id),
-                    statut: p.actif ? 'Actif' : 'Inactif',
+                    statut: p.actif ? "Actif" : "Inactif",
                     actif: p.actif,
                     statutVerification: p.statutVerification,
                     noteMoyenne,
@@ -883,10 +941,11 @@ let AdminController = AdminController_1 = class AdminController {
             select: { id: true, statutVerification: true },
         });
         if (!existing) {
-            throw new common_1.BadRequestException('Prestataire introuvable');
+            throw new common_1.BadRequestException("Prestataire introuvable");
         }
-        if (actif && existing.statutVerification !== client_js_1.StatutVerificationPrestataire.VERIFIE) {
-            throw new common_1.BadRequestException('Un prestataire ne peut être activé que lorsque son statut de vérification est « Vérifié ».');
+        if (actif &&
+            existing.statutVerification !== client_js_1.StatutVerificationPrestataire.VERIFIE) {
+            throw new common_1.BadRequestException("Un prestataire ne peut être activé que lorsque son statut de vérification est « Vérifié ».");
         }
         const updated = await this.prisma.prestataire.update({
             where: { id: prestataireId },
@@ -903,7 +962,7 @@ let AdminController = AdminController_1 = class AdminController {
             select: { id: true },
         });
         if (!exists) {
-            throw new common_1.BadRequestException('Prestataire introuvable');
+            throw new common_1.BadRequestException("Prestataire introuvable");
         }
         const prestWallet = await this.prisma.wallet.findUnique({
             where: { prestataireId },
@@ -922,7 +981,7 @@ let AdminController = AdminController_1 = class AdminController {
                 where,
                 take,
                 skip,
-                orderBy: { createdAt: 'desc' },
+                orderBy: { createdAt: "desc" },
                 include: {
                     prestation: {
                         select: {
@@ -939,9 +998,7 @@ let AdminController = AdminController_1 = class AdminController {
         ]);
         const items = rows.map((row) => {
             const meta = row.meta;
-            const grossFromMeta = meta &&
-                typeof meta.gross === 'number' &&
-                !Number.isNaN(meta.gross)
+            const grossFromMeta = meta && typeof meta.gross === "number" && !Number.isNaN(meta.gross)
                 ? meta.gross
                 : null;
             const budget = row.prestation?.budget;
@@ -953,8 +1010,8 @@ let AdminController = AdminController_1 = class AdminController {
             const particulier = row.prestation?.particulier;
             const clientNom = particulier
                 ? `${particulier.prenom} ${particulier.nom}`.trim()
-                : '—';
-            const serviceLibelle = row.prestation?.prestataireService?.service?.libelle ?? '—';
+                : "—";
+            const serviceLibelle = row.prestation?.prestataireService?.service?.libelle ?? "—";
             return {
                 id: row.id,
                 date: row.createdAt.toISOString(),
@@ -963,7 +1020,7 @@ let AdminController = AdminController_1 = class AdminController {
                 clientNom,
                 serviceLibelle,
                 prestationId: row.prestationId,
-                statut: 'Payé',
+                statut: "Payé",
             };
         });
         return { total, items };
@@ -974,7 +1031,7 @@ let AdminController = AdminController_1 = class AdminController {
             select: prestataireAdminDetailSelect(),
         });
         if (!prestataire) {
-            throw new common_1.BadRequestException('Prestataire introuvable');
+            throw new common_1.BadRequestException("Prestataire introuvable");
         }
         let walletStatutPrestataire = client_js_1.PrestataireWalletStatut.ACTIF;
         let walletBalancePlafond = null;
@@ -1000,14 +1057,18 @@ let AdminController = AdminController_1 = class AdminController {
             ? Math.round((notes.reduce((sum, n) => sum + n, 0) / notes.length) * 10) / 10
             : 0;
         const libelles = prestataire.servicesProposes.map((s) => s.service.libelle);
-        const metier = libelles.length === 0 ? '—' : libelles.length === 1 ? libelles[0] : libelles.join(', ');
+        const metier = libelles.length === 0
+            ? "—"
+            : libelles.length === 1
+                ? libelles[0]
+                : libelles.join(", ");
         return {
             id: prestataire.id,
             nom: prestataire.nom,
-            email: prestataire.user?.email ?? '',
-            telephone: prestataire.telephone ?? '',
-            adresse: prestataire.adresse ?? '',
-            bio: prestataire.bio ?? '',
+            email: prestataire.user?.email ?? "",
+            telephone: prestataire.telephone ?? "",
+            adresse: prestataire.adresse ?? "",
+            bio: prestataire.bio ?? "",
             avatarUrl: prestataire.avatarUrl,
             actif: prestataire.actif,
             statutVerification: prestataire.statutVerification,
@@ -1015,7 +1076,9 @@ let AdminController = AdminController_1 = class AdminController {
             metier,
             noteMoyenne,
             nbAvis: notes.length,
-            walletBalance: prestataire.wallet ? Number(prestataire.wallet.balance) : 0,
+            walletBalance: prestataire.wallet
+                ? Number(prestataire.wallet.balance)
+                : 0,
             walletStatutPrestataire,
             walletBalancePlafond,
             services: prestataire.servicesProposes.map((s) => ({
@@ -1037,17 +1100,19 @@ let AdminController = AdminController_1 = class AdminController {
     }
     async patchPrestataireWalletStatut(prestataireId, body) {
         const s = body.statut;
-        if (s !== 'ACTIF' && s !== 'BLOQUE') {
-            throw new common_1.BadRequestException('statut doit être ACTIF ou BLOQUE');
+        if (s !== "ACTIF" && s !== "BLOQUE") {
+            throw new common_1.BadRequestException("statut doit être ACTIF ou BLOQUE");
         }
         const exists = await this.prisma.prestataire.findUnique({
             where: { id: prestataireId },
             select: { id: true },
         });
         if (!exists) {
-            throw new common_1.BadRequestException('Prestataire introuvable');
+            throw new common_1.BadRequestException("Prestataire introuvable");
         }
-        let wallet = await this.prisma.wallet.findUnique({ where: { prestataireId } });
+        let wallet = await this.prisma.wallet.findUnique({
+            where: { prestataireId },
+        });
         if (!wallet) {
             wallet = await this.prisma.wallet.create({
                 data: {
@@ -1066,8 +1131,8 @@ let AdminController = AdminController_1 = class AdminController {
         return { statutPrestataire: wallet.statutPrestataire };
     }
     async patchPrestataireWalletPlafond(prestataireId, body) {
-        if (!('montantMax' in body)) {
-            throw new common_1.BadRequestException('montantMax requis (nombre positif ou null pour retirer le plafond)');
+        if (!("montantMax" in body)) {
+            throw new common_1.BadRequestException("montantMax requis (nombre positif ou null pour retirer le plafond)");
         }
         const raw = body.montantMax;
         let balancePlafond;
@@ -1077,7 +1142,7 @@ let AdminController = AdminController_1 = class AdminController {
         else {
             const n = Number(raw);
             if (!Number.isFinite(n) || n < 0) {
-                throw new common_1.BadRequestException('montantMax invalide');
+                throw new common_1.BadRequestException("montantMax invalide");
             }
             balancePlafond = n;
         }
@@ -1086,9 +1151,11 @@ let AdminController = AdminController_1 = class AdminController {
             select: { id: true },
         });
         if (!exists) {
-            throw new common_1.BadRequestException('Prestataire introuvable');
+            throw new common_1.BadRequestException("Prestataire introuvable");
         }
-        let wallet = await this.prisma.wallet.findUnique({ where: { prestataireId } });
+        let wallet = await this.prisma.wallet.findUnique({
+            where: { prestataireId },
+        });
         if (!wallet) {
             wallet = await this.prisma.wallet.create({
                 data: {
@@ -1121,9 +1188,11 @@ let AdminController = AdminController_1 = class AdminController {
             select: { id: true },
         });
         if (!existing) {
-            throw new common_1.BadRequestException('Document introuvable pour ce prestataire');
+            throw new common_1.BadRequestException("Document introuvable pour ce prestataire");
         }
-        await this.prisma.prestataireDocument.delete({ where: { id: existing.id } });
+        await this.prisma.prestataireDocument.delete({
+            where: { id: existing.id },
+        });
         return { success: true };
     }
     async validatePrestataireDocument(prestataireId, documentId, admin) {
@@ -1132,7 +1201,7 @@ let AdminController = AdminController_1 = class AdminController {
             select: { id: true, prestataireId: true },
         });
         if (!existing) {
-            throw new common_1.BadRequestException('Document introuvable pour ce prestataire');
+            throw new common_1.BadRequestException("Document introuvable pour ce prestataire");
         }
         const now = new Date();
         await this.prisma.prestataireDocument.update({
@@ -1171,16 +1240,16 @@ let AdminController = AdminController_1 = class AdminController {
         };
     }
     async rejectPrestataireDocument(prestataireId, documentId, body) {
-        const motif = (body?.motif ?? '').trim();
+        const motif = (body?.motif ?? "").trim();
         if (motif.length < 3) {
-            throw new common_1.BadRequestException('Merci d’indiquer un motif de refus (au moins 3 caractères).');
+            throw new common_1.BadRequestException("Merci d’indiquer un motif de refus (au moins 3 caractères).");
         }
         const existing = await this.prisma.prestataireDocument.findFirst({
             where: { id: documentId, prestataireId },
             select: { id: true },
         });
         if (!existing) {
-            throw new common_1.BadRequestException('Document introuvable pour ce prestataire');
+            throw new common_1.BadRequestException("Document introuvable pour ce prestataire");
         }
         await this.prisma.prestataireDocument.update({
             where: { id: existing.id },
@@ -1237,7 +1306,7 @@ let AdminController = AdminController_1 = class AdminController {
                 where: listWhere,
                 take,
                 skip,
-                orderBy: { createdAt: 'desc' },
+                orderBy: { createdAt: "desc" },
                 select: {
                     id: true,
                     statut: true,
@@ -1297,11 +1366,12 @@ let AdminController = AdminController_1 = class AdminController {
     }
     async getServicesForAdmin() {
         const rows = await this.prisma.service.findMany({
-            orderBy: { libelle: 'asc' },
+            orderBy: { libelle: "asc" },
             select: {
                 id: true,
                 libelle: true,
                 slug: true,
+                tarifs: true,
                 actif: true,
                 createdAt: true,
                 _count: {
@@ -1314,6 +1384,7 @@ let AdminController = AdminController_1 = class AdminController {
                 id: s.id,
                 libelle: s.libelle,
                 slug: s.slug,
+                tarif: this.parseServiceTarifValue(s.tarifs),
                 actif: s.actif,
                 createdAt: s.createdAt.toISOString(),
                 prestatairesCount: s._count.prestataires,
@@ -1323,16 +1394,23 @@ let AdminController = AdminController_1 = class AdminController {
     async createService(body) {
         const libelle = body?.libelle?.trim();
         if (!libelle) {
-            throw new common_1.BadRequestException('Libellé requis');
+            throw new common_1.BadRequestException("Libellé requis");
         }
+        const tarif = this.parsePositiveTarif(body?.tarif, { required: true });
         const base = this.slugifyServiceLabel(libelle);
         const slug = await this.ensureUniqueServiceSlug(base);
         const created = await this.prisma.service.create({
-            data: { libelle, slug, actif: true },
+            data: {
+                libelle,
+                slug,
+                tarifs: tarif != null ? String(tarif) : null,
+                actif: true,
+            },
             select: {
                 id: true,
                 libelle: true,
                 slug: true,
+                tarifs: true,
                 actif: true,
                 createdAt: true,
                 _count: { select: { prestataires: true } },
@@ -1342,6 +1420,7 @@ let AdminController = AdminController_1 = class AdminController {
             id: created.id,
             libelle: created.libelle,
             slug: created.slug,
+            tarif: this.parseServiceTarifValue(created.tarifs),
             actif: created.actif,
             createdAt: created.createdAt.toISOString(),
             prestatairesCount: created._count.prestataires,
@@ -1353,7 +1432,7 @@ let AdminController = AdminController_1 = class AdminController {
             select: { id: true },
         });
         if (!existing) {
-            throw new common_1.BadRequestException('Métier introuvable');
+            throw new common_1.BadRequestException("Métier introuvable");
         }
         if (body.actif === false) {
             const rattaches = await this.prisma.prestataireService.count({
@@ -1364,20 +1443,24 @@ let AdminController = AdminController_1 = class AdminController {
             }
         }
         const data = {};
-        if (typeof body.actif === 'boolean') {
+        if (typeof body.actif === "boolean") {
             data.actif = body.actif;
         }
         if (body.libelle !== undefined) {
             const libelle = body.libelle.trim();
             if (!libelle) {
-                throw new common_1.BadRequestException('Libellé invalide');
+                throw new common_1.BadRequestException("Libellé invalide");
             }
             data.libelle = libelle;
             const base = this.slugifyServiceLabel(libelle);
             data.slug = await this.ensureUniqueServiceSlug(base, serviceId);
         }
+        if (body.tarif !== undefined) {
+            const tarif = this.parsePositiveTarif(body.tarif);
+            data.tarifs = tarif != null ? String(tarif) : null;
+        }
         if (Object.keys(data).length === 0) {
-            throw new common_1.BadRequestException('Aucune modification');
+            throw new common_1.BadRequestException("Aucune modification");
         }
         const updated = await this.prisma.service.update({
             where: { id: serviceId },
@@ -1386,6 +1469,7 @@ let AdminController = AdminController_1 = class AdminController {
                 id: true,
                 libelle: true,
                 slug: true,
+                tarifs: true,
                 actif: true,
                 createdAt: true,
                 _count: { select: { prestataires: true } },
@@ -1395,19 +1479,40 @@ let AdminController = AdminController_1 = class AdminController {
             id: updated.id,
             libelle: updated.libelle,
             slug: updated.slug,
+            tarif: this.parseServiceTarifValue(updated.tarifs),
             actif: updated.actif,
             createdAt: updated.createdAt.toISOString(),
             prestatairesCount: updated._count.prestataires,
         };
     }
+    parsePositiveTarif(value, opts) {
+        const required = opts?.required === true;
+        if (value == null || value === "") {
+            if (required) {
+                throw new common_1.BadRequestException("Tarif requis");
+            }
+            return null;
+        }
+        const n = Number(value);
+        if (!Number.isFinite(n) || n < 0) {
+            throw new common_1.BadRequestException("Tarif invalide");
+        }
+        return Math.round(n * 100) / 100;
+    }
+    parseServiceTarifValue(value) {
+        if (!value || !value.trim())
+            return null;
+        const n = Number(value);
+        return Number.isFinite(n) ? n : null;
+    }
     slugifyServiceLabel(input) {
         const s = input
-            .normalize('NFD')
-            .replace(/\p{M}/gu, '')
+            .normalize("NFD")
+            .replace(/\p{M}/gu, "")
             .toLowerCase()
-            .replace(/[^a-z0-9]+/g, '-')
-            .replace(/^-+|-+$/g, '');
-        return s || 'service';
+            .replace(/[^a-z0-9]+/g, "-")
+            .replace(/^-+|-+$/g, "");
+        return s || "service";
     }
     async ensureUniqueServiceSlug(base, excludeServiceId) {
         let slug = base;
@@ -1430,11 +1535,11 @@ let AdminController = AdminController_1 = class AdminController {
             select: { id: true, libelle: true },
         });
         if (!service) {
-            throw new common_1.BadRequestException('Métier (service) introuvable');
+            throw new common_1.BadRequestException("Métier (service) introuvable");
         }
         const links = await this.prisma.prestataireService.findMany({
             where: { serviceId },
-            orderBy: { createdAt: 'desc' },
+            orderBy: { createdAt: "desc" },
             select: {
                 id: true,
                 actif: true,
@@ -1455,8 +1560,8 @@ let AdminController = AdminController_1 = class AdminController {
             items: links.map((l) => ({
                 id: l.prestataire.id,
                 nom: l.prestataire.nom,
-                email: l.prestataire.user?.email ?? '',
-                telephone: l.prestataire.telephone ?? '',
+                email: l.prestataire.user?.email ?? "",
+                telephone: l.prestataire.telephone ?? "",
                 actif: l.prestataire.actif,
                 offreActive: l.actif,
                 statutVerification: l.prestataire.statutVerification,
@@ -1468,14 +1573,14 @@ let AdminController = AdminController_1 = class AdminController {
             where: { serviceId },
         });
         if (count > 0) {
-            throw new common_1.BadRequestException('Impossible de supprimer : des prestataires sont encore inscrits à ce métier.');
+            throw new common_1.BadRequestException("Impossible de supprimer : des prestataires sont encore inscrits à ce métier.");
         }
         await this.prisma.service.delete({ where: { id: serviceId } });
         return { ok: true, id: serviceId };
     }
     async getOffresForAdmin() {
         const rows = await this.prisma.offre.findMany({
-            orderBy: [{ ordre: 'asc' }, { createdAt: 'desc' }],
+            orderBy: [{ ordre: "asc" }, { createdAt: "desc" }],
             select: {
                 id: true,
                 code: true,
@@ -1493,7 +1598,7 @@ let AdminController = AdminController_1 = class AdminController {
                 id: o.id,
                 code: o.code,
                 libelle: o.libelle,
-                description: o.description ?? '',
+                description: o.description ?? "",
                 prix: Number(o.prix),
                 dureeMois: o.dureeMois,
                 actif: o.actif,
@@ -1503,20 +1608,24 @@ let AdminController = AdminController_1 = class AdminController {
         };
     }
     async createOffre(body) {
-        const libelle = (body?.libelle ?? '').trim();
+        const libelle = (body?.libelle ?? "").trim();
         if (!libelle)
-            throw new common_1.BadRequestException('Libellé requis');
+            throw new common_1.BadRequestException("Libellé requis");
         const prix = Number(body?.prix);
         if (!Number.isFinite(prix) || prix < 0) {
-            throw new common_1.BadRequestException('Prix invalide');
+            throw new common_1.BadRequestException("Prix invalide");
         }
         const dureeMois = Number(body?.dureeMois);
         if (!Number.isInteger(dureeMois) || dureeMois <= 0) {
-            throw new common_1.BadRequestException('Durée (mois) invalide');
+            throw new common_1.BadRequestException("Durée (mois) invalide");
         }
         const ordreRaw = body?.ordre;
-        const ordre = ordreRaw == null ? 0 : Number.isFinite(Number(ordreRaw)) ? Number(ordreRaw) : 0;
-        const rawCode = (body?.code ?? '').trim();
+        const ordre = ordreRaw == null
+            ? 0
+            : Number.isFinite(Number(ordreRaw))
+                ? Number(ordreRaw)
+                : 0;
+        const rawCode = (body?.code ?? "").trim();
         const baseCode = rawCode || this.slugifyServiceLabel(libelle);
         const code = await this.ensureUniqueOffreCode(baseCode);
         const created = await this.prisma.offre.create({
@@ -1545,7 +1654,7 @@ let AdminController = AdminController_1 = class AdminController {
             id: created.id,
             code: created.code,
             libelle: created.libelle,
-            description: created.description ?? '',
+            description: created.description ?? "",
             prix: Number(created.prix),
             dureeMois: created.dureeMois,
             actif: created.actif,
@@ -1556,22 +1665,32 @@ let AdminController = AdminController_1 = class AdminController {
     async updateOffre(offreId, body) {
         const existing = await this.prisma.offre.findUnique({
             where: { id: offreId },
-            select: { id: true, code: true, libelle: true, description: true, prix: true, dureeMois: true, ordre: true, actif: true },
+            select: {
+                id: true,
+                code: true,
+                libelle: true,
+                description: true,
+                prix: true,
+                dureeMois: true,
+                ordre: true,
+                actif: true,
+            },
         });
         if (!existing)
-            throw new common_1.BadRequestException('Offre introuvable');
+            throw new common_1.BadRequestException("Offre introuvable");
         const data = {};
-        if (typeof body?.actif === 'boolean')
+        if (typeof body?.actif === "boolean")
             data.actif = body.actif;
         if (body.code !== undefined) {
             const rawCode = body.code.trim();
-            const base = rawCode || this.slugifyServiceLabel(body.libelle?.trim() || existing.libelle);
+            const base = rawCode ||
+                this.slugifyServiceLabel(body.libelle?.trim() || existing.libelle);
             data.code = await this.ensureUniqueOffreCode(base, existing.id);
         }
         if (body.libelle !== undefined) {
             const libelle = body.libelle.trim();
             if (!libelle)
-                throw new common_1.BadRequestException('Libellé requis');
+                throw new common_1.BadRequestException("Libellé requis");
             data.libelle = libelle;
             if (body.code === undefined) {
                 data.code = await this.ensureUniqueOffreCode(this.slugifyServiceLabel(libelle), existing.id);
@@ -1583,24 +1702,24 @@ let AdminController = AdminController_1 = class AdminController {
         if (body.prix !== undefined) {
             const prix = Number(body.prix);
             if (!Number.isFinite(prix) || prix < 0)
-                throw new common_1.BadRequestException('Prix invalide');
+                throw new common_1.BadRequestException("Prix invalide");
             data.prix = prix;
         }
         if (body.dureeMois !== undefined) {
             const dureeMois = Number(body.dureeMois);
             if (!Number.isInteger(dureeMois) || dureeMois <= 0) {
-                throw new common_1.BadRequestException('Durée (mois) invalide');
+                throw new common_1.BadRequestException("Durée (mois) invalide");
             }
             data.dureeMois = dureeMois;
         }
         if (body.ordre !== undefined) {
             const ordre = Number(body.ordre);
             if (!Number.isFinite(ordre))
-                throw new common_1.BadRequestException('Ordre invalide');
+                throw new common_1.BadRequestException("Ordre invalide");
             data.ordre = ordre;
         }
         if (Object.keys(data).length === 0) {
-            throw new common_1.BadRequestException('Aucune modification');
+            throw new common_1.BadRequestException("Aucune modification");
         }
         const updated = await this.prisma.offre.update({
             where: { id: offreId },
@@ -1621,7 +1740,7 @@ let AdminController = AdminController_1 = class AdminController {
             id: updated.id,
             code: updated.code,
             libelle: updated.libelle,
-            description: updated.description ?? '',
+            description: updated.description ?? "",
             prix: Number(updated.prix),
             dureeMois: updated.dureeMois,
             actif: updated.actif,
@@ -1646,247 +1765,256 @@ let AdminController = AdminController_1 = class AdminController {
 };
 exports.AdminController = AdminController;
 __decorate([
-    (0, common_1.Get)('stats'),
+    (0, common_1.Get)("stats"),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", Promise)
 ], AdminController.prototype, "getStats", null);
 __decorate([
-    (0, common_1.Post)('notifications/general'),
+    (0, common_1.Post)("notifications/general"),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], AdminController.prototype, "createGeneralNotification", null);
 __decorate([
-    (0, common_1.Post)('notifications/targeted'),
+    (0, common_1.Post)("notifications/targeted"),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], AdminController.prototype, "createTargetedNotification", null);
 __decorate([
-    (0, common_1.Get)('notifications'),
-    __param(0, (0, common_1.Query)('limit')),
-    __param(1, (0, common_1.Query)('offset')),
-    __param(2, (0, common_1.Query)('audience')),
-    __param(3, (0, common_1.Query)('unreadOnly')),
-    __param(4, (0, common_1.Query)('type')),
-    __param(5, (0, common_1.Query)('search')),
+    (0, common_1.Get)("notifications"),
+    __param(0, (0, common_1.Query)("limit")),
+    __param(1, (0, common_1.Query)("offset")),
+    __param(2, (0, common_1.Query)("audience")),
+    __param(3, (0, common_1.Query)("unreadOnly")),
+    __param(4, (0, common_1.Query)("type")),
+    __param(5, (0, common_1.Query)("search")),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String, String, String, String, String, String]),
     __metadata("design:returntype", Promise)
 ], AdminController.prototype, "listAdminNotifications", null);
 __decorate([
-    (0, common_1.Get)('evolution'),
-    __param(0, (0, common_1.Query)('months')),
+    (0, common_1.Get)("evolution"),
+    __param(0, (0, common_1.Query)("months")),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], AdminController.prototype, "getEvolution", null);
 __decorate([
-    (0, common_1.Get)('wallet/summary'),
+    (0, common_1.Get)("wallet/summary"),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", Promise)
 ], AdminController.prototype, "getWalletSummary", null);
 __decorate([
-    (0, common_1.Get)('wallet/withdrawal-requests'),
-    __param(0, (0, common_1.Query)('limit')),
-    __param(1, (0, common_1.Query)('offset')),
+    (0, common_1.Post)("wallet/general/withdraw"),
+    __param(0, (0, current_user_decorator_js_1.CurrentUser)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", Promise)
+], AdminController.prototype, "withdrawGeneralWallet", null);
+__decorate([
+    (0, common_1.Get)("wallet/withdrawal-requests"),
+    __param(0, (0, common_1.Query)("limit")),
+    __param(1, (0, common_1.Query)("offset")),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String, String]),
     __metadata("design:returntype", Promise)
 ], AdminController.prototype, "listWithdrawalRequests", null);
 __decorate([
-    (0, common_1.Patch)('wallet/withdrawal-requests/:id'),
-    __param(0, (0, common_1.Param)('id')),
+    (0, common_1.Patch)("wallet/withdrawal-requests/:id"),
+    __param(0, (0, common_1.Param)("id")),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", Promise)
 ], AdminController.prototype, "decisionWithdrawalRequest", null);
 __decorate([
-    (0, common_1.Get)('transactions'),
-    __param(0, (0, common_1.Query)('limit')),
+    (0, common_1.Get)("transactions"),
+    __param(0, (0, common_1.Query)("limit")),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], AdminController.prototype, "getTransactions", null);
 __decorate([
-    (0, common_1.Get)('clients'),
-    __param(0, (0, common_1.Query)('limit')),
-    __param(1, (0, common_1.Query)('offset')),
-    __param(2, (0, common_1.Query)('search')),
+    (0, common_1.Get)("clients"),
+    __param(0, (0, common_1.Query)("limit")),
+    __param(1, (0, common_1.Query)("offset")),
+    __param(2, (0, common_1.Query)("search")),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String, String, String]),
     __metadata("design:returntype", Promise)
 ], AdminController.prototype, "getClients", null);
 __decorate([
-    (0, common_1.Get)('clients/:id'),
-    __param(0, (0, common_1.Param)('id')),
+    (0, common_1.Get)("clients/:id"),
+    __param(0, (0, common_1.Param)("id")),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], AdminController.prototype, "getClientDetails", null);
 __decorate([
-    (0, common_1.Patch)('clients/:id/statut'),
-    __param(0, (0, common_1.Param)('id')),
+    (0, common_1.Patch)("clients/:id/statut"),
+    __param(0, (0, common_1.Param)("id")),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", Promise)
 ], AdminController.prototype, "setClientActif", null);
 __decorate([
-    (0, common_1.Delete)('clients/:id'),
-    __param(0, (0, common_1.Param)('id')),
+    (0, common_1.Delete)("clients/:id"),
+    __param(0, (0, common_1.Param)("id")),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], AdminController.prototype, "deleteClient", null);
 __decorate([
-    (0, common_1.Get)('prestataires'),
-    __param(0, (0, common_1.Query)('limit')),
+    (0, common_1.Get)("prestataires"),
+    __param(0, (0, common_1.Query)("limit")),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], AdminController.prototype, "getPrestataires", null);
 __decorate([
-    (0, common_1.Patch)('prestataires/:id/actif'),
-    __param(0, (0, common_1.Param)('id')),
+    (0, common_1.Patch)("prestataires/:id/actif"),
+    __param(0, (0, common_1.Param)("id")),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", Promise)
 ], AdminController.prototype, "setPrestataireActif", null);
 __decorate([
-    (0, common_1.Get)('prestataires/:id/transactions'),
-    __param(0, (0, common_1.Param)('id')),
-    __param(1, (0, common_1.Query)('limit')),
-    __param(2, (0, common_1.Query)('offset')),
+    (0, common_1.Get)("prestataires/:id/transactions"),
+    __param(0, (0, common_1.Param)("id")),
+    __param(1, (0, common_1.Query)("limit")),
+    __param(2, (0, common_1.Query)("offset")),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String, String, String]),
     __metadata("design:returntype", Promise)
 ], AdminController.prototype, "getPrestatairePaiementsParticuliers", null);
 __decorate([
-    (0, common_1.Get)('prestataires/:id'),
-    __param(0, (0, common_1.Param)('id')),
+    (0, common_1.Get)("prestataires/:id"),
+    __param(0, (0, common_1.Param)("id")),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], AdminController.prototype, "getPrestataireDetails", null);
 __decorate([
-    (0, common_1.Patch)('prestataires/:id/wallet/statut'),
-    __param(0, (0, common_1.Param)('id')),
+    (0, common_1.Patch)("prestataires/:id/wallet/statut"),
+    __param(0, (0, common_1.Param)("id")),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", Promise)
 ], AdminController.prototype, "patchPrestataireWalletStatut", null);
 __decorate([
-    (0, common_1.Patch)('prestataires/:id/wallet/plafond'),
-    __param(0, (0, common_1.Param)('id')),
+    (0, common_1.Patch)("prestataires/:id/wallet/plafond"),
+    __param(0, (0, common_1.Param)("id")),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", Promise)
 ], AdminController.prototype, "patchPrestataireWalletPlafond", null);
 __decorate([
-    (0, common_1.Delete)('prestataires/:prestataireId/documents/:documentId'),
-    __param(0, (0, common_1.Param)('prestataireId')),
-    __param(1, (0, common_1.Param)('documentId')),
+    (0, common_1.Delete)("prestataires/:prestataireId/documents/:documentId"),
+    __param(0, (0, common_1.Param)("prestataireId")),
+    __param(1, (0, common_1.Param)("documentId")),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String, String]),
     __metadata("design:returntype", Promise)
 ], AdminController.prototype, "deletePrestataireDocument", null);
 __decorate([
-    (0, common_1.Patch)('prestataires/:prestataireId/documents/:documentId/validate'),
-    __param(0, (0, common_1.Param)('prestataireId')),
-    __param(1, (0, common_1.Param)('documentId')),
+    (0, common_1.Patch)("prestataires/:prestataireId/documents/:documentId/validate"),
+    __param(0, (0, common_1.Param)("prestataireId")),
+    __param(1, (0, common_1.Param)("documentId")),
     __param(2, (0, current_user_decorator_js_1.CurrentUser)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String, String, Object]),
     __metadata("design:returntype", Promise)
 ], AdminController.prototype, "validatePrestataireDocument", null);
 __decorate([
-    (0, common_1.Patch)('prestataires/:prestataireId/documents/:documentId/reject'),
-    __param(0, (0, common_1.Param)('prestataireId')),
-    __param(1, (0, common_1.Param)('documentId')),
+    (0, common_1.Patch)("prestataires/:prestataireId/documents/:documentId/reject"),
+    __param(0, (0, common_1.Param)("prestataireId")),
+    __param(1, (0, common_1.Param)("documentId")),
     __param(2, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String, String, Object]),
     __metadata("design:returntype", Promise)
 ], AdminController.prototype, "rejectPrestataireDocument", null);
 __decorate([
-    (0, common_1.Get)('demandes-mille-services'),
-    __param(0, (0, common_1.Query)('limit')),
-    __param(1, (0, common_1.Query)('offset')),
-    __param(2, (0, common_1.Query)('statut')),
+    (0, common_1.Get)("demandes-mille-services"),
+    __param(0, (0, common_1.Query)("limit")),
+    __param(1, (0, common_1.Query)("offset")),
+    __param(2, (0, common_1.Query)("statut")),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String, String, String]),
     __metadata("design:returntype", Promise)
 ], AdminController.prototype, "getDemandesMilleServices", null);
 __decorate([
-    (0, common_1.Get)('services'),
+    (0, common_1.Get)("services"),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", Promise)
 ], AdminController.prototype, "getServicesForAdmin", null);
 __decorate([
-    (0, common_1.Post)('services'),
+    (0, common_1.Post)("services"),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], AdminController.prototype, "createService", null);
 __decorate([
-    (0, common_1.Patch)('services/:serviceId'),
-    __param(0, (0, common_1.Param)('serviceId')),
+    (0, common_1.Patch)("services/:serviceId"),
+    __param(0, (0, common_1.Param)("serviceId")),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", Promise)
 ], AdminController.prototype, "updateService", null);
 __decorate([
-    (0, common_1.Get)('services/:serviceId/prestataires'),
-    __param(0, (0, common_1.Param)('serviceId')),
+    (0, common_1.Get)("services/:serviceId/prestataires"),
+    __param(0, (0, common_1.Param)("serviceId")),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], AdminController.prototype, "getPrestatairesByService", null);
 __decorate([
-    (0, common_1.Delete)('services/:serviceId'),
-    __param(0, (0, common_1.Param)('serviceId')),
+    (0, common_1.Delete)("services/:serviceId"),
+    __param(0, (0, common_1.Param)("serviceId")),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], AdminController.prototype, "deleteService", null);
 __decorate([
-    (0, common_1.Get)('offres'),
+    (0, common_1.Get)("offres"),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", Promise)
 ], AdminController.prototype, "getOffresForAdmin", null);
 __decorate([
-    (0, common_1.Post)('offres'),
+    (0, common_1.Post)("offres"),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], AdminController.prototype, "createOffre", null);
 __decorate([
-    (0, common_1.Patch)('offres/:offreId'),
-    __param(0, (0, common_1.Param)('offreId')),
+    (0, common_1.Patch)("offres/:offreId"),
+    __param(0, (0, common_1.Param)("offreId")),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", Promise)
 ], AdminController.prototype, "updateOffre", null);
 exports.AdminController = AdminController = AdminController_1 = __decorate([
-    (0, common_1.Controller)('admin'),
+    (0, common_1.Controller)("admin"),
     (0, common_1.UseGuards)(jwt_auth_guard_js_1.JwtAuthGuard, roles_guard_js_1.RolesGuard),
-    (0, roles_decorator_js_1.Roles)('ADMIN'),
+    (0, roles_decorator_js_1.Roles)("ADMIN"),
     __metadata("design:paramtypes", [prisma_service_js_1.PrismaService,
-        notifications_service_js_1.NotificationsService])
+        notifications_service_js_1.NotificationsService,
+        wallets_service_js_1.WalletsService])
 ], AdminController);
 //# sourceMappingURL=admin.controller.js.map

@@ -1,7 +1,7 @@
-import { Injectable } from '@nestjs/common';
-import { v2 as cloudinary } from 'cloudinary';
+import { Injectable } from "@nestjs/common";
+import { v2 as cloudinary } from "cloudinary";
 
-export const CLOUDINARY_FOLDER = 'milleservices/documents';
+export const CLOUDINARY_FOLDER = "milleservices/documents";
 
 export interface UploadResult {
   url: string;
@@ -30,12 +30,12 @@ export class CloudinaryService {
     originalName: string,
     mimetype?: string,
   ): Promise<UploadResult> {
-    const mt = (mimetype ?? '').toLowerCase();
+    const mt = (mimetype ?? "").toLowerCase();
     const isPdf =
       /\.pdf$/i.test(originalName) ||
-      mt === 'application/pdf' ||
-      mt === 'application/x-pdf';
-    const resourceType = isPdf ? 'raw' : 'image';
+      mt === "application/pdf" ||
+      mt === "application/x-pdf";
+    const resourceType = isPdf ? "raw" : "image";
 
     return new Promise((resolve, reject) => {
       const uploadStream = cloudinary.uploader.upload_stream(
@@ -48,12 +48,12 @@ export class CloudinaryService {
         (error, result) => {
           if (error) return reject(error);
           if (!result || !result.secure_url) {
-            return reject(new Error('Upload failed: no result'));
+            return reject(new Error("Upload failed: no result"));
           }
           resolve({
             url: result.secure_url,
             secureUrl: result.secure_url,
-            publicId: result.public_id ?? '',
+            publicId: result.public_id ?? "",
           });
         },
       );

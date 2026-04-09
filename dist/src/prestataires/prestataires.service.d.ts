@@ -1,9 +1,9 @@
-import { PrismaService } from '../prisma/prisma.service.js';
-import { StatutDocument, StatutVerificationPrestataire } from '../../generated/prisma/client.js';
-import { CreatePrestatairePhotoDto } from './dto/create-photo.dto.js';
-import { GeocodingService } from '../geocoding/geocoding.service.js';
-import { UpdateMePrestataireDto } from './dto/update-me.dto.js';
-import { NotificationsService } from '../notifications/notifications.service.js';
+import { PrismaService } from "../prisma/prisma.service.js";
+import { StatutDocument, StatutVerificationPrestataire } from "../../generated/prisma/client.js";
+import { CreatePrestatairePhotoDto } from "./dto/create-photo.dto.js";
+import { GeocodingService } from "../geocoding/geocoding.service.js";
+import { UpdateMePrestataireDto } from "./dto/update-me.dto.js";
+import { NotificationsService } from "../notifications/notifications.service.js";
 export declare class PrestatairesService {
     private readonly prisma;
     private readonly geocodingService;

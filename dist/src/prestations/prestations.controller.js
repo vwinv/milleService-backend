@@ -17,6 +17,7 @@ const common_1 = require("@nestjs/common");
 const prestations_service_js_1 = require("./prestations.service.js");
 const create_prestation_dto_js_1 = require("./dto/create-prestation.dto.js");
 const payer_prestation_dto_js_1 = require("./dto/payer-prestation.dto.js");
+const softpay_prestation_dto_js_1 = require("./dto/softpay-prestation.dto.js");
 const jwt_auth_guard_js_1 = require("../auth/guards/jwt-auth.guard.js");
 const roles_guard_js_1 = require("../auth/guards/roles.guard.js");
 const roles_decorator_js_1 = require("../auth/decorators/roles.decorator.js");
@@ -50,12 +51,36 @@ let PrestationsController = class PrestationsController {
     marquerPayee(user, id, dto) {
         return this.prestations.marquerPayee(user.userId, id, dto);
     }
+    initPaydunya(user, id) {
+        return this.prestations.initPaydunyaCheckout(user.userId, id);
+    }
+    softPayPrestation(user, id, dto) {
+        return this.prestations.softPayPrestation(user.userId, id, dto);
+    }
+    payWithWave(user, id, dto) {
+        return this.prestations.softPayPrestation(user.userId, id, {
+            ...dto,
+            method: "wave_sn",
+        });
+    }
+    payWithOrangeMoney(user, id, dto) {
+        return this.prestations.softPayPrestation(user.userId, id, {
+            ...dto,
+            method: "orange_money_sn",
+        });
+    }
+    payWithFreeMoney(user, id, dto) {
+        return this.prestations.softPayPrestation(user.userId, id, {
+            ...dto,
+            method: "free_money_sn",
+        });
+    }
 };
 exports.PrestationsController = PrestationsController;
 __decorate([
     (0, common_1.Post)(),
     (0, common_1.UseGuards)(roles_guard_js_1.RolesGuard),
-    (0, roles_decorator_js_1.Roles)('PARTICULIER'),
+    (0, roles_decorator_js_1.Roles)("PARTICULIER"),
     __param(0, (0, current_user_decorator_js_1.CurrentUser)()),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -63,73 +88,127 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], PrestationsController.prototype, "create", null);
 __decorate([
-    (0, common_1.Get)('me'),
+    (0, common_1.Get)("me"),
     __param(0, (0, current_user_decorator_js_1.CurrentUser)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], PrestationsController.prototype, "listMine", null);
 __decorate([
-    (0, common_1.Get)(':id'),
+    (0, common_1.Get)(":id"),
     __param(0, (0, current_user_decorator_js_1.CurrentUser)()),
-    __param(1, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Param)("id")),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)
 ], PrestationsController.prototype, "findById", null);
 __decorate([
-    (0, common_1.Patch)(':id/accepter'),
+    (0, common_1.Patch)(":id/accepter"),
     (0, common_1.UseGuards)(roles_guard_js_1.RolesGuard),
-    (0, roles_decorator_js_1.Roles)('PRESTATAIRE'),
+    (0, roles_decorator_js_1.Roles)("PRESTATAIRE"),
     __param(0, (0, current_user_decorator_js_1.CurrentUser)()),
-    __param(1, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Param)("id")),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)
 ], PrestationsController.prototype, "accepter", null);
 __decorate([
-    (0, common_1.Patch)(':id/demarrer'),
+    (0, common_1.Patch)(":id/demarrer"),
     (0, common_1.UseGuards)(roles_guard_js_1.RolesGuard),
-    (0, roles_decorator_js_1.Roles)('PRESTATAIRE'),
+    (0, roles_decorator_js_1.Roles)("PRESTATAIRE"),
     __param(0, (0, current_user_decorator_js_1.CurrentUser)()),
-    __param(1, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Param)("id")),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)
 ], PrestationsController.prototype, "demarrer", null);
 __decorate([
-    (0, common_1.Patch)(':id/refuser'),
+    (0, common_1.Patch)(":id/refuser"),
     (0, common_1.UseGuards)(roles_guard_js_1.RolesGuard),
-    (0, roles_decorator_js_1.Roles)('PRESTATAIRE'),
+    (0, roles_decorator_js_1.Roles)("PRESTATAIRE"),
     __param(0, (0, current_user_decorator_js_1.CurrentUser)()),
-    __param(1, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Param)("id")),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)
 ], PrestationsController.prototype, "refuser", null);
 __decorate([
-    (0, common_1.Patch)(':id/terminer'),
+    (0, common_1.Patch)(":id/terminer"),
     (0, common_1.UseGuards)(roles_guard_js_1.RolesGuard),
-    (0, roles_decorator_js_1.Roles)('PRESTATAIRE'),
+    (0, roles_decorator_js_1.Roles)("PRESTATAIRE"),
     __param(0, (0, current_user_decorator_js_1.CurrentUser)()),
-    __param(1, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Param)("id")),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)
 ], PrestationsController.prototype, "terminer", null);
 __decorate([
-    (0, common_1.Patch)(':id/payer'),
+    (0, common_1.Patch)(":id/payer"),
     (0, common_1.UseGuards)(roles_guard_js_1.RolesGuard),
-    (0, roles_decorator_js_1.Roles)('PARTICULIER'),
+    (0, roles_decorator_js_1.Roles)("PARTICULIER"),
     __param(0, (0, current_user_decorator_js_1.CurrentUser)()),
-    __param(1, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Param)("id")),
     __param(2, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, String, payer_prestation_dto_js_1.PayerPrestationDto]),
     __metadata("design:returntype", void 0)
 ], PrestationsController.prototype, "marquerPayee", null);
+__decorate([
+    (0, common_1.Post)(":id/paiement/paydunya/init"),
+    (0, common_1.UseGuards)(roles_guard_js_1.RolesGuard),
+    (0, roles_decorator_js_1.Roles)("PARTICULIER"),
+    __param(0, (0, current_user_decorator_js_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)("id")),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], PrestationsController.prototype, "initPaydunya", null);
+__decorate([
+    (0, common_1.Post)(":id/paiement/paydunya/softpay"),
+    (0, common_1.UseGuards)(roles_guard_js_1.RolesGuard),
+    (0, roles_decorator_js_1.Roles)("PARTICULIER"),
+    __param(0, (0, current_user_decorator_js_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)("id")),
+    __param(2, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, softpay_prestation_dto_js_1.SoftPayPrestationDto]),
+    __metadata("design:returntype", void 0)
+], PrestationsController.prototype, "softPayPrestation", null);
+__decorate([
+    (0, common_1.Post)(":id/paiement/paydunya/wave"),
+    (0, common_1.UseGuards)(roles_guard_js_1.RolesGuard),
+    (0, roles_decorator_js_1.Roles)("PARTICULIER"),
+    __param(0, (0, current_user_decorator_js_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)("id")),
+    __param(2, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, softpay_prestation_dto_js_1.SoftPayPrestationBodyDto]),
+    __metadata("design:returntype", void 0)
+], PrestationsController.prototype, "payWithWave", null);
+__decorate([
+    (0, common_1.Post)(":id/paiement/paydunya/orange-money"),
+    (0, common_1.UseGuards)(roles_guard_js_1.RolesGuard),
+    (0, roles_decorator_js_1.Roles)("PARTICULIER"),
+    __param(0, (0, current_user_decorator_js_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)("id")),
+    __param(2, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, softpay_prestation_dto_js_1.SoftPayPrestationBodyDto]),
+    __metadata("design:returntype", void 0)
+], PrestationsController.prototype, "payWithOrangeMoney", null);
+__decorate([
+    (0, common_1.Post)(":id/paiement/paydunya/free-money"),
+    (0, common_1.UseGuards)(roles_guard_js_1.RolesGuard),
+    (0, roles_decorator_js_1.Roles)("PARTICULIER"),
+    __param(0, (0, current_user_decorator_js_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)("id")),
+    __param(2, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, softpay_prestation_dto_js_1.SoftPayPrestationBodyDto]),
+    __metadata("design:returntype", void 0)
+], PrestationsController.prototype, "payWithFreeMoney", null);
 exports.PrestationsController = PrestationsController = __decorate([
-    (0, common_1.Controller)('prestations'),
+    (0, common_1.Controller)("prestations"),
     (0, common_1.UseGuards)(jwt_auth_guard_js_1.JwtAuthGuard),
     __metadata("design:paramtypes", [prestations_service_js_1.PrestationsService])
 ], PrestationsController);

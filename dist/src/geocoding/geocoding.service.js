@@ -8,32 +8,32 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.GeocodingService = void 0;
 const common_1 = require("@nestjs/common");
-const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search';
-const PHOTON_URL = 'https://photon.komoot.io/api/';
+const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search";
+const PHOTON_URL = "https://photon.komoot.io/api/";
 const DAKAR_LAT = 14.716677;
 const DAKAR_LON = -17.467686;
 let GeocodingService = class GeocodingService {
     async geocode(address) {
-        const trimmed = (address ?? '').trim();
+        const trimmed = (address ?? "").trim();
         if (trimmed.length < 3) {
-            throw new common_1.BadRequestException('Adresse trop courte (min. 3 caractères)');
+            throw new common_1.BadRequestException("Adresse trop courte (min. 3 caractères)");
         }
-        const countrycodesList = ['fr,be,ch,sn', ''];
+        const countrycodesList = ["fr,be,ch,sn", ""];
         for (let i = 0; i < countrycodesList.length; i++) {
             if (i > 0)
                 await new Promise((r) => setTimeout(r, 1100));
             const countrycodes = countrycodesList[i];
             const params = new URLSearchParams({
                 q: trimmed,
-                format: 'json',
-                limit: '1',
+                format: "json",
+                limit: "1",
                 ...(countrycodes ? { countrycodes } : {}),
             });
             const url = `${NOMINATIM_URL}?${params.toString()}`;
             const res = await fetch(url, {
                 headers: {
-                    'User-Agent': 'MilleServices/1.0 (contact@milleservices.fr)',
-                    Accept: 'application/json',
+                    "User-Agent": "MilleServices/1.0 (contact@milleservices.fr)",
+                    Accept: "application/json",
                 },
             });
             if (!res.ok)
@@ -50,7 +50,7 @@ let GeocodingService = class GeocodingService {
         }
         return null;
     }
-    async geocodeWithFallbacks(address, suffixes = [', Dakar, Sénégal', ', Sénégal']) {
+    async geocodeWithFallbacks(address, suffixes = [", Dakar, Sénégal", ", Sénégal"]) {
         let result = await this.geocode(address);
         if (result)
             return result;
@@ -61,28 +61,28 @@ let GeocodingService = class GeocodingService {
                 return result;
         }
         const lower = address.toLowerCase();
-        if (lower.includes('sacre') && lower.includes('coeur')) {
+        if (lower.includes("sacre") && lower.includes("coeur")) {
             await new Promise((r) => setTimeout(r, 1100));
-            result = await this.geocode('Sacré-Cœur, Dakar, Sénégal');
+            result = await this.geocode("Sacré-Cœur, Dakar, Sénégal");
         }
         return result;
     }
     async autocomplete(query) {
-        const trimmed = (query ?? '').trim();
+        const trimmed = (query ?? "").trim();
         if (trimmed.length < 2)
             return [];
         const params = new URLSearchParams({
             q: trimmed,
-            limit: '8',
-            lang: 'fr',
+            limit: "8",
+            lang: "fr",
             lat: DAKAR_LAT.toString(),
             lon: DAKAR_LON.toString(),
         });
         const url = `${PHOTON_URL}?${params.toString()}`;
         const res = await fetch(url, {
             headers: {
-                'User-Agent': 'MilleServices/1.0 (contact@milleservices.fr)',
-                Accept: 'application/json',
+                "User-Agent": "MilleServices/1.0 (contact@milleservices.fr)",
+                Accept: "application/json",
             },
         });
         if (!res.ok)
@@ -97,7 +97,7 @@ let GeocodingService = class GeocodingService {
                 continue;
             const parts = [];
             if (props.street)
-                parts.push([props.housenumber, props.street].filter(Boolean).join(' '));
+                parts.push([props.housenumber, props.street].filter(Boolean).join(" "));
             else if (props.name)
                 parts.push(props.name);
             if (props.postcode)
@@ -106,7 +106,7 @@ let GeocodingService = class GeocodingService {
                 parts.push(props.city);
             if (props.country)
                 parts.push(props.country);
-            const displayName = parts.length > 0 ? parts.join(', ') : 'Adresse';
+            const displayName = parts.length > 0 ? parts.join(", ") : "Adresse";
             suggestions.push({
                 displayName,
                 lat: coords[1],

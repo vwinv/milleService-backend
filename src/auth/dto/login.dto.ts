@@ -5,14 +5,14 @@ import {
   IsString,
   MinLength,
   ValidateIf,
-} from 'class-validator';
-import { Role } from '../../../generated/prisma/client.js';
+} from "class-validator";
+import { Role } from "../../../generated/prisma/client.js";
 
 export class LoginDto {
   @IsOptional()
   @ValidateIf((o) => !o.email || `${o.email}`.trim().length === 0)
   @IsString()
-  @MinLength(1, { message: 'Le telephone est requis' })
+  @MinLength(1, { message: "Le telephone est requis" })
   telephone?: string;
 
   @IsOptional()
@@ -21,10 +21,10 @@ export class LoginDto {
   email?: string;
 
   @IsString()
-  @MinLength(1, { message: 'Le mot de passe est requis' })
+  @MinLength(1, { message: "Le mot de passe est requis" })
   password: string;
 
   @IsOptional()
-  @IsEnum(Role, { message: 'Rôle invalide' })
+  @IsEnum(Role, { message: "Rôle invalide" })
   role?: Role;
 }

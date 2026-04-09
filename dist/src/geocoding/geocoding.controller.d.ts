@@ -1,4 +1,4 @@
-import { GeocodingService } from './geocoding.service.js';
+import { GeocodingService } from "./geocoding.service.js";
 export declare class GeocodingController {
     private readonly geocodingService;
     constructor(geocodingService: GeocodingService);
