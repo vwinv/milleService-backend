@@ -21,8 +21,8 @@ export declare class WalletsController {
             id: string;
             createdAt: Date;
             offreId: string | null;
-            walletId: string;
             type: import("../../generated/prisma/enums.js").TransactionType;
+            walletId: string;
             prestationId: string | null;
             abonnementId: string | null;
             meta: import("@prisma/client/runtime/client.js").JsonValue | null;
@@ -45,8 +45,8 @@ export declare class WalletsController {
             id: string;
             createdAt: Date;
             offreId: string | null;
-            walletId: string;
             type: import("../../generated/prisma/enums.js").TransactionType;
+            walletId: string;
             prestationId: string | null;
             abonnementId: string | null;
             meta: import("@prisma/client/runtime/client.js").JsonValue | null;
@@ -59,9 +59,9 @@ export declare class WalletsController {
             id: string;
             createdAt: Date;
             updatedAt: Date;
-            method: import("../../generated/prisma/enums.js").WithdrawalMethod;
             prestataireId: string;
             meta: import("@prisma/client/runtime/client.js").JsonValue | null;
+            method: import("../../generated/prisma/enums.js").WithdrawalMethod;
             status: import("../../generated/prisma/enums.js").WithdrawalStatus;
         };
     }>;

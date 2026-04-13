@@ -22,16 +22,10 @@ const roles_decorator_js_1 = require("../auth/decorators/roles.decorator.js");
 const current_user_decorator_js_1 = require("../auth/decorators/current-user.decorator.js");
 const notifications_service_js_1 = require("../notifications/notifications.service.js");
 const wallets_service_js_1 = require("../wallets/wallets.service.js");
+const withdrawal_meta_util_js_1 = require("../wallets/withdrawal-meta.util.js");
+const paydunya_service_js_1 = require("../paydunya/paydunya.service.js");
+const paydunya_disburse_util_js_1 = require("../paydunya/paydunya-disburse.util.js");
 const client_js_1 = require("../../generated/prisma/client.js");
-function metaWithdrawalAmount(meta) {
-    if (!meta || typeof meta !== "object")
-        return null;
-    const m = meta;
-    const a = m.amount;
-    if (typeof a === "number" && !Number.isNaN(a) && a >= 0)
-        return a;
-    return null;
-}
 function withdrawalMethodLabel(method) {
     switch (method) {
         case client_js_1.WithdrawalMethod.ORANGE_MONEY:
@@ -119,11 +113,13 @@ let AdminController = AdminController_1 = class AdminController {
     prisma;
     notifications;
     wallets;
+    paydunya;
     logger = new common_1.Logger(AdminController_1.name);
-    constructor(prisma, notifications, wallets) {
+    constructor(prisma, notifications, wallets, paydunya) {
         this.prisma = prisma;
         this.notifications = notifications;
         this.wallets = wallets;
+        this.paydunya = paydunya;
     }
     async getStats() {
         try {
@@ -357,7 +353,7 @@ let AdminController = AdminController_1 = class AdminController {
         const soldeMilleServices = generalRow ? Number(generalRow.balance) : 0;
         const soldesPrestataires = Number(prestataireAgg._sum.balance ?? 0);
         const totalSolde = soldeMilleServices + soldesPrestataires;
-        const retraitPrestataires = withdrawalTraites.reduce((s, r) => s + (metaWithdrawalAmount(r.meta) ?? 0), 0);
+        const retraitPrestataires = withdrawalTraites.reduce((s, r) => s + ((0, withdrawal_meta_util_js_1.metaWithdrawalAmount)(r.meta) ?? 0), 0);
         const retraitPlateforme = Number(retraitsPlateforme._sum.amount ?? 0);
         return {
             totalSolde,
@@ -371,6 +367,58 @@ let AdminController = AdminController_1 = class AdminController {
         const amount = Number(body.amount);
         if (!Number.isFinite(amount) || amount <= 0) {
             throw new common_1.BadRequestException("Montant invalide");
+        }
+        if (body.payWithPaydunya === true) {
+            if (body.payoutMethod == null ||
+                !Object.values(client_js_1.WithdrawalMethod).includes(body.payoutMethod)) {
+                throw new common_1.BadRequestException("Moyen de paiement requis pour un envoi PayDunya");
+            }
+            const wm = (0, paydunya_disburse_util_js_1.withdrawModeFromWithdrawalMethod)(body.payoutMethod);
+            if (!wm) {
+                throw new common_1.BadRequestException("PayDunya ne prend pas en charge ce moyen (ex. carte bancaire). Choisissez Orange Money, Wave ou Free Money, ou désactivez l’envoi PayDunya.");
+            }
+            const rawPhone = String(body.accountAlias ?? "").trim();
+            if (!rawPhone) {
+                throw new common_1.BadRequestException("Numéro de téléphone du bénéficiaire requis pour l’envoi PayDunya");
+            }
+            const phone = (0, paydunya_disburse_util_js_1.normalizeSenegalMsisdnForPaydunya)(rawPhone);
+            if (!phone) {
+                throw new common_1.BadRequestException("Numéro mobile invalide (attendu : mobile Sénégal, ex. 77 123 45 67)");
+            }
+            const disburseId = `gw-${admin.userId}-${String(Date.now())}`;
+            let push;
+            try {
+                push = await this.paydunya.disbursePush({
+                    account_alias: phone,
+                    amountFcfa: amount,
+                    withdraw_mode: wm,
+                    disburse_id: disburseId,
+                });
+            }
+            catch (e) {
+                if (e instanceof common_1.ServiceUnavailableException)
+                    throw e;
+                const msg = e instanceof Error ? e.message : "Erreur PayDunya";
+                throw new common_1.BadRequestException(msg);
+            }
+            if (push.outcome === "pending") {
+                throw new common_1.BadRequestException("Transaction PayDunya en attente de confirmation opérateur. Le solde n’a pas été débité — réessayez plus tard ou utilisez l’enregistrement manuel.");
+            }
+            if (push.outcome === "failed") {
+                throw new common_1.BadRequestException(push.responseText ?? "Déboursement PayDunya refusé");
+            }
+            await this.wallets.debitGeneralWallet({
+                amount,
+                createdByUserId: admin.userId,
+                meta: {
+                    payoutMethod: body.payoutMethod,
+                    note: body.note?.trim() || undefined,
+                    paydunyaDisburse: true,
+                    paydunyaTransactionId: push.transactionId,
+                    paydunyaDisburseToken: push.disburseToken,
+                },
+            });
+            return { ok: true, paydunya: true };
         }
         await this.wallets.debitGeneralWallet({
             amount,
@@ -392,7 +440,7 @@ let AdminController = AdminController_1 = class AdminController {
                 take,
                 skip,
                 include: {
-                    prestataire: { select: { id: true, nom: true } },
+                    prestataire: { select: { id: true, nom: true, telephone: true } },
                 },
             }),
         ]);
@@ -403,7 +451,8 @@ let AdminController = AdminController_1 = class AdminController {
                 date: r.createdAt.toISOString(),
                 prestataireId: r.prestataireId,
                 prestataireNom: r.prestataire.nom,
-                montant: metaWithdrawalAmount(r.meta),
+                prestataireTelephone: r.prestataire.telephone,
+                montant: (0, withdrawal_meta_util_js_1.metaWithdrawalAmount)(r.meta),
                 wallet: withdrawalMethodLabel(r.method),
                 method: r.method,
                 status: r.status,
@@ -422,6 +471,7 @@ let AdminController = AdminController_1 = class AdminController {
                 status: true,
                 prestataireId: true,
                 meta: true,
+                method: true,
             },
         });
         if (!row) {
@@ -441,15 +491,109 @@ let AdminController = AdminController_1 = class AdminController {
             !Object.values(client_js_1.WithdrawalMethod).includes(body.payoutMethod)) {
             throw new common_1.BadRequestException("Moyen de paiement invalide");
         }
+        const effectiveMethod = body.payoutMethod != null ? body.payoutMethod : row.method;
         const metaBase = row.meta && typeof row.meta === "object" && !Array.isArray(row.meta)
             ? { ...row.meta }
             : {};
+        if (body.payWithPaydunya === true) {
+            const wm = (0, paydunya_disburse_util_js_1.withdrawModeFromWithdrawalMethod)(effectiveMethod);
+            if (!wm) {
+                throw new common_1.BadRequestException("PayDunya ne prend pas en charge ce moyen (ex. carte bancaire). Choisissez Orange Money, Wave ou Free Money, ou validez sans envoi PayDunya.");
+            }
+            const amount = (0, withdrawal_meta_util_js_1.metaWithdrawalAmount)(row.meta);
+            if (amount == null || amount <= 0) {
+                throw new common_1.BadRequestException("Montant de la demande invalide");
+            }
+            const wallet = await this.prisma.wallet.findUnique({
+                where: { prestataireId: row.prestataireId },
+                select: { id: true, balance: true },
+            });
+            if (!wallet) {
+                throw new common_1.BadRequestException("Wallet du prestataire introuvable");
+            }
+            const bal = Number(wallet.balance);
+            if (amount > bal) {
+                throw new common_1.BadRequestException("Solde insuffisant pour valider ce montant");
+            }
+            const prestataire = await this.prisma.prestataire.findUnique({
+                where: { id: row.prestataireId },
+                select: { telephone: true },
+            });
+            const rawPhone = String(body.accountAlias ?? prestataire?.telephone ?? "").trim();
+            if (!rawPhone) {
+                throw new common_1.BadRequestException("Numéro de téléphone du prestataire manquant : complétez le profil ou saisissez le numéro pour PayDunya.");
+            }
+            const phone = (0, paydunya_disburse_util_js_1.normalizeSenegalMsisdnForPaydunya)(rawPhone);
+            if (!phone) {
+                throw new common_1.BadRequestException("Numéro mobile invalide (attendu : mobile Sénégal)");
+            }
+            let push;
+            try {
+                push = await this.paydunya.disbursePush({
+                    account_alias: phone,
+                    amountFcfa: amount,
+                    withdraw_mode: wm,
+                    disburse_id: `wr-${row.id}`,
+                });
+            }
+            catch (e) {
+                if (e instanceof common_1.ServiceUnavailableException)
+                    throw e;
+                const msg = e instanceof Error ? e.message : "Erreur PayDunya";
+                throw new common_1.BadRequestException(msg);
+            }
+            if (push.outcome === "pending") {
+                metaBase.adminPayoutMethod = effectiveMethod;
+                metaBase.paydunyaDisburseToken = push.disburseToken;
+                metaBase.paydunyaPendingAt = new Date().toISOString();
+                metaBase.paydunyaDisburseId = `wr-${row.id}`;
+                await this.prisma.withdrawalRequest.update({
+                    where: { id: row.id },
+                    data: {
+                        meta: metaBase,
+                    },
+                });
+                return {
+                    ok: true,
+                    status: client_js_1.WithdrawalStatus.EN_ATTENTE,
+                    paydunyaStatus: "pending",
+                    message: "Transaction en cours chez l’opérateur. Le wallet n’est pas débité tant que PayDunya n’a pas confirmé le succès (notification automatique).",
+                };
+            }
+            if (push.outcome === "failed") {
+                throw new common_1.BadRequestException(push.responseText ?? "Déboursement PayDunya refusé");
+            }
+            metaBase.adminPayoutMethod = effectiveMethod;
+            metaBase.adminProcessedAt = new Date().toISOString();
+            metaBase.paydunyaDisburse = true;
+            metaBase.paydunyaTransactionId = push.transactionId;
+            metaBase.paydunyaDisburseToken = push.disburseToken;
+            const metaPayloadPay = metaBase;
+            await this.prisma.$transaction([
+                this.prisma.wallet.update({
+                    where: { id: wallet.id },
+                    data: { balance: { decrement: amount } },
+                }),
+                this.prisma.withdrawalRequest.update({
+                    where: { id: row.id },
+                    data: {
+                        status: client_js_1.WithdrawalStatus.TRAITE,
+                        meta: metaPayloadPay,
+                    },
+                }),
+            ]);
+            return {
+                ok: true,
+                status: client_js_1.WithdrawalStatus.TRAITE,
+                paydunyaStatus: "success",
+            };
+        }
         if (body.payoutMethod != null) {
             metaBase.adminPayoutMethod = body.payoutMethod;
         }
         metaBase.adminProcessedAt = new Date().toISOString();
         const metaPayload = metaBase;
-        const amount = metaWithdrawalAmount(row.meta);
+        const amount = (0, withdrawal_meta_util_js_1.metaWithdrawalAmount)(row.meta);
         const wallet = await this.prisma.wallet.findUnique({
             where: { prestataireId: row.prestataireId },
             select: { id: true, balance: true },
@@ -582,7 +726,7 @@ let AdminController = AdminController_1 = class AdminController {
             id: row.id,
             date: row.createdAt,
             prestataireNom: row.prestataire?.nom ?? "Prestataire",
-            montant: metaWithdrawalAmount(row.meta),
+            montant: (0, withdrawal_meta_util_js_1.metaWithdrawalAmount)(row.meta),
             wallet: row.method === "ORANGE_MONEY"
                 ? "Orange Money"
                 : row.method === "FREE_MONEY"
@@ -2015,6 +2159,7 @@ exports.AdminController = AdminController = AdminController_1 = __decorate([
     (0, roles_decorator_js_1.Roles)("ADMIN"),
     __metadata("design:paramtypes", [prisma_service_js_1.PrismaService,
         notifications_service_js_1.NotificationsService,
-        wallets_service_js_1.WalletsService])
+        wallets_service_js_1.WalletsService,
+        paydunya_service_js_1.PaydunyaService])
 ], AdminController);
 //# sourceMappingURL=admin.controller.js.map

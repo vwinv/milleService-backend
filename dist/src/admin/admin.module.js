@@ -12,13 +12,20 @@ const prisma_module_js_1 = require("../prisma/prisma.module.js");
 const auth_module_js_1 = require("../auth/auth.module.js");
 const notifications_module_js_1 = require("../notifications/notifications.module.js");
 const wallets_module_js_1 = require("../wallets/wallets.module.js");
+const paydunya_module_js_1 = require("../paydunya/paydunya.module.js");
 const admin_controller_js_1 = require("./admin.controller.js");
 let AdminModule = class AdminModule {
 };
 exports.AdminModule = AdminModule;
 exports.AdminModule = AdminModule = __decorate([
     (0, common_1.Module)({
-        imports: [prisma_module_js_1.PrismaModule, auth_module_js_1.AuthModule, notifications_module_js_1.NotificationsModule, wallets_module_js_1.WalletsModule],
+        imports: [
+            prisma_module_js_1.PrismaModule,
+            auth_module_js_1.AuthModule,
+            notifications_module_js_1.NotificationsModule,
+            wallets_module_js_1.WalletsModule,
+            paydunya_module_js_1.PaydunyaModule,
+        ],
         controllers: [admin_controller_js_1.AdminController],
     })
 ], AdminModule);

@@ -2,13 +2,15 @@ import { PrismaService } from "../prisma/prisma.service.js";
 import { CurrentUserPayload } from "../auth/decorators/current-user.decorator.js";
 import { NotificationsService } from "../notifications/notifications.service.js";
 import { WalletsService } from "../wallets/wallets.service.js";
+import { PaydunyaService } from "../paydunya/paydunya.service.js";
 import { PrestataireWalletStatut, Role, StatutDocument, StatutPrestation, StatutVerificationPrestataire, WithdrawalMethod, WithdrawalStatus } from "../../generated/prisma/client.js";
 export declare class AdminController {
     private readonly prisma;
     private readonly notifications;
     private readonly wallets;
+    private readonly paydunya;
     private readonly logger;
-    constructor(prisma: PrismaService, notifications: NotificationsService, wallets: WalletsService);
+    constructor(prisma: PrismaService, notifications: NotificationsService, wallets: WalletsService, paydunya: PaydunyaService);
     getStats(): Promise<{
         clientsActifs: number;
         prestatairesActifs: number;
@@ -66,8 +68,14 @@ export declare class AdminController {
         amount?: number;
         payoutMethod?: WithdrawalMethod;
         note?: string;
+        payWithPaydunya?: boolean;
+        accountAlias?: string;
     }): Promise<{
         ok: true;
+        paydunya: true;
+    } | {
+        ok: true;
+        paydunya?: undefined;
     }>;
     listWithdrawalRequests(limit?: string, offset?: string): Promise<{
         total: number;
@@ -76,6 +84,7 @@ export declare class AdminController {
             date: string;
             prestataireId: string;
             prestataireNom: string;
+            prestataireTelephone: string | null;
             montant: number | null;
             wallet: string;
             method: WithdrawalMethod;
@@ -85,12 +94,28 @@ export declare class AdminController {
     decisionWithdrawalRequest(id: string, body: {
         decision?: string;
         payoutMethod?: WithdrawalMethod;
+        payWithPaydunya?: boolean;
+        accountAlias?: string;
     }): Promise<{
         ok: boolean;
         status: "REFUSE";
+        paydunyaStatus?: undefined;
+        message?: undefined;
+    } | {
+        ok: boolean;
+        status: "EN_ATTENTE";
+        paydunyaStatus: "pending";
+        message: string;
     } | {
         ok: boolean;
         status: "TRAITE";
+        paydunyaStatus: "success";
+        message?: undefined;
+    } | {
+        ok: boolean;
+        status: "TRAITE";
+        paydunyaStatus?: undefined;
+        message?: undefined;
     }>;
     getTransactions(limit?: string): Promise<({
         id: any;

@@ -13,7 +13,8 @@ let ResponseInterceptor = class ResponseInterceptor {
     intercept(context, next) {
         const req = context.switchToHttp().getRequest();
         const path = req.path ?? req.url ?? "";
-        if (path.includes("webhooks/paydunya")) {
+        if (path.includes("webhooks/paydunya") ||
+            path.includes("webhooks/paydunya/disburse")) {
             return next.handle();
         }
         const res = context.switchToHttp().getResponse();

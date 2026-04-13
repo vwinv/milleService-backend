@@ -26,7 +26,10 @@ export class ResponseInterceptor<T> implements NestInterceptor<
   ): Observable<ApiResponse<T>> {
     const req = context.switchToHttp().getRequest<Request>();
     const path = req.path ?? req.url ?? "";
-    if (path.includes("webhooks/paydunya")) {
+    if (
+      path.includes("webhooks/paydunya") ||
+      path.includes("webhooks/paydunya/disburse")
+    ) {
       return next.handle() as unknown as Observable<ApiResponse<T>>;
     }
     const res = context.switchToHttp().getResponse<Response>();

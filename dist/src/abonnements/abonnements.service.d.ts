@@ -12,9 +12,9 @@ export declare class AbonnementsService {
     getOffres(): Promise<{
         prix: number;
         id: string;
+        code: string;
         libelle: string;
         description: string | null;
-        code: string;
         dureeMois: number;
         ordre: number;
     }[]>;
@@ -26,8 +26,8 @@ export declare class AbonnementsService {
         offre: {
             prix: number;
             id: string;
-            libelle: string;
             code: string;
+            libelle: string;
             dureeMois: number;
         };
     } | null>;
@@ -43,8 +43,8 @@ export declare class AbonnementsService {
         offre: {
             prix: number;
             id: string;
-            libelle: string;
             code: string;
+            libelle: string;
             dureeMois: number;
         };
     } | null>;

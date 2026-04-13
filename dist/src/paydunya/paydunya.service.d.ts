@@ -47,4 +47,31 @@ export declare class PaydunyaService {
     softPayMoovMali(input: SoftPayMoovMaliInput): Promise<PaydunyaSoftPayResponse>;
     softPayMtnCameroun(input: SoftPayMtnCamerounInput): Promise<PaydunyaSoftPayResponse>;
     softPayPaydunyaWallet(input: SoftPayPaydunyaWalletInput): Promise<PaydunyaSoftPayResponse>;
+    private disburseCallbackUrl;
+    private parseDisburseSubmitOutcome;
+    disburseGetInvoice(params: {
+        account_alias: string;
+        amount: number;
+        withdraw_mode: string;
+        callback_url: string;
+        debit_account_number?: string;
+    }): Promise<{
+        disburse_token: string;
+    }>;
+    disburseSubmitInvoice(params: {
+        disburse_invoice: string;
+        disburse_id?: string;
+    }): Promise<Record<string, unknown>>;
+    disbursePush(params: {
+        account_alias: string;
+        amountFcfa: number;
+        withdraw_mode: string;
+        disburse_id?: string;
+    }): Promise<{
+        outcome: "success" | "pending" | "failed";
+        disburseToken: string;
+        transactionId?: string;
+        responseText?: string;
+        rawResponse: Record<string, unknown>;
+    }>;
 }

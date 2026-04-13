@@ -67,8 +67,8 @@ export declare class AuthService {
             offre: {
                 prix: number;
                 id: string;
-                libelle: string;
                 code: string;
+                libelle: string;
                 dureeMois: number;
             };
         } | null;
@@ -104,8 +104,8 @@ export declare class AuthService {
             offre: {
                 prix: number;
                 id: string;
-                libelle: string;
                 code: string;
+                libelle: string;
                 dureeMois: number;
             };
         } | null;
@@ -154,8 +154,8 @@ export declare class AuthService {
             offre: {
                 prix: number;
                 id: string;
-                libelle: string;
                 code: string;
+                libelle: string;
                 dureeMois: number;
             };
         } | null;

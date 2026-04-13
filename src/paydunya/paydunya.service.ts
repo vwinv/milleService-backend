@@ -462,4 +462,216 @@ export class PaydunyaService {
   softPayPaydunyaWallet(input: SoftPayPaydunyaWalletInput) {
     return this.softPayPost("/api/v1/softpay/paydunya", { ...input });
   }
+
+  // ---------------------------------------------------------------------------
+  // API PUSH / déboursement (v2)
+  // @see https://developers.paydunya.com/doc/FR/api_deboursement
+  // ---------------------------------------------------------------------------
+
+  /**
+   * URL IPN déboursement (get-invoice). Ordre :
+   * 1) `PAYDUNYA_DISBURSE_CALLBACK_URL` — URL complète si besoin d’un chemin dédié
+   * 2) sinon même base que le checkout : `PAYDUNYA_CALLBACK_BASE_URL` ou `PUBLIC_API_URL` + `/webhooks/paydunya/disburse`
+   */
+  private disburseCallbackUrl(): string {
+    const explicit = process.env.PAYDUNYA_DISBURSE_CALLBACK_URL?.trim();
+    if (explicit) {
+      try {
+        new URL(explicit);
+        return explicit;
+      } catch {
+        throw new ServiceUnavailableException(
+          "PAYDUNYA_DISBURSE_CALLBACK_URL invalide",
+        );
+      }
+    }
+    const baseRaw =
+      process.env.PAYDUNYA_CALLBACK_BASE_URL?.trim() ||
+      process.env.PUBLIC_API_URL?.trim() ||
+      "";
+    if (!baseRaw) {
+      throw new ServiceUnavailableException(
+        "Définir PUBLIC_API_URL (ou PAYDUNYA_CALLBACK_BASE_URL), ou PAYDUNYA_DISBURSE_CALLBACK_URL en URL complète, pour les déboursements PayDunya — ex. même base que l’IPN checkout + chemin /webhooks/paydunya/disburse",
+      );
+    }
+    const base = baseRaw.replace(/\/$/, "");
+    const withScheme = /^https?:\/\//i.test(base) ? base : `http://${base}`;
+    const full = `${withScheme}/webhooks/paydunya/disburse`;
+    try {
+      new URL(full);
+    } catch {
+      throw new ServiceUnavailableException(
+        "PUBLIC_API_URL / PAYDUNYA_CALLBACK_BASE_URL invalide pour le callback déboursement",
+      );
+    }
+    return full;
+  }
+
+  private parseDisburseSubmitOutcome(
+    parsed: Record<string, unknown>,
+  ): "success" | "pending" | "failed" {
+    const code = strVal(parsed["response_code"]);
+    if (code !== "00") return "failed";
+    const st = strVal(parsed["status"]).toLowerCase();
+    if (st === "pending") return "pending";
+    const rt = strVal(parsed["response_text"]).toLowerCase();
+    if (rt.includes("pending")) return "pending";
+    return "success";
+  }
+
+  /**
+   * Initie un déboursement (facture) — étape 1/2.
+   */
+  async disburseGetInvoice(params: {
+    account_alias: string;
+    amount: number;
+    withdraw_mode: string;
+    callback_url: string;
+    debit_account_number?: string;
+  }): Promise<{ disburse_token: string }> {
+    const url = `${this.baseUrl()}/api/v2/disburse/get-invoice`;
+    const amount = Math.round(Number(params.amount));
+    if (!Number.isFinite(amount) || amount <= 0) {
+      throw new ServiceUnavailableException("Montant déboursement invalide");
+    }
+    const body: Record<string, unknown> = {
+      account_alias: params.account_alias,
+      amount,
+      withdraw_mode: params.withdraw_mode,
+      callback_url: params.callback_url,
+    };
+    if (params.debit_account_number) {
+      body.debit_account_number = params.debit_account_number;
+    }
+    this.logger.log(
+      `PayDunya disburse get-invoice → POST amount=${String(amount)} mode=${params.withdraw_mode}`,
+    );
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        method: "POST",
+        headers: this.paydunyaAuthHeaders(),
+        body: JSON.stringify(body),
+      });
+    } catch (e) {
+      this.logger.warn(`disburse get-invoice: fetch error ${String(e)}`);
+      throw new ServiceUnavailableException("Réseau PayDunya indisponible");
+    }
+    const rawText = await res.text();
+    let parsed: unknown;
+    try {
+      parsed = rawText ? JSON.parse(rawText) : {};
+    } catch {
+      this.logger.warn(
+        `disburse get-invoice: non-JSON ${rawText.slice(0, 200)}`,
+      );
+      throw new ServiceUnavailableException("Réponse PayDunya invalide");
+    }
+    if (!isRecord(parsed)) {
+      throw new ServiceUnavailableException("Réponse PayDunya invalide");
+    }
+    const code = strVal(parsed["response_code"]);
+    if (!res.ok || code !== "00") {
+      const msg =
+        strVal(parsed["response_text"]) ||
+        strVal(parsed["description"]) ||
+        `HTTP ${String(res.status)}`;
+      this.logger.warn(`disburse get-invoice échec: ${msg}`);
+      throw new ServiceUnavailableException(msg || "Déboursement refusé");
+    }
+    const disburse_token = strVal(parsed["disburse_token"]).trim();
+    if (!disburse_token) {
+      throw new ServiceUnavailableException(
+        "Réponse PayDunya incomplète (disburse_token)",
+      );
+    }
+    this.logger.log(`PayDunya disburse get-invoice ← OK token=${disburse_token.slice(0, 6)}…`);
+    return { disburse_token };
+  }
+
+  /**
+   * Soumet le déboursement — étape 2/2.
+   */
+  async disburseSubmitInvoice(params: {
+    disburse_invoice: string;
+    disburse_id?: string;
+  }): Promise<Record<string, unknown>> {
+    const url = `${this.baseUrl()}/api/v2/disburse/submit-invoice`;
+    const body: Record<string, unknown> = {
+      disburse_invoice: params.disburse_invoice.trim(),
+    };
+    if (params.disburse_id) {
+      body.disburse_id = params.disburse_id;
+    }
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        method: "POST",
+        headers: this.paydunyaAuthHeaders(),
+        body: JSON.stringify(body),
+      });
+    } catch (e) {
+      this.logger.warn(`disburse submit-invoice: fetch error ${String(e)}`);
+      throw new ServiceUnavailableException("Réseau PayDunya indisponible");
+    }
+    const rawText = await res.text();
+    let parsed: unknown;
+    try {
+      parsed = rawText ? JSON.parse(rawText) : {};
+    } catch {
+      this.logger.warn(
+        `disburse submit-invoice: non-JSON ${rawText.slice(0, 200)}`,
+      );
+      throw new ServiceUnavailableException("Réponse PayDunya invalide");
+    }
+    if (!isRecord(parsed)) {
+      throw new ServiceUnavailableException("Réponse PayDunya invalide");
+    }
+    if (!res.ok) {
+      const msg =
+        strVal(parsed["response_text"]) ||
+        strVal(parsed["description"]) ||
+        `HTTP ${String(res.status)}`;
+      this.logger.warn(`disburse submit-invoice HTTP: ${msg}`);
+      throw new ServiceUnavailableException(msg || "Soumission déboursement refusée");
+    }
+    return parsed;
+  }
+
+  /**
+   * get-invoice + submit-invoice. `disburse_id` permet de corréler le callback IPN.
+   */
+  async disbursePush(params: {
+    account_alias: string;
+    amountFcfa: number;
+    withdraw_mode: string;
+    disburse_id?: string;
+  }): Promise<{
+    outcome: "success" | "pending" | "failed";
+    disburseToken: string;
+    transactionId?: string;
+    responseText?: string;
+    rawResponse: Record<string, unknown>;
+  }> {
+    const callbackUrl = this.disburseCallbackUrl();
+    const gi = await this.disburseGetInvoice({
+      account_alias: params.account_alias,
+      amount: params.amountFcfa,
+      withdraw_mode: params.withdraw_mode,
+      callback_url: callbackUrl,
+    });
+    const token = gi.disburse_token.trim();
+    const submit = await this.disburseSubmitInvoice({
+      disburse_invoice: token,
+      disburse_id: params.disburse_id,
+    });
+    const outcome = this.parseDisburseSubmitOutcome(submit);
+    return {
+      outcome,
+      disburseToken: token,
+      transactionId: strVal(submit["transaction_id"]).trim() || undefined,
+      responseText: strVal(submit["response_text"]).trim() || undefined,
+      rawResponse: submit,
+    };
+  }
 }
