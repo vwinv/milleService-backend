@@ -46,11 +46,11 @@ export class NotificationsController {
     this.logger.log(
       `[FCM trace] PATCH /notifications/fcm-token userId=${user.userId} body.fcmToken=${raw == null ? "null" : `présent (len=${len})`}`,
     );
-    await this.notifications.registerFcmToken(
+    const res = await this.notifications.registerFcmToken(
       user.userId,
       body?.fcmToken ?? null,
     );
-    return { ok: true };
+    return { ok: true, updated: res.updated };
   }
 
   @Patch(":id/read")

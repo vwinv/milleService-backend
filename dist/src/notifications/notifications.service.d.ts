@@ -23,5 +23,7 @@ export declare class NotificationsService {
     }[]>;
     markAsRead(userId: string, notificationId: string): Promise<void>;
     markAllAsRead(userId: string): Promise<void>;
-    registerFcmToken(userId: string, fcmToken: string | null): Promise<void>;
+    registerFcmToken(userId: string, fcmToken: string | null): Promise<{
+        updated: boolean;
+    }>;
 }

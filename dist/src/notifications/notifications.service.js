@@ -241,21 +241,20 @@ let NotificationsService = class NotificationsService {
         if (process.env.NODE_ENV !== "test") {
             this.logger.log(`[FCM trace] registerFcmToken userId=${userId} token=${fp}`);
         }
-        try {
-            await this.prisma.user.update({
-                where: { id: userId },
-                data: { fcmToken: fcmToken ?? null },
-            });
+        const res = await this.prisma.user.updateMany({
+            where: { id: userId },
+            data: { fcmToken: fcmToken ?? null },
+        });
+        if (res.count === 0) {
             if (process.env.NODE_ENV !== "test") {
-                this.logger.log(`[FCM trace] registerFcmToken OK userId=${userId}`);
+                this.logger.warn(`[FCM trace] registerFcmToken IGNORÉ userId=${userId} introuvable (token JWT probablement obsolète / compte supprimé)`);
             }
+            return { updated: false };
         }
-        catch (err) {
-            if (process.env.NODE_ENV !== "test") {
-                this.logger.error(`[FCM trace] registerFcmToken ERREUR userId=${userId} ${err instanceof Error ? err.message : String(err)}`);
-            }
-            throw err;
+        if (process.env.NODE_ENV !== "test") {
+            this.logger.log(`[FCM trace] registerFcmToken OK userId=${userId}`);
         }
+        return { updated: true };
     }
 };
 exports.NotificationsService = NotificationsService;

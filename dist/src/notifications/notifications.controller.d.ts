@@ -18,6 +18,7 @@ export declare class NotificationsController {
         fcmToken: string | null;
     }): Promise<{
         ok: boolean;
+        updated: boolean;
     }>;
     markAsRead(user: CurrentUserPayload, id: string): Promise<void>;
 }

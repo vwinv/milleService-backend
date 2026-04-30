@@ -34,8 +34,8 @@ let NotificationsController = NotificationsController_1 = class NotificationsCon
         const raw = body?.fcmToken;
         const len = raw != null ? String(raw).length : 0;
         this.logger.log(`[FCM trace] PATCH /notifications/fcm-token userId=${user.userId} body.fcmToken=${raw == null ? "null" : `présent (len=${len})`}`);
-        await this.notifications.registerFcmToken(user.userId, body?.fcmToken ?? null);
-        return { ok: true };
+        const res = await this.notifications.registerFcmToken(user.userId, body?.fcmToken ?? null);
+        return { ok: true, updated: res.updated };
     }
     markAsRead(user, id) {
         return this.notifications.markAsRead(user.userId, id);

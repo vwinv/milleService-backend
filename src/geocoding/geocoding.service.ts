@@ -1,69 +1,100 @@
 import { Injectable, BadRequestException } from "@nestjs/common";
 
-const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search";
-const PHOTON_URL = "https://photon.komoot.io/api/";
-
-// Centre de Dakar pour « biaiser » les résultats Photon autour de cette zone.
-const DAKAR_LAT = 14.716677;
-const DAKAR_LON = -17.467686;
+const GOOGLE_GEOCODING_URL = "https://maps.googleapis.com/maps/api/geocode/json";
+const GOOGLE_AUTOCOMPLETE_URL =
+  "https://maps.googleapis.com/maps/api/place/autocomplete/json";
+const GOOGLE_PLACE_DETAILS_URL =
+  "https://maps.googleapis.com/maps/api/place/details/json";
+const GOOGLE_ROUTES_URL = "https://routes.googleapis.com/directions/v2:computeRoutes";
 
 export interface AutocompleteSuggestion {
   displayName: string;
+  placeId: string;
+  lat?: number;
+  lng?: number;
+}
+
+export interface RoutePoint {
   lat: number;
   lng: number;
 }
 
 @Injectable()
 export class GeocodingService {
+  private readonly geocodeCache = new Map<
+    string,
+    { expiresAt: number; value: { lat: number; lng: number } | null }
+  >();
+  private readonly autocompleteCache = new Map<
+    string,
+    { expiresAt: number; value: AutocompleteSuggestion[] }
+  >();
+  private readonly placeDetailsCache = new Map<
+    string,
+    { expiresAt: number; value: { lat: number; lng: number } | null }
+  >();
+  private readonly routeCache = new Map<
+    string,
+    { expiresAt: number; value: RoutePoint[] | null }
+  >();
+
+  private static readonly GEOCODE_TTL_MS = 30 * 60 * 1000;
+  private static readonly AUTOCOMPLETE_TTL_MS = 2 * 60 * 1000;
+  private static readonly PLACE_DETAILS_TTL_MS = 30 * 60 * 1000;
+  private static readonly ROUTE_TTL_MS = 60 * 1000;
+
+  private get apiKey(): string {
+    return (process.env.GOOGLE_MAPS_API_KEY ?? "").trim();
+  }
+
+  private get hasApiKey(): boolean {
+    return this.apiKey.length > 0;
+  }
+
   /**
-   * Convertit une adresse en coordonnées (lat, lng) via Nominatim (OpenStreetMap).
-   * API gratuite, sans clé requise.
-   * Respecter : max 1 requête/seconde (policy Nominatim).
+   * Convertit une adresse en coordonnées (lat, lng) via Google Geocoding API.
    */
   async geocode(address: string): Promise<{ lat: number; lng: number } | null> {
     const trimmed = (address ?? "").trim();
     if (trimmed.length < 3) {
       throw new BadRequestException("Adresse trop courte (min. 3 caractères)");
     }
+    if (!this.hasApiKey) return null;
+    const cacheKey = trimmed.toLowerCase();
+    const cached = this.getCache(this.geocodeCache, cacheKey);
+    if (cached !== undefined) return cached;
 
-    const countrycodesList = ["fr,be,ch,sn", ""]; // D'abord pays cibles, puis sans restriction
-    for (let i = 0; i < countrycodesList.length; i++) {
-      if (i > 0) await new Promise((r) => setTimeout(r, 1100)); // Nominatim: max 1 req/s
-      const countrycodes = countrycodesList[i];
-      const params = new URLSearchParams({
-        q: trimmed,
-        format: "json",
-        limit: "1",
-        ...(countrycodes ? { countrycodes } : {}),
-      });
-
-      const url = `${NOMINATIM_URL}?${params.toString()}`;
-      const res = await fetch(url, {
-        headers: {
-          "User-Agent": "MilleServices/1.0 (contact@milleservices.fr)",
-          Accept: "application/json",
-        },
-      });
-
-      if (!res.ok) continue;
-
-      const data = (await res.json()) as Array<{ lat?: string; lon?: string }>;
-      const first = data?.[0];
-      if (!first?.lat || !first?.lon) continue;
-
-      const lat = parseFloat(first.lat);
-      const lng = parseFloat(first.lon);
-      if (Number.isNaN(lat) || Number.isNaN(lng)) continue;
-
-      return { lat, lng };
+    const params = new URLSearchParams({
+      address: trimmed,
+      key: this.apiKey,
+      language: "fr",
+      region: "sn",
+    });
+    const url = `${GOOGLE_GEOCODING_URL}?${params.toString()}`;
+    const res = await fetch(url, { headers: { Accept: "application/json" } });
+    if (!res.ok) {
+      this.setCache(this.geocodeCache, cacheKey, null, GeocodingService.GEOCODE_TTL_MS);
+      return null;
     }
-    return null;
+
+    const data = (await res.json()) as {
+      status?: string;
+      results?: Array<{ geometry?: { location?: { lat?: number; lng?: number } } }>;
+    };
+    if (data.status !== "OK") {
+      this.setCache(this.geocodeCache, cacheKey, null, GeocodingService.GEOCODE_TTL_MS);
+      return null;
+    }
+    const first = data.results?.[0]?.geometry?.location;
+    if (!first || typeof first.lat !== "number" || typeof first.lng !== "number") {
+      this.setCache(this.geocodeCache, cacheKey, null, GeocodingService.GEOCODE_TTL_MS);
+      return null;
+    }
+    const out = { lat: first.lat, lng: first.lng };
+    this.setCache(this.geocodeCache, cacheKey, out, GeocodingService.GEOCODE_TTL_MS);
+    return out;
   }
 
-  /**
-   * Géocode une adresse en essayant plusieurs variantes (ex: adresse + ", Dakar, Sénégal").
-   * Utile pour des adresses partielles comme "Sacre coeur 2, OBV".
-   */
   async geocodeWithFallbacks(
     address: string,
     suffixes: string[] = [", Dakar, Sénégal", ", Sénégal"],
@@ -71,84 +102,238 @@ export class GeocodingService {
     let result = await this.geocode(address);
     if (result) return result;
     for (const suffix of suffixes) {
-      await new Promise((r) => setTimeout(r, 1100)); // Nominatim: max 1 req/s
       result = await this.geocode(`${address.trim()}${suffix}`);
       if (result) return result;
     }
-    // Fallback spécifique pour quartiers Dakar : "Sacre coeur 2, OBV" → "Sacré-Cœur, Dakar, Sénégal"
-    const lower = address.toLowerCase();
-    if (lower.includes("sacre") && lower.includes("coeur")) {
-      await new Promise((r) => setTimeout(r, 1100));
-      result = await this.geocode("Sacré-Cœur, Dakar, Sénégal");
-    }
-    return result;
+    return null;
   }
 
   /**
-   * Autocomplétion d'adresse via Photon (Komoot) - gratuit, sans clé.
+   * Autocomplétion d'adresse via Google Places Autocomplete.
+   * Pour garder la compatibilité front, on renseigne lat/lng via Place Details.
    */
   async autocomplete(query: string): Promise<AutocompleteSuggestion[]> {
     const trimmed = (query ?? "").trim();
     if (trimmed.length < 2) return [];
+    if (!this.hasApiKey) return [];
+    const cacheKey = trimmed.toLowerCase();
+    const cached = this.getCache(this.autocompleteCache, cacheKey);
+    if (cached !== undefined) return cached;
 
     const params = new URLSearchParams({
-      q: trimmed,
-      limit: "8",
-      lang: "fr",
-      // On biaise systématiquement autour de Dakar pour obtenir
-      // des rues et lieux locaux plus pertinents.
-      lat: DAKAR_LAT.toString(),
-      lon: DAKAR_LON.toString(),
+      input: trimmed,
+      key: this.apiKey,
+      language: "fr",
+      components: "country:sn",
+      types: "address",
     });
-
-    const url = `${PHOTON_URL}?${params.toString()}`;
-    const res = await fetch(url, {
-      headers: {
-        "User-Agent": "MilleServices/1.0 (contact@milleservices.fr)",
-        Accept: "application/json",
-      },
-    });
-
-    if (!res.ok) return [];
-
-    const data = (await res.json()) as {
-      features?: Array<{
-        properties?: {
-          name?: string;
-          street?: string;
-          housenumber?: string;
-          postcode?: string;
-          city?: string;
-          country?: string;
-        };
-        geometry?: { coordinates?: [number, number] };
-      }>;
-    };
-
-    const features = data?.features ?? [];
-    const suggestions: AutocompleteSuggestion[] = [];
-
-    for (const f of features) {
-      const props = f.properties ?? {};
-      const coords = f.geometry?.coordinates;
-      if (!coords || coords.length < 2) continue;
-
-      const parts: string[] = [];
-      if (props.street)
-        parts.push([props.housenumber, props.street].filter(Boolean).join(" "));
-      else if (props.name) parts.push(props.name);
-      if (props.postcode) parts.push(props.postcode);
-      if (props.city && props.city !== props.name) parts.push(props.city);
-      if (props.country) parts.push(props.country);
-      const displayName = parts.length > 0 ? parts.join(", ") : "Adresse";
-
-      suggestions.push({
-        displayName,
-        lat: coords[1],
-        lng: coords[0],
-      });
+    const url = `${GOOGLE_AUTOCOMPLETE_URL}?${params.toString()}`;
+    const res = await fetch(url, { headers: { Accept: "application/json" } });
+    if (!res.ok) {
+      this.setCache(
+        this.autocompleteCache,
+        cacheKey,
+        [],
+        GeocodingService.AUTOCOMPLETE_TTL_MS,
+      );
+      return [];
     }
 
-    return suggestions;
+    const data = (await res.json()) as {
+      status?: string;
+      predictions?: Array<{ description?: string; place_id?: string }>;
+    };
+    if (data.status !== "OK" && data.status !== "ZERO_RESULTS") {
+      this.setCache(
+        this.autocompleteCache,
+        cacheKey,
+        [],
+        GeocodingService.AUTOCOMPLETE_TTL_MS,
+      );
+      return [];
+    }
+    const predictions = data.predictions ?? [];
+    const top = predictions.slice(0, 8);
+    const out = top
+      .map((p): AutocompleteSuggestion | null => {
+        const displayName = (p.description ?? "").trim();
+        const placeId = (p.place_id ?? "").trim();
+        if (!displayName || !placeId) return null;
+        return { displayName, placeId };
+      })
+      .filter((x): x is AutocompleteSuggestion => x !== null);
+    this.setCache(
+      this.autocompleteCache,
+      cacheKey,
+      out,
+      GeocodingService.AUTOCOMPLETE_TTL_MS,
+    );
+    return out;
+  }
+
+  async placeDetails(placeId: string): Promise<{ lat: number; lng: number } | null> {
+    const id = (placeId ?? "").trim();
+    if (!id || !this.hasApiKey) return null;
+    return this.placeDetailsLatLng(id);
+  }
+
+  async computeRoute(
+    fromLat: number,
+    fromLng: number,
+    toLat: number,
+    toLng: number,
+  ): Promise<RoutePoint[] | null> {
+    if (!this.hasApiKey) return null;
+    const routeKey = this.routeCacheKey(fromLat, fromLng, toLat, toLng);
+    const cached = this.getCache(this.routeCache, routeKey);
+    if (cached !== undefined) return cached;
+    const body = {
+      origin: { location: { latLng: { latitude: fromLat, longitude: fromLng } } },
+      destination: { location: { latLng: { latitude: toLat, longitude: toLng } } },
+      travelMode: "DRIVE",
+      routingPreference: "TRAFFIC_UNAWARE",
+      polylineQuality: "OVERVIEW",
+    };
+
+    const res = await fetch(GOOGLE_ROUTES_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        "X-Goog-Api-Key": this.apiKey,
+        "X-Goog-FieldMask": "routes.polyline.encodedPolyline",
+      },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      this.setCache(this.routeCache, routeKey, null, GeocodingService.ROUTE_TTL_MS);
+      return null;
+    }
+    const data = (await res.json()) as {
+      routes?: Array<{ polyline?: { encodedPolyline?: string } }>;
+    };
+    const encoded = data.routes?.[0]?.polyline?.encodedPolyline;
+    if (!encoded) {
+      this.setCache(this.routeCache, routeKey, null, GeocodingService.ROUTE_TTL_MS);
+      return null;
+    }
+    const decoded = this.decodePolyline(encoded);
+    const out = decoded.length >= 2 ? decoded : null;
+    this.setCache(this.routeCache, routeKey, out, GeocodingService.ROUTE_TTL_MS);
+    return out;
+  }
+
+  private async placeDetailsLatLng(
+    placeId: string,
+  ): Promise<{ lat: number; lng: number } | null> {
+    const cached = this.getCache(this.placeDetailsCache, placeId);
+    if (cached !== undefined) return cached;
+    const params = new URLSearchParams({
+      place_id: placeId,
+      key: this.apiKey,
+      fields: "geometry/location",
+    });
+    const url = `${GOOGLE_PLACE_DETAILS_URL}?${params.toString()}`;
+    const res = await fetch(url, { headers: { Accept: "application/json" } });
+    if (!res.ok) {
+      this.setCache(
+        this.placeDetailsCache,
+        placeId,
+        null,
+        GeocodingService.PLACE_DETAILS_TTL_MS,
+      );
+      return null;
+    }
+    const data = (await res.json()) as {
+      status?: string;
+      result?: { geometry?: { location?: { lat?: number; lng?: number } } };
+    };
+    if (data.status !== "OK") {
+      this.setCache(
+        this.placeDetailsCache,
+        placeId,
+        null,
+        GeocodingService.PLACE_DETAILS_TTL_MS,
+      );
+      return null;
+    }
+    const loc = data.result?.geometry?.location;
+    if (!loc || typeof loc.lat !== "number" || typeof loc.lng !== "number") {
+      this.setCache(
+        this.placeDetailsCache,
+        placeId,
+        null,
+        GeocodingService.PLACE_DETAILS_TTL_MS,
+      );
+      return null;
+    }
+    const out = { lat: loc.lat, lng: loc.lng };
+    this.setCache(
+      this.placeDetailsCache,
+      placeId,
+      out,
+      GeocodingService.PLACE_DETAILS_TTL_MS,
+    );
+    return out;
+  }
+
+  private routeCacheKey(fromLat: number, fromLng: number, toLat: number, toLng: number): string {
+    const round = (n: number) => n.toFixed(4);
+    return `${round(fromLat)},${round(fromLng)};${round(toLat)},${round(toLng)}`;
+  }
+
+  private getCache<T>(
+    cache: Map<string, { expiresAt: number; value: T }>,
+    key: string,
+  ): T | undefined {
+    const hit = cache.get(key);
+    if (!hit) return undefined;
+    if (Date.now() > hit.expiresAt) {
+      cache.delete(key);
+      return undefined;
+    }
+    return hit.value;
+  }
+
+  private setCache<T>(
+    cache: Map<string, { expiresAt: number; value: T }>,
+    key: string,
+    value: T,
+    ttlMs: number,
+  ): void {
+    cache.set(key, { value, expiresAt: Date.now() + ttlMs });
+  }
+
+  private decodePolyline(encoded: string): RoutePoint[] {
+    const points: RoutePoint[] = [];
+    let index = 0;
+    let lat = 0;
+    let lng = 0;
+
+    while (index < encoded.length) {
+      let result = 0;
+      let shift = 0;
+      let b = 0;
+      do {
+        b = (encoded.codePointAt(index++) ?? 63) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+      } while (b >= 0x20 && index < encoded.length);
+      const deltaLat = (result & 1) !== 0 ? ~(result >> 1) : result >> 1;
+      lat += deltaLat;
+
+      result = 0;
+      shift = 0;
+      do {
+        b = (encoded.codePointAt(index++) ?? 63) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+      } while (b >= 0x20 && index < encoded.length);
+      const deltaLng = (result & 1) !== 0 ? ~(result >> 1) : result >> 1;
+      lng += deltaLng;
+
+      points.push({ lat: lat / 1e5, lng: lng / 1e5 });
+    }
+    return points;
   }
 }

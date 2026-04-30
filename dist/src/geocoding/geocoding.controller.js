@@ -36,6 +36,29 @@ let GeocodingController = class GeocodingController {
             return [];
         return this.geocodingService.autocomplete(query);
     }
+    async placeDetails(placeId) {
+        const id = (placeId ?? "").trim();
+        if (!id)
+            return { lat: null, lng: null, found: false };
+        const result = await this.geocodingService.placeDetails(id);
+        if (!result)
+            return { lat: null, lng: null, found: false };
+        return { ...result, found: true };
+    }
+    async route(fromLat, fromLng, toLat, toLng) {
+        const aLat = Number(fromLat);
+        const aLng = Number(fromLng);
+        const bLat = Number(toLat);
+        const bLng = Number(toLng);
+        if (!Number.isFinite(aLat) ||
+            !Number.isFinite(aLng) ||
+            !Number.isFinite(bLat) ||
+            !Number.isFinite(bLng)) {
+            return [];
+        }
+        const points = await this.geocodingService.computeRoute(aLat, aLng, bLat, bLng);
+        return points ?? [];
+    }
 };
 exports.GeocodingController = GeocodingController;
 __decorate([
@@ -52,6 +75,23 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], GeocodingController.prototype, "autocomplete", null);
+__decorate([
+    (0, common_1.Get)("place-details"),
+    __param(0, (0, common_1.Query)("placeId")),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], GeocodingController.prototype, "placeDetails", null);
+__decorate([
+    (0, common_1.Get)("route"),
+    __param(0, (0, common_1.Query)("fromLat")),
+    __param(1, (0, common_1.Query)("fromLng")),
+    __param(2, (0, common_1.Query)("toLat")),
+    __param(3, (0, common_1.Query)("toLng")),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object, Object, Object]),
+    __metadata("design:returntype", Promise)
+], GeocodingController.prototype, "route", null);
 exports.GeocodingController = GeocodingController = __decorate([
     (0, common_1.Controller)("geocoding"),
     __metadata("design:paramtypes", [geocoding_service_js_1.GeocodingService])

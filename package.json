@@ -15,7 +15,7 @@
     "build": "nest build",
     "postbuild": "node scripts/write-dist-main.cjs",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
-    "start": "nest start",
+    "start": "node run.cjs",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node run.cjs",
