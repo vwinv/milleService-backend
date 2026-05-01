@@ -1,8 +1,10 @@
-import { Controller, Get, Query } from "@nestjs/common";
+import { Controller, Get, Logger, Query } from "@nestjs/common";
 import { GeocodingService } from "./geocoding.service.js";
 
 @Controller("geocoding")
 export class GeocodingController {
+  private readonly logger = new Logger(GeocodingController.name);
+
   constructor(private readonly geocodingService: GeocodingService) {}
 
   @Get()
@@ -39,6 +41,9 @@ export class GeocodingController {
     @Query("toLat") toLat: string | undefined,
     @Query("toLng") toLng: string | undefined,
   ) {
+    this.logger.log(
+      `GET /geocoding/route fromLat=${fromLat} fromLng=${fromLng} toLat=${toLat} toLng=${toLng}`,
+    );
     const aLat = Number(fromLat);
     const aLng = Number(fromLng);
     const bLat = Number(toLat);
@@ -49,9 +54,13 @@ export class GeocodingController {
       !Number.isFinite(bLat) ||
       !Number.isFinite(bLng)
     ) {
+      this.logger.warn("Invalid route coordinates received, returning empty route");
       return [];
     }
     const points = await this.geocodingService.computeRoute(aLat, aLng, bLat, bLng);
+    this.logger.log(
+      `Route response points=${points?.length ?? 0} for ${aLat},${aLng} -> ${bLat},${bLng}`,
+    );
     return points ?? [];
   }
 }

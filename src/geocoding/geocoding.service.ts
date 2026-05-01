@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from "@nestjs/common";
+import { Injectable, BadRequestException, Logger } from "@nestjs/common";
 
 const GOOGLE_GEOCODING_URL = "https://maps.googleapis.com/maps/api/geocode/json";
 const GOOGLE_AUTOCOMPLETE_URL =
@@ -21,6 +21,8 @@ export interface RoutePoint {
 
 @Injectable()
 export class GeocodingService {
+  private readonly logger = new Logger(GeocodingService.name);
+
   private readonly geocodeCache = new Map<
     string,
     { expiresAt: number; value: { lat: number; lng: number } | null }
@@ -183,10 +185,21 @@ export class GeocodingService {
     toLat: number,
     toLng: number,
   ): Promise<RoutePoint[] | null> {
-    if (!this.hasApiKey) return null;
+    if (!this.hasApiKey) {
+      this.logger.error("computeRoute: GOOGLE_MAPS_API_KEY is missing");
+      return null;
+    }
     const routeKey = this.routeCacheKey(fromLat, fromLng, toLat, toLng);
     const cached = this.getCache(this.routeCache, routeKey);
-    if (cached !== undefined) return cached;
+    if (cached !== undefined) {
+      this.logger.log(
+        `computeRoute cache hit key=${routeKey} points=${cached?.length ?? 0}`,
+      );
+      return cached;
+    }
+    this.logger.log(
+      `computeRoute start key=${routeKey} from=${fromLat},${fromLng} to=${toLat},${toLng}`,
+    );
     const body = {
       origin: { location: { latLng: { latitude: fromLat, longitude: fromLng } } },
       destination: { location: { latLng: { latitude: toLat, longitude: toLng } } },
@@ -195,32 +208,58 @@ export class GeocodingService {
       polylineQuality: "OVERVIEW",
     };
 
-    const res = await fetch(GOOGLE_ROUTES_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-        "X-Goog-Api-Key": this.apiKey,
-        "X-Goog-FieldMask": "routes.polyline.encodedPolyline",
-      },
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) {
+    try {
+      const res = await fetch(GOOGLE_ROUTES_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          "X-Goog-Api-Key": this.apiKey,
+          "X-Goog-FieldMask": "routes.polyline.encodedPolyline",
+        },
+        body: JSON.stringify(body),
+      });
+
+      this.logger.log(`computeRoute Google status=${res.status} key=${routeKey}`);
+
+      if (!res.ok) {
+        const errorBody = await res.text();
+        this.logger.error(
+          `computeRoute Google error status=${res.status} key=${routeKey} body=${errorBody}`,
+        );
+        this.setCache(this.routeCache, routeKey, null, GeocodingService.ROUTE_TTL_MS);
+        return null;
+      }
+
+      const data = (await res.json()) as {
+        routes?: Array<{ polyline?: { encodedPolyline?: string } }>;
+      };
+      const encoded = data.routes?.[0]?.polyline?.encodedPolyline;
+      if (!encoded) {
+        this.logger.warn(`computeRoute missing encoded polyline key=${routeKey}`);
+        this.setCache(this.routeCache, routeKey, null, GeocodingService.ROUTE_TTL_MS);
+        return null;
+      }
+
+      const decoded = this.decodePolyline(encoded);
+      const out = decoded.length >= 2 ? decoded : null;
+      if (out == null) {
+        this.logger.warn(
+          `computeRoute decoded route has insufficient points count=${decoded.length} key=${routeKey}`,
+        );
+      } else {
+        this.logger.log(`computeRoute success points=${out.length} key=${routeKey}`);
+      }
+      this.setCache(this.routeCache, routeKey, out, GeocodingService.ROUTE_TTL_MS);
+      return out;
+    } catch (error) {
+      this.logger.error(
+        `computeRoute exception key=${routeKey}: ${error instanceof Error ? error.message : String(error)}`,
+        error instanceof Error ? error.stack : undefined,
+      );
       this.setCache(this.routeCache, routeKey, null, GeocodingService.ROUTE_TTL_MS);
       return null;
     }
-    const data = (await res.json()) as {
-      routes?: Array<{ polyline?: { encodedPolyline?: string } }>;
-    };
-    const encoded = data.routes?.[0]?.polyline?.encodedPolyline;
-    if (!encoded) {
-      this.setCache(this.routeCache, routeKey, null, GeocodingService.ROUTE_TTL_MS);
-      return null;
-    }
-    const decoded = this.decodePolyline(encoded);
-    const out = decoded.length >= 2 ? decoded : null;
-    this.setCache(this.routeCache, routeKey, out, GeocodingService.ROUTE_TTL_MS);
-    return out;
   }
 
   private async placeDetailsLatLng(
