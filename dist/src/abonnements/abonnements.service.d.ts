@@ -97,4 +97,88 @@ export declare class AbonnementsService {
         alreadyProcessed?: undefined;
         error?: undefined;
     }>;
+    resolveStatutAffichage(abo: {
+        statut: StatutAbonnement;
+        dateFin: Date;
+    }): "ACTIF" | "EXPIRE" | "ANNULE";
+    listForAdmin(params: {
+        statut?: "actif" | "expire" | "all";
+        search?: string;
+        limit?: number;
+        offset?: number;
+    }): Promise<{
+        stats: {
+            total: number;
+            actifs: number;
+            expires: number;
+        };
+        total: number;
+        items: {
+            id: string;
+            prestataireId: string;
+            prestataireNom: string;
+            prestataireEmail: string;
+            offreId: string;
+            offreLibelle: string;
+            offreCode: string;
+            offrePrix: number;
+            dureeMois: number;
+            dateDebut: string;
+            dateFin: string;
+            statut: StatutAbonnement;
+            statutAffichage: "ACTIF" | "EXPIRE" | "ANNULE";
+            createdAt: string;
+        }[];
+    }>;
+    adminRenouvelerAbonnement(params: {
+        prestataireId: string;
+        offreId: string;
+        adminUserId: string;
+        method: "cash" | "wave_sn" | "orange_money_sn";
+        telephone?: string;
+    }): Promise<{
+        paymentStatus: "completed";
+        method: "cash";
+        id: string;
+        prestataireId: string;
+        dateDebut: string;
+        dateFin: string;
+        statut: StatutAbonnement;
+        statutAffichage: "ACTIF" | "EXPIRE" | "ANNULE";
+        offre: {
+            prix: number;
+            id: string;
+            code: string;
+            libelle: string;
+            dureeMois: number;
+        };
+    } | {
+        paymentStatus: "pending_payment";
+        method: "wave_sn" | "orange_money_sn";
+        amountFcfa: number;
+        invoiceToken: string;
+        checkoutUrl: string;
+        message: string;
+        softPay: {
+            url: string | undefined;
+            other_url: {
+                om_url?: string;
+                maxit_url?: string;
+            } | undefined;
+            return_url: string | undefined;
+            message: string | undefined;
+            fees: number | undefined;
+            currency: string | undefined;
+        };
+    }>;
+    adminIsInvoicePaid(prestataireId: string, invoiceToken: string): Promise<{
+        paid: boolean;
+        abonnement?: Awaited<ReturnType<any>>;
+    }>;
+    private adminCreateAbonnementCash;
+    adminExpirerAbonnement(abonnementId: string): Promise<{
+        id: string;
+        statut: StatutAbonnement;
+        statutAffichage: "ACTIF" | "EXPIRE" | "ANNULE";
+    }>;
 }

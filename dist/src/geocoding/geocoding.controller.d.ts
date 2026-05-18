@@ -1,6 +1,7 @@
 import { GeocodingService } from "./geocoding.service.js";
 export declare class GeocodingController {
     private readonly geocodingService;
+    private readonly logger;
     constructor(geocodingService: GeocodingService);
     geocode(address: string | undefined): Promise<{
         lat: null;

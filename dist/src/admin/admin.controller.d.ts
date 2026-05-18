@@ -3,14 +3,20 @@ import { CurrentUserPayload } from "../auth/decorators/current-user.decorator.js
 import { NotificationsService } from "../notifications/notifications.service.js";
 import { WalletsService } from "../wallets/wallets.service.js";
 import { PaydunyaService } from "../paydunya/paydunya.service.js";
+import { AbonnementsService } from "../abonnements/abonnements.service.js";
+import { AuthService } from "../auth/auth.service.js";
+import { RegisterDto } from "../auth/dto/register.dto.js";
+import { AdminRenouvelerAbonnementDto } from "../abonnements/dto/admin-renouveler-abonnement.dto.js";
 import { PrestataireWalletStatut, Role, StatutDocument, StatutPrestation, StatutVerificationPrestataire, WithdrawalMethod, WithdrawalStatus } from "../../generated/prisma/client.js";
 export declare class AdminController {
     private readonly prisma;
     private readonly notifications;
     private readonly wallets;
     private readonly paydunya;
+    private readonly abonnements;
+    private readonly auth;
     private readonly logger;
-    constructor(prisma: PrismaService, notifications: NotificationsService, wallets: WalletsService, paydunya: PaydunyaService);
+    constructor(prisma: PrismaService, notifications: NotificationsService, wallets: WalletsService, paydunya: PaydunyaService, abonnements: AbonnementsService, auth: AuthService);
     getStats(): Promise<{
         clientsActifs: number;
         prestatairesActifs: number;
@@ -198,6 +204,13 @@ export declare class AdminController {
     }>;
     deleteClient(particulierId: string): Promise<{
         success: boolean;
+    }>;
+    createPrestataireFromAdmin(dto: RegisterDto): Promise<{
+        id: string;
+        email: string;
+        role: Role;
+        prestataireId: string | undefined;
+        nom: string | undefined;
     }>;
     getPrestataires(limit?: string): Promise<{
         stats: {
@@ -444,6 +457,74 @@ export declare class AdminController {
         actif: boolean;
         ordre: number;
         createdAt: string;
+    }>;
+    listAbonnements(statut?: string, search?: string, limit?: string, offset?: string): Promise<{
+        stats: {
+            total: number;
+            actifs: number;
+            expires: number;
+        };
+        total: number;
+        items: {
+            id: string;
+            prestataireId: string;
+            prestataireNom: string;
+            prestataireEmail: string;
+            offreId: string;
+            offreLibelle: string;
+            offreCode: string;
+            offrePrix: number;
+            dureeMois: number;
+            dateDebut: string;
+            dateFin: string;
+            statut: import("../../generated/prisma/enums.js").StatutAbonnement;
+            statutAffichage: "ACTIF" | "EXPIRE" | "ANNULE";
+            createdAt: string;
+        }[];
+    }>;
+    abonnementPaydunyaInvoicePaid(prestataireId: string, invoiceToken: string): Promise<{
+        paid: boolean;
+        abonnement?: Awaited<ReturnType<any>>;
+    }>;
+    enregistrerPaiementAbonnement(prestataireId: string, body: AdminRenouvelerAbonnementDto, user: CurrentUserPayload): Promise<{
+        paymentStatus: "completed";
+        method: "cash";
+        id: string;
+        prestataireId: string;
+        dateDebut: string;
+        dateFin: string;
+        statut: import("../../generated/prisma/enums.js").StatutAbonnement;
+        statutAffichage: "ACTIF" | "EXPIRE" | "ANNULE";
+        offre: {
+            prix: number;
+            id: string;
+            code: string;
+            libelle: string;
+            dureeMois: number;
+        };
+    } | {
+        paymentStatus: "pending_payment";
+        method: "wave_sn" | "orange_money_sn";
+        amountFcfa: number;
+        invoiceToken: string;
+        checkoutUrl: string;
+        message: string;
+        softPay: {
+            url: string | undefined;
+            other_url: {
+                om_url?: string;
+                maxit_url?: string;
+            } | undefined;
+            return_url: string | undefined;
+            message: string | undefined;
+            fees: number | undefined;
+            currency: string | undefined;
+        };
+    }>;
+    expirerAbonnement(abonnementId: string): Promise<{
+        id: string;
+        statut: import("../../generated/prisma/enums.js").StatutAbonnement;
+        statutAffichage: "ACTIF" | "EXPIRE" | "ANNULE";
     }>;
     private ensureUniqueOffreCode;
 }

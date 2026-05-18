@@ -4,6 +4,7 @@ import { AuthModule } from "../auth/auth.module.js";
 import { NotificationsModule } from "../notifications/notifications.module.js";
 import { WalletsModule } from "../wallets/wallets.module.js";
 import { PaydunyaModule } from "../paydunya/paydunya.module.js";
+import { AbonnementsModule } from "../abonnements/abonnements.module.js";
 import { AdminController } from "./admin.controller.js";
 
 @Module({
@@ -13,6 +14,7 @@ import { AdminController } from "./admin.controller.js";
     NotificationsModule,
     WalletsModule,
     PaydunyaModule,
+    AbonnementsModule,
   ],
   controllers: [AdminController],
 })

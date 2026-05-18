@@ -24,6 +24,10 @@ import { NotificationsService } from "../notifications/notifications.service.js"
 import { WalletsService } from "../wallets/wallets.service.js";
 import { metaWithdrawalAmount } from "../wallets/withdrawal-meta.util.js";
 import { PaydunyaService } from "../paydunya/paydunya.service.js";
+import { AbonnementsService } from "../abonnements/abonnements.service.js";
+import { AuthService } from "../auth/auth.service.js";
+import { RegisterDto } from "../auth/dto/register.dto.js";
+import { AdminRenouvelerAbonnementDto } from "../abonnements/dto/admin-renouveler-abonnement.dto.js";
 import {
   normalizeSenegalMsisdnForPaydunya,
   withdrawModeFromWithdrawalMethod,
@@ -140,6 +144,8 @@ export class AdminController {
     private readonly notifications: NotificationsService,
     private readonly wallets: WalletsService,
     private readonly paydunya: PaydunyaService,
+    private readonly abonnements: AbonnementsService,
+    private readonly auth: AuthService,
   ) {}
 
   /**
@@ -1284,6 +1290,24 @@ export class AdminController {
    * - compteurs total / actifs / inactifs
    * - liste prestataires (email, tel, métier principal, statut)
    */
+  /** Création d’un prestataire depuis le back-office. */
+  @Post("prestataires")
+  async createPrestataireFromAdmin(@Body() dto: RegisterDto) {
+    const payload: RegisterDto = { ...dto, role: "PRESTATAIRE" };
+    const result = await this.auth.register(payload);
+    /** Pas de token renvoyé à l’admin : il n’est pas connecté en tant que ce prestataire. */
+    const prestataireProfile = (
+      result.user as { prestataire?: { id?: string; nom?: string } | null }
+    ).prestataire;
+    return {
+      id: result.user.id,
+      email: result.user.email,
+      role: result.user.role,
+      prestataireId: prestataireProfile?.id,
+      nom: prestataireProfile?.nom,
+    };
+  }
+
   @Get("prestataires")
   async getPrestataires(@Query("limit") limit?: string) {
     const take = Math.min(Math.max(Number(limit ?? 200), 1), 1000);
@@ -2389,6 +2413,63 @@ export class AdminController {
       ordre: updated.ordre,
       createdAt: updated.createdAt.toISOString(),
     };
+  }
+
+  /** Liste des abonnements prestataires (admin). */
+  @Get("abonnements")
+  async listAbonnements(
+    @Query("statut") statut?: string,
+    @Query("search") search?: string,
+    @Query("limit") limit?: string,
+    @Query("offset") offset?: string,
+  ) {
+    const statutNorm =
+      statut === "actif" || statut === "expire" || statut === "all"
+        ? statut
+        : "all";
+    return this.abonnements.listForAdmin({
+      statut: statutNorm,
+      search,
+      limit: limit != null ? Number(limit) : undefined,
+      offset: offset != null ? Number(offset) : undefined,
+    });
+  }
+
+  /** Vérifie si PayDunya a confirmé le paiement (abonnement créé côté serveur). */
+  @Get("abonnements/paydunya-invoice-paid")
+  async abonnementPaydunyaInvoicePaid(
+    @Query("prestataireId") prestataireId: string,
+    @Query("invoiceToken") invoiceToken: string,
+  ) {
+    if (!prestataireId?.trim() || !invoiceToken?.trim()) {
+      throw new BadRequestException("prestataireId et invoiceToken requis");
+    }
+    return this.abonnements.adminIsInvoicePaid(
+      prestataireId.trim(),
+      invoiceToken.trim(),
+    );
+  }
+
+  /** Renouvellement d’abonnement (admin) — cash, Wave ou Orange Money. */
+  @Post("abonnements/:prestataireId/enregistrer-paiement")
+  async enregistrerPaiementAbonnement(
+    @Param("prestataireId") prestataireId: string,
+    @Body() body: AdminRenouvelerAbonnementDto,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.abonnements.adminRenouvelerAbonnement({
+      prestataireId,
+      offreId: body.offreId,
+      adminUserId: user.userId,
+      method: body.method,
+      telephone: body.telephone,
+    });
+  }
+
+  /** Expire manuellement un abonnement (admin). */
+  @Patch("abonnements/:abonnementId/expirer")
+  async expirerAbonnement(@Param("abonnementId") abonnementId: string) {
+    return this.abonnements.adminExpirerAbonnement(abonnementId);
   }
 
   private async ensureUniqueOffreCode(

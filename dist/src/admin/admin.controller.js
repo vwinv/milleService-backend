@@ -24,6 +24,10 @@ const notifications_service_js_1 = require("../notifications/notifications.servi
 const wallets_service_js_1 = require("../wallets/wallets.service.js");
 const withdrawal_meta_util_js_1 = require("../wallets/withdrawal-meta.util.js");
 const paydunya_service_js_1 = require("../paydunya/paydunya.service.js");
+const abonnements_service_js_1 = require("../abonnements/abonnements.service.js");
+const auth_service_js_1 = require("../auth/auth.service.js");
+const register_dto_js_1 = require("../auth/dto/register.dto.js");
+const admin_renouveler_abonnement_dto_js_1 = require("../abonnements/dto/admin-renouveler-abonnement.dto.js");
 const paydunya_disburse_util_js_1 = require("../paydunya/paydunya-disburse.util.js");
 const client_js_1 = require("../../generated/prisma/client.js");
 function withdrawalMethodLabel(method) {
@@ -114,12 +118,16 @@ let AdminController = AdminController_1 = class AdminController {
     notifications;
     wallets;
     paydunya;
+    abonnements;
+    auth;
     logger = new common_1.Logger(AdminController_1.name);
-    constructor(prisma, notifications, wallets, paydunya) {
+    constructor(prisma, notifications, wallets, paydunya, abonnements, auth) {
         this.prisma = prisma;
         this.notifications = notifications;
         this.wallets = wallets;
         this.paydunya = paydunya;
+        this.abonnements = abonnements;
+        this.auth = auth;
     }
     async getStats() {
         try {
@@ -1009,6 +1017,18 @@ let AdminController = AdminController_1 = class AdminController {
         await this.prisma.user.delete({ where: { id: particulier.userId } });
         return { success: true };
     }
+    async createPrestataireFromAdmin(dto) {
+        const payload = { ...dto, role: "PRESTATAIRE" };
+        const result = await this.auth.register(payload);
+        const prestataireProfile = result.user.prestataire;
+        return {
+            id: result.user.id,
+            email: result.user.email,
+            role: result.user.role,
+            prestataireId: prestataireProfile?.id,
+            nom: prestataireProfile?.nom,
+        };
+    }
     async getPrestataires(limit) {
         const take = Math.min(Math.max(Number(limit ?? 200), 1), 1000);
         const [totalPrestataires, actifsCount, inactifsCount, rows] = await Promise.all([
@@ -1892,6 +1912,35 @@ let AdminController = AdminController_1 = class AdminController {
             createdAt: updated.createdAt.toISOString(),
         };
     }
+    async listAbonnements(statut, search, limit, offset) {
+        const statutNorm = statut === "actif" || statut === "expire" || statut === "all"
+            ? statut
+            : "all";
+        return this.abonnements.listForAdmin({
+            statut: statutNorm,
+            search,
+            limit: limit != null ? Number(limit) : undefined,
+            offset: offset != null ? Number(offset) : undefined,
+        });
+    }
+    async abonnementPaydunyaInvoicePaid(prestataireId, invoiceToken) {
+        if (!prestataireId?.trim() || !invoiceToken?.trim()) {
+            throw new common_1.BadRequestException("prestataireId et invoiceToken requis");
+        }
+        return this.abonnements.adminIsInvoicePaid(prestataireId.trim(), invoiceToken.trim());
+    }
+    async enregistrerPaiementAbonnement(prestataireId, body, user) {
+        return this.abonnements.adminRenouvelerAbonnement({
+            prestataireId,
+            offreId: body.offreId,
+            adminUserId: user.userId,
+            method: body.method,
+            telephone: body.telephone,
+        });
+    }
+    async expirerAbonnement(abonnementId) {
+        return this.abonnements.adminExpirerAbonnement(abonnementId);
+    }
     async ensureUniqueOffreCode(base, excludeOffreId) {
         let code = base;
         let n = 0;
@@ -2015,6 +2064,13 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], AdminController.prototype, "deleteClient", null);
+__decorate([
+    (0, common_1.Post)("prestataires"),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [register_dto_js_1.RegisterDto]),
+    __metadata("design:returntype", Promise)
+], AdminController.prototype, "createPrestataireFromAdmin", null);
 __decorate([
     (0, common_1.Get)("prestataires"),
     __param(0, (0, common_1.Query)("limit")),
@@ -2153,6 +2209,40 @@ __decorate([
     __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", Promise)
 ], AdminController.prototype, "updateOffre", null);
+__decorate([
+    (0, common_1.Get)("abonnements"),
+    __param(0, (0, common_1.Query)("statut")),
+    __param(1, (0, common_1.Query)("search")),
+    __param(2, (0, common_1.Query)("limit")),
+    __param(3, (0, common_1.Query)("offset")),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, String, String]),
+    __metadata("design:returntype", Promise)
+], AdminController.prototype, "listAbonnements", null);
+__decorate([
+    (0, common_1.Get)("abonnements/paydunya-invoice-paid"),
+    __param(0, (0, common_1.Query)("prestataireId")),
+    __param(1, (0, common_1.Query)("invoiceToken")),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:returntype", Promise)
+], AdminController.prototype, "abonnementPaydunyaInvoicePaid", null);
+__decorate([
+    (0, common_1.Post)("abonnements/:prestataireId/enregistrer-paiement"),
+    __param(0, (0, common_1.Param)("prestataireId")),
+    __param(1, (0, common_1.Body)()),
+    __param(2, (0, current_user_decorator_js_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, admin_renouveler_abonnement_dto_js_1.AdminRenouvelerAbonnementDto, Object]),
+    __metadata("design:returntype", Promise)
+], AdminController.prototype, "enregistrerPaiementAbonnement", null);
+__decorate([
+    (0, common_1.Patch)("abonnements/:abonnementId/expirer"),
+    __param(0, (0, common_1.Param)("abonnementId")),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], AdminController.prototype, "expirerAbonnement", null);
 exports.AdminController = AdminController = AdminController_1 = __decorate([
     (0, common_1.Controller)("admin"),
     (0, common_1.UseGuards)(jwt_auth_guard_js_1.JwtAuthGuard, roles_guard_js_1.RolesGuard),
@@ -2160,6 +2250,8 @@ exports.AdminController = AdminController = AdminController_1 = __decorate([
     __metadata("design:paramtypes", [prisma_service_js_1.PrismaService,
         notifications_service_js_1.NotificationsService,
         wallets_service_js_1.WalletsService,
-        paydunya_service_js_1.PaydunyaService])
+        paydunya_service_js_1.PaydunyaService,
+        abonnements_service_js_1.AbonnementsService,
+        auth_service_js_1.AuthService])
 ], AdminController);
 //# sourceMappingURL=admin.controller.js.map

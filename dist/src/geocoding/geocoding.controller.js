@@ -11,12 +11,14 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
+var GeocodingController_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.GeocodingController = void 0;
 const common_1 = require("@nestjs/common");
 const geocoding_service_js_1 = require("./geocoding.service.js");
-let GeocodingController = class GeocodingController {
+let GeocodingController = GeocodingController_1 = class GeocodingController {
     geocodingService;
+    logger = new common_1.Logger(GeocodingController_1.name);
     constructor(geocodingService) {
         this.geocodingService = geocodingService;
     }
@@ -46,6 +48,7 @@ let GeocodingController = class GeocodingController {
         return { ...result, found: true };
     }
     async route(fromLat, fromLng, toLat, toLng) {
+        this.logger.log(`GET /geocoding/route fromLat=${fromLat} fromLng=${fromLng} toLat=${toLat} toLng=${toLng}`);
         const aLat = Number(fromLat);
         const aLng = Number(fromLng);
         const bLat = Number(toLat);
@@ -54,9 +57,11 @@ let GeocodingController = class GeocodingController {
             !Number.isFinite(aLng) ||
             !Number.isFinite(bLat) ||
             !Number.isFinite(bLng)) {
+            this.logger.warn("Invalid route coordinates received, returning empty route");
             return [];
         }
         const points = await this.geocodingService.computeRoute(aLat, aLng, bLat, bLng);
+        this.logger.log(`Route response points=${points?.length ?? 0} for ${aLat},${aLng} -> ${bLat},${bLng}`);
         return points ?? [];
     }
 };
@@ -92,7 +97,7 @@ __decorate([
     __metadata("design:paramtypes", [Object, Object, Object, Object]),
     __metadata("design:returntype", Promise)
 ], GeocodingController.prototype, "route", null);
-exports.GeocodingController = GeocodingController = __decorate([
+exports.GeocodingController = GeocodingController = GeocodingController_1 = __decorate([
     (0, common_1.Controller)("geocoding"),
     __metadata("design:paramtypes", [geocoding_service_js_1.GeocodingService])
 ], GeocodingController);

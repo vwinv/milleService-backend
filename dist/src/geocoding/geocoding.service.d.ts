@@ -9,6 +9,7 @@ export interface RoutePoint {
     lng: number;
 }
 export declare class GeocodingService {
+    private readonly logger;
     private readonly geocodeCache;
     private readonly autocompleteCache;
     private readonly placeDetailsCache;
