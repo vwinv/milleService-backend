@@ -9,4 +9,4 @@ services:
     rootDir: milleService-backend
     runtime: node
     buildCommand: npm install && npm run build
-    startCommand: npm run start:prod
+    startCommand: npm run prisma:migrate:deploy && npm run start:prod
