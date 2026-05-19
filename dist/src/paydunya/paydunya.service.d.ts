@@ -14,6 +14,13 @@ export type CreatePaydunyaInvoiceResult = {
     responseCode: string;
     responseText: string;
 };
+export type PaydunyaConfirmInvoiceResult = {
+    hash: string;
+    status: string;
+    totalAmount: number;
+    invoiceToken: string;
+    customData: Record<string, unknown>;
+};
 export declare class PaydunyaService {
     private readonly logger;
     private masterKey;
@@ -26,6 +33,7 @@ export declare class PaydunyaService {
     isConfigured(): boolean;
     verifyIpnHash(receivedHash: string | undefined | null): boolean;
     createCheckoutInvoice(input: CreatePaydunyaInvoiceInput): Promise<CreatePaydunyaInvoiceResult>;
+    confirmCheckoutInvoice(invoiceToken: string): Promise<PaydunyaConfirmInvoiceResult | null>;
     softPayCard(input: SoftPayCardInput): Promise<PaydunyaSoftPayResponse>;
     softPayOrangeMoneySenegal(input: SoftPayOrangeMoneySenegalInput): Promise<PaydunyaSoftPayResponse>;
     softPayFreeMoneySenegal(input: SoftPayFreeMoneySenegalInput): Promise<PaydunyaSoftPayResponse>;

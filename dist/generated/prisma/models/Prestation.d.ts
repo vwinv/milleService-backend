@@ -30,6 +30,7 @@ export type PrestationMinAggregateOutputType = {
     noteParticulier: string | null;
     statut: $Enums.StatutPrestation | null;
     acceptedAt: Date | null;
+    startedAt: Date | null;
     completedAt: Date | null;
     createdAt: Date | null;
     updatedAt: Date | null;
@@ -49,6 +50,7 @@ export type PrestationMaxAggregateOutputType = {
     noteParticulier: string | null;
     statut: $Enums.StatutPrestation | null;
     acceptedAt: Date | null;
+    startedAt: Date | null;
     completedAt: Date | null;
     createdAt: Date | null;
     updatedAt: Date | null;
@@ -68,6 +70,7 @@ export type PrestationCountAggregateOutputType = {
     noteParticulier: number;
     statut: number;
     acceptedAt: number;
+    startedAt: number;
     completedAt: number;
     createdAt: number;
     updatedAt: number;
@@ -94,6 +97,7 @@ export type PrestationMinAggregateInputType = {
     noteParticulier?: true;
     statut?: true;
     acceptedAt?: true;
+    startedAt?: true;
     completedAt?: true;
     createdAt?: true;
     updatedAt?: true;
@@ -113,6 +117,7 @@ export type PrestationMaxAggregateInputType = {
     noteParticulier?: true;
     statut?: true;
     acceptedAt?: true;
+    startedAt?: true;
     completedAt?: true;
     createdAt?: true;
     updatedAt?: true;
@@ -132,6 +137,7 @@ export type PrestationCountAggregateInputType = {
     noteParticulier?: true;
     statut?: true;
     acceptedAt?: true;
+    startedAt?: true;
     completedAt?: true;
     createdAt?: true;
     updatedAt?: true;
@@ -180,6 +186,7 @@ export type PrestationGroupByOutputType = {
     noteParticulier: string | null;
     statut: $Enums.StatutPrestation;
     acceptedAt: Date | null;
+    startedAt: Date | null;
     completedAt: Date | null;
     createdAt: Date;
     updatedAt: Date;
@@ -210,6 +217,7 @@ export type PrestationWhereInput = {
     noteParticulier?: Prisma.StringNullableFilter<"Prestation"> | string | null;
     statut?: Prisma.EnumStatutPrestationFilter<"Prestation"> | $Enums.StatutPrestation;
     acceptedAt?: Prisma.DateTimeNullableFilter<"Prestation"> | Date | string | null;
+    startedAt?: Prisma.DateTimeNullableFilter<"Prestation"> | Date | string | null;
     completedAt?: Prisma.DateTimeNullableFilter<"Prestation"> | Date | string | null;
     createdAt?: Prisma.DateTimeFilter<"Prestation"> | Date | string;
     updatedAt?: Prisma.DateTimeFilter<"Prestation"> | Date | string;
@@ -233,6 +241,7 @@ export type PrestationOrderByWithRelationInput = {
     noteParticulier?: Prisma.SortOrderInput | Prisma.SortOrder;
     statut?: Prisma.SortOrder;
     acceptedAt?: Prisma.SortOrderInput | Prisma.SortOrder;
+    startedAt?: Prisma.SortOrderInput | Prisma.SortOrder;
     completedAt?: Prisma.SortOrderInput | Prisma.SortOrder;
     createdAt?: Prisma.SortOrder;
     updatedAt?: Prisma.SortOrder;
@@ -259,6 +268,7 @@ export type PrestationWhereUniqueInput = Prisma.AtLeast<{
     noteParticulier?: Prisma.StringNullableFilter<"Prestation"> | string | null;
     statut?: Prisma.EnumStatutPrestationFilter<"Prestation"> | $Enums.StatutPrestation;
     acceptedAt?: Prisma.DateTimeNullableFilter<"Prestation"> | Date | string | null;
+    startedAt?: Prisma.DateTimeNullableFilter<"Prestation"> | Date | string | null;
     completedAt?: Prisma.DateTimeNullableFilter<"Prestation"> | Date | string | null;
     createdAt?: Prisma.DateTimeFilter<"Prestation"> | Date | string;
     updatedAt?: Prisma.DateTimeFilter<"Prestation"> | Date | string;
@@ -282,6 +292,7 @@ export type PrestationOrderByWithAggregationInput = {
     noteParticulier?: Prisma.SortOrderInput | Prisma.SortOrder;
     statut?: Prisma.SortOrder;
     acceptedAt?: Prisma.SortOrderInput | Prisma.SortOrder;
+    startedAt?: Prisma.SortOrderInput | Prisma.SortOrder;
     completedAt?: Prisma.SortOrderInput | Prisma.SortOrder;
     createdAt?: Prisma.SortOrder;
     updatedAt?: Prisma.SortOrder;
@@ -309,6 +320,7 @@ export type PrestationScalarWhereWithAggregatesInput = {
     noteParticulier?: Prisma.StringNullableWithAggregatesFilter<"Prestation"> | string | null;
     statut?: Prisma.EnumStatutPrestationWithAggregatesFilter<"Prestation"> | $Enums.StatutPrestation;
     acceptedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"Prestation"> | Date | string | null;
+    startedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"Prestation"> | Date | string | null;
     completedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"Prestation"> | Date | string | null;
     createdAt?: Prisma.DateTimeWithAggregatesFilter<"Prestation"> | Date | string;
     updatedAt?: Prisma.DateTimeWithAggregatesFilter<"Prestation"> | Date | string;
@@ -325,6 +337,7 @@ export type PrestationCreateInput = {
     noteParticulier?: string | null;
     statut?: $Enums.StatutPrestation;
     acceptedAt?: Date | string | null;
+    startedAt?: Date | string | null;
     completedAt?: Date | string | null;
     createdAt?: Date | string;
     updatedAt?: Date | string;
@@ -348,6 +361,7 @@ export type PrestationUncheckedCreateInput = {
     noteParticulier?: string | null;
     statut?: $Enums.StatutPrestation;
     acceptedAt?: Date | string | null;
+    startedAt?: Date | string | null;
     completedAt?: Date | string | null;
     createdAt?: Date | string;
     updatedAt?: Date | string;
@@ -365,6 +379,7 @@ export type PrestationUpdateInput = {
     noteParticulier?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
     statut?: Prisma.EnumStatutPrestationFieldUpdateOperationsInput | $Enums.StatutPrestation;
     acceptedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null;
+    startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null;
     completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null;
     createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
@@ -388,6 +403,7 @@ export type PrestationUncheckedUpdateInput = {
     noteParticulier?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
     statut?: Prisma.EnumStatutPrestationFieldUpdateOperationsInput | $Enums.StatutPrestation;
     acceptedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null;
+    startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null;
     completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null;
     createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
@@ -408,6 +424,7 @@ export type PrestationCreateManyInput = {
     noteParticulier?: string | null;
     statut?: $Enums.StatutPrestation;
     acceptedAt?: Date | string | null;
+    startedAt?: Date | string | null;
     completedAt?: Date | string | null;
     createdAt?: Date | string;
     updatedAt?: Date | string;
@@ -424,6 +441,7 @@ export type PrestationUpdateManyMutationInput = {
     noteParticulier?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
     statut?: Prisma.EnumStatutPrestationFieldUpdateOperationsInput | $Enums.StatutPrestation;
     acceptedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null;
+    startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null;
     completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null;
     createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
@@ -443,6 +461,7 @@ export type PrestationUncheckedUpdateManyInput = {
     noteParticulier?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
     statut?: Prisma.EnumStatutPrestationFieldUpdateOperationsInput | $Enums.StatutPrestation;
     acceptedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null;
+    startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null;
     completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null;
     createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
@@ -474,6 +493,7 @@ export type PrestationCountOrderByAggregateInput = {
     noteParticulier?: Prisma.SortOrder;
     statut?: Prisma.SortOrder;
     acceptedAt?: Prisma.SortOrder;
+    startedAt?: Prisma.SortOrder;
     completedAt?: Prisma.SortOrder;
     createdAt?: Prisma.SortOrder;
     updatedAt?: Prisma.SortOrder;
@@ -496,6 +516,7 @@ export type PrestationMaxOrderByAggregateInput = {
     noteParticulier?: Prisma.SortOrder;
     statut?: Prisma.SortOrder;
     acceptedAt?: Prisma.SortOrder;
+    startedAt?: Prisma.SortOrder;
     completedAt?: Prisma.SortOrder;
     createdAt?: Prisma.SortOrder;
     updatedAt?: Prisma.SortOrder;
@@ -515,6 +536,7 @@ export type PrestationMinOrderByAggregateInput = {
     noteParticulier?: Prisma.SortOrder;
     statut?: Prisma.SortOrder;
     acceptedAt?: Prisma.SortOrder;
+    startedAt?: Prisma.SortOrder;
     completedAt?: Prisma.SortOrder;
     createdAt?: Prisma.SortOrder;
     updatedAt?: Prisma.SortOrder;
@@ -665,6 +687,7 @@ export type PrestationCreateWithoutParticulierInput = {
     noteParticulier?: string | null;
     statut?: $Enums.StatutPrestation;
     acceptedAt?: Date | string | null;
+    startedAt?: Date | string | null;
     completedAt?: Date | string | null;
     createdAt?: Date | string;
     updatedAt?: Date | string;
@@ -686,6 +709,7 @@ export type PrestationUncheckedCreateWithoutParticulierInput = {
     noteParticulier?: string | null;
     statut?: $Enums.StatutPrestation;
     acceptedAt?: Date | string | null;
+    startedAt?: Date | string | null;
     completedAt?: Date | string | null;
     createdAt?: Date | string;
     updatedAt?: Date | string;
@@ -730,6 +754,7 @@ export type PrestationScalarWhereInput = {
     noteParticulier?: Prisma.StringNullableFilter<"Prestation"> | string | null;
     statut?: Prisma.EnumStatutPrestationFilter<"Prestation"> | $Enums.StatutPrestation;
     acceptedAt?: Prisma.DateTimeNullableFilter<"Prestation"> | Date | string | null;
+    startedAt?: Prisma.DateTimeNullableFilter<"Prestation"> | Date | string | null;
     completedAt?: Prisma.DateTimeNullableFilter<"Prestation"> | Date | string | null;
     createdAt?: Prisma.DateTimeFilter<"Prestation"> | Date | string;
     updatedAt?: Prisma.DateTimeFilter<"Prestation"> | Date | string;
@@ -746,6 +771,7 @@ export type PrestationCreateWithoutPrestataireInput = {
     noteParticulier?: string | null;
     statut?: $Enums.StatutPrestation;
     acceptedAt?: Date | string | null;
+    startedAt?: Date | string | null;
     completedAt?: Date | string | null;
     createdAt?: Date | string;
     updatedAt?: Date | string;
@@ -767,6 +793,7 @@ export type PrestationUncheckedCreateWithoutPrestataireInput = {
     noteParticulier?: string | null;
     statut?: $Enums.StatutPrestation;
     acceptedAt?: Date | string | null;
+    startedAt?: Date | string | null;
     completedAt?: Date | string | null;
     createdAt?: Date | string;
     updatedAt?: Date | string;
@@ -805,6 +832,7 @@ export type PrestationCreateWithoutPrestataireServiceInput = {
     noteParticulier?: string | null;
     statut?: $Enums.StatutPrestation;
     acceptedAt?: Date | string | null;
+    startedAt?: Date | string | null;
     completedAt?: Date | string | null;
     createdAt?: Date | string;
     updatedAt?: Date | string;
@@ -826,6 +854,7 @@ export type PrestationUncheckedCreateWithoutPrestataireServiceInput = {
     noteParticulier?: string | null;
     statut?: $Enums.StatutPrestation;
     acceptedAt?: Date | string | null;
+    startedAt?: Date | string | null;
     completedAt?: Date | string | null;
     createdAt?: Date | string;
     updatedAt?: Date | string;
@@ -864,6 +893,7 @@ export type PrestationCreateWithoutWalletTransactionsInput = {
     noteParticulier?: string | null;
     statut?: $Enums.StatutPrestation;
     acceptedAt?: Date | string | null;
+    startedAt?: Date | string | null;
     completedAt?: Date | string | null;
     createdAt?: Date | string;
     updatedAt?: Date | string;
@@ -886,6 +916,7 @@ export type PrestationUncheckedCreateWithoutWalletTransactionsInput = {
     noteParticulier?: string | null;
     statut?: $Enums.StatutPrestation;
     acceptedAt?: Date | string | null;
+    startedAt?: Date | string | null;
     completedAt?: Date | string | null;
     createdAt?: Date | string;
     updatedAt?: Date | string;
@@ -915,6 +946,7 @@ export type PrestationUpdateWithoutWalletTransactionsInput = {
     noteParticulier?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
     statut?: Prisma.EnumStatutPrestationFieldUpdateOperationsInput | $Enums.StatutPrestation;
     acceptedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null;
+    startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null;
     completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null;
     createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
@@ -937,6 +969,7 @@ export type PrestationUncheckedUpdateWithoutWalletTransactionsInput = {
     noteParticulier?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
     statut?: Prisma.EnumStatutPrestationFieldUpdateOperationsInput | $Enums.StatutPrestation;
     acceptedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null;
+    startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null;
     completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null;
     createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
@@ -955,6 +988,7 @@ export type PrestationCreateManyParticulierInput = {
     noteParticulier?: string | null;
     statut?: $Enums.StatutPrestation;
     acceptedAt?: Date | string | null;
+    startedAt?: Date | string | null;
     completedAt?: Date | string | null;
     createdAt?: Date | string;
     updatedAt?: Date | string;
@@ -971,6 +1005,7 @@ export type PrestationUpdateWithoutParticulierInput = {
     noteParticulier?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
     statut?: Prisma.EnumStatutPrestationFieldUpdateOperationsInput | $Enums.StatutPrestation;
     acceptedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null;
+    startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null;
     completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null;
     createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
@@ -992,6 +1027,7 @@ export type PrestationUncheckedUpdateWithoutParticulierInput = {
     noteParticulier?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
     statut?: Prisma.EnumStatutPrestationFieldUpdateOperationsInput | $Enums.StatutPrestation;
     acceptedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null;
+    startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null;
     completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null;
     createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
@@ -1011,6 +1047,7 @@ export type PrestationUncheckedUpdateManyWithoutParticulierInput = {
     noteParticulier?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
     statut?: Prisma.EnumStatutPrestationFieldUpdateOperationsInput | $Enums.StatutPrestation;
     acceptedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null;
+    startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null;
     completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null;
     createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
@@ -1029,6 +1066,7 @@ export type PrestationCreateManyPrestataireInput = {
     noteParticulier?: string | null;
     statut?: $Enums.StatutPrestation;
     acceptedAt?: Date | string | null;
+    startedAt?: Date | string | null;
     completedAt?: Date | string | null;
     createdAt?: Date | string;
     updatedAt?: Date | string;
@@ -1045,6 +1083,7 @@ export type PrestationUpdateWithoutPrestataireInput = {
     noteParticulier?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
     statut?: Prisma.EnumStatutPrestationFieldUpdateOperationsInput | $Enums.StatutPrestation;
     acceptedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null;
+    startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null;
     completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null;
     createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
@@ -1066,6 +1105,7 @@ export type PrestationUncheckedUpdateWithoutPrestataireInput = {
     noteParticulier?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
     statut?: Prisma.EnumStatutPrestationFieldUpdateOperationsInput | $Enums.StatutPrestation;
     acceptedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null;
+    startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null;
     completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null;
     createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
@@ -1085,6 +1125,7 @@ export type PrestationUncheckedUpdateManyWithoutPrestataireInput = {
     noteParticulier?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
     statut?: Prisma.EnumStatutPrestationFieldUpdateOperationsInput | $Enums.StatutPrestation;
     acceptedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null;
+    startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null;
     completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null;
     createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
@@ -1103,6 +1144,7 @@ export type PrestationCreateManyPrestataireServiceInput = {
     noteParticulier?: string | null;
     statut?: $Enums.StatutPrestation;
     acceptedAt?: Date | string | null;
+    startedAt?: Date | string | null;
     completedAt?: Date | string | null;
     createdAt?: Date | string;
     updatedAt?: Date | string;
@@ -1119,6 +1161,7 @@ export type PrestationUpdateWithoutPrestataireServiceInput = {
     noteParticulier?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
     statut?: Prisma.EnumStatutPrestationFieldUpdateOperationsInput | $Enums.StatutPrestation;
     acceptedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null;
+    startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null;
     completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null;
     createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
@@ -1140,6 +1183,7 @@ export type PrestationUncheckedUpdateWithoutPrestataireServiceInput = {
     noteParticulier?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
     statut?: Prisma.EnumStatutPrestationFieldUpdateOperationsInput | $Enums.StatutPrestation;
     acceptedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null;
+    startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null;
     completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null;
     createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
@@ -1159,6 +1203,7 @@ export type PrestationUncheckedUpdateManyWithoutPrestataireServiceInput = {
     noteParticulier?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
     statut?: Prisma.EnumStatutPrestationFieldUpdateOperationsInput | $Enums.StatutPrestation;
     acceptedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null;
+    startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null;
     completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null;
     createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
     updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
@@ -1190,6 +1235,7 @@ export type PrestationSelect<ExtArgs extends runtime.Types.Extensions.InternalAr
     noteParticulier?: boolean;
     statut?: boolean;
     acceptedAt?: boolean;
+    startedAt?: boolean;
     completedAt?: boolean;
     createdAt?: boolean;
     updatedAt?: boolean;
@@ -1214,6 +1260,7 @@ export type PrestationSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Ex
     noteParticulier?: boolean;
     statut?: boolean;
     acceptedAt?: boolean;
+    startedAt?: boolean;
     completedAt?: boolean;
     createdAt?: boolean;
     updatedAt?: boolean;
@@ -1236,6 +1283,7 @@ export type PrestationSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Ex
     noteParticulier?: boolean;
     statut?: boolean;
     acceptedAt?: boolean;
+    startedAt?: boolean;
     completedAt?: boolean;
     createdAt?: boolean;
     updatedAt?: boolean;
@@ -1258,11 +1306,12 @@ export type PrestationSelectScalar = {
     noteParticulier?: boolean;
     statut?: boolean;
     acceptedAt?: boolean;
+    startedAt?: boolean;
     completedAt?: boolean;
     createdAt?: boolean;
     updatedAt?: boolean;
 };
-export type PrestationOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "particulierId" | "prestataireId" | "prestataireServiceId" | "typeDeTache" | "description" | "imageUrl" | "budget" | "adresse" | "codePostal" | "ville" | "noteParticulier" | "statut" | "acceptedAt" | "completedAt" | "createdAt" | "updatedAt", ExtArgs["result"]["prestation"]>;
+export type PrestationOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "particulierId" | "prestataireId" | "prestataireServiceId" | "typeDeTache" | "description" | "imageUrl" | "budget" | "adresse" | "codePostal" | "ville" | "noteParticulier" | "statut" | "acceptedAt" | "startedAt" | "completedAt" | "createdAt" | "updatedAt", ExtArgs["result"]["prestation"]>;
 export type PrestationInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
     particulier?: boolean | Prisma.ParticulierDefaultArgs<ExtArgs>;
     prestataire?: boolean | Prisma.PrestataireDefaultArgs<ExtArgs>;
@@ -1303,6 +1352,7 @@ export type $PrestationPayload<ExtArgs extends runtime.Types.Extensions.Internal
         noteParticulier: string | null;
         statut: $Enums.StatutPrestation;
         acceptedAt: Date | null;
+        startedAt: Date | null;
         completedAt: Date | null;
         createdAt: Date;
         updatedAt: Date;
@@ -1381,6 +1431,7 @@ export interface PrestationFieldRefs {
     readonly noteParticulier: Prisma.FieldRef<"Prestation", 'String'>;
     readonly statut: Prisma.FieldRef<"Prestation", 'StatutPrestation'>;
     readonly acceptedAt: Prisma.FieldRef<"Prestation", 'DateTime'>;
+    readonly startedAt: Prisma.FieldRef<"Prestation", 'DateTime'>;
     readonly completedAt: Prisma.FieldRef<"Prestation", 'DateTime'>;
     readonly createdAt: Prisma.FieldRef<"Prestation", 'DateTime'>;
     readonly updatedAt: Prisma.FieldRef<"Prestation", 'DateTime'>;

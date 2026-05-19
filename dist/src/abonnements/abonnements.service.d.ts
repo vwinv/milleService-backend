@@ -35,6 +35,11 @@ export declare class AbonnementsService {
         paid: boolean;
         abonnement?: Awaited<ReturnType<typeof this.getAbonnementCourant>>;
     }>;
+    syncPaydunyaAbonnementFromConfirm(userId: string, invoiceToken: string): Promise<{
+        paid: boolean;
+        abonnement?: Awaited<ReturnType<typeof this.getAbonnementCourant>>;
+        error?: string;
+    }>;
     souscrire(userId: string, offreId: string): Promise<{
         id: string;
         dateDebut: Date;

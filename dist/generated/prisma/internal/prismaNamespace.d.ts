@@ -1580,6 +1580,7 @@ export declare const PrestationScalarFieldEnum: {
     readonly noteParticulier: "noteParticulier";
     readonly statut: "statut";
     readonly acceptedAt: "acceptedAt";
+    readonly startedAt: "startedAt";
     readonly completedAt: "completedAt";
     readonly createdAt: "createdAt";
     readonly updatedAt: "updatedAt";

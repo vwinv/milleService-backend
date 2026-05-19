@@ -79,7 +79,7 @@ export class RegisterDto {
   @IsNumber()
   longitude?: number;
 
-  /** Documents prestataire (URLs après upload) : typeCode = cni_recto | cni_verso | casier_judiciaire | certificat_bonne_moeurs */
+  /** Documents prestataire (URLs après upload) : cni_recto | cni_verso | certificat_residence | diplome */
   @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })

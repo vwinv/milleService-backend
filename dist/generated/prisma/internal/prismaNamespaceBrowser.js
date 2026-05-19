@@ -231,6 +231,7 @@ exports.PrestationScalarFieldEnum = {
     noteParticulier: 'noteParticulier',
     statut: 'statut',
     acceptedAt: 'acceptedAt',
+    startedAt: 'startedAt',
     completedAt: 'completedAt',
     createdAt: 'createdAt',
     updatedAt: 'updatedAt'

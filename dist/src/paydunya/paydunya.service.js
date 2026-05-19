@@ -277,6 +277,59 @@ let PaydunyaService = PaydunyaService_1 = class PaydunyaService {
             responseText: strVal(parsed["description"]) || "OK",
         };
     }
+    async confirmCheckoutInvoice(invoiceToken) {
+        const token = invoiceToken?.trim();
+        if (!token)
+            return null;
+        const url = `${this.baseUrl()}/api/v1/checkout-invoice/confirm/${encodeURIComponent(token)}`;
+        this.logger.log(`PayDunya checkout-invoice/confirm → GET token=${token.length > 8 ? `${token.slice(0, 8)}…` : "[short]"}`);
+        const res = await fetch(url, {
+            method: "GET",
+            headers: {
+                "Content-Type": "application/json",
+                ...this.paydunyaAuthHeaders(),
+            },
+        });
+        const rawText = await res.text();
+        let parsed;
+        try {
+            parsed = rawText ? JSON.parse(rawText) : {};
+        }
+        catch {
+            this.logger.warn(`PayDunya confirm: réponse non JSON: ${rawText.slice(0, 200)}`);
+            return null;
+        }
+        if (!isRecord(parsed))
+            return null;
+        if (!res.ok || strVal(parsed["response_code"]) !== "00") {
+            this.logger.warn(`PayDunya confirm HTTP ${res.status} code=${strVal(parsed["response_code"])}`);
+            return null;
+        }
+        const hash = strVal(parsed["hash"]).trim();
+        const status = strVal(parsed["status"]).trim().toLowerCase();
+        const inv = parsed["invoice"];
+        let totalAmount = NaN;
+        let invToken = token;
+        if (inv && typeof inv === "object" && !Array.isArray(inv)) {
+            const invObj = inv;
+            totalAmount = Number(invObj.total_amount);
+            invToken = strVal(invObj.token).trim() || token;
+        }
+        const customRaw = parsed["custom_data"];
+        const customData = customRaw && typeof customRaw === "object" && !Array.isArray(customRaw)
+            ? customRaw
+            : {};
+        if (!hash || !Number.isFinite(totalAmount))
+            return null;
+        this.logger.log(`PayDunya confirm ← status=${status} amount=${String(totalAmount)}`);
+        return {
+            hash,
+            status,
+            totalAmount,
+            invoiceToken: invToken,
+            customData,
+        };
+    }
     softPayCard(input) {
         return this.softPayPost("/api/v1/softpay/card", { ...input });
     }

@@ -390,6 +390,8 @@ model Prestation {
   noteParticulier      String?           @map("note_particulier") @db.Text
   statut               StatutPrestation @default(EN_ATTENTE)
   acceptedAt           DateTime?         @map("accepted_at")
+  /// Horodatage du clic « arrivé à destination » (début du décompte prestation).
+  startedAt            DateTime?         @map("started_at")
   completedAt          DateTime?         @map("completed_at")
   createdAt            DateTime          @default(now()) @map("created_at")
   updatedAt            DateTime          @updatedAt @map("updated_at")

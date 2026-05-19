@@ -46,6 +46,15 @@ export type CreatePaydunyaInvoiceResult = {
   responseText: string;
 };
 
+/** Réponse `GET /checkout-invoice/confirm/{token}` (même forme que l’IPN). */
+export type PaydunyaConfirmInvoiceResult = {
+  hash: string;
+  status: string;
+  totalAmount: number;
+  invoiceToken: string;
+  customData: Record<string, unknown>;
+};
+
 function isRecord(v: unknown): v is Record<string, unknown> {
   return v !== null && typeof v === "object" && !Array.isArray(v);
 }
@@ -367,6 +376,79 @@ export class PaydunyaService {
       invoiceToken,
       responseCode: code,
       responseText: strVal(parsed["description"]) || "OK",
+    };
+  }
+
+  /**
+   * Vérifie le statut d’une facture chez PayDunya (repli si l’IPN n’a pas atteint le serveur).
+   * @see https://developers.paydunya.com/doc/FR/http_json#section-8
+   */
+  async confirmCheckoutInvoice(
+    invoiceToken: string,
+  ): Promise<PaydunyaConfirmInvoiceResult | null> {
+    const token = invoiceToken?.trim();
+    if (!token) return null;
+
+    const url = `${this.baseUrl()}/api/v1/checkout-invoice/confirm/${encodeURIComponent(token)}`;
+    this.logger.log(
+      `PayDunya checkout-invoice/confirm → GET token=${token.length > 8 ? `${token.slice(0, 8)}…` : "[short]"}`,
+    );
+
+    const res = await fetch(url, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        ...this.paydunyaAuthHeaders(),
+      },
+    });
+
+    const rawText = await res.text();
+    let parsed: unknown;
+    try {
+      parsed = rawText ? JSON.parse(rawText) : {};
+    } catch {
+      this.logger.warn(
+        `PayDunya confirm: réponse non JSON: ${rawText.slice(0, 200)}`,
+      );
+      return null;
+    }
+    if (!isRecord(parsed)) return null;
+
+    if (!res.ok || strVal(parsed["response_code"]) !== "00") {
+      this.logger.warn(
+        `PayDunya confirm HTTP ${res.status} code=${strVal(parsed["response_code"])}`,
+      );
+      return null;
+    }
+
+    const hash = strVal(parsed["hash"]).trim();
+    const status = strVal(parsed["status"]).trim().toLowerCase();
+    const inv = parsed["invoice"];
+    let totalAmount = NaN;
+    let invToken = token;
+    if (inv && typeof inv === "object" && !Array.isArray(inv)) {
+      const invObj = inv as Record<string, unknown>;
+      totalAmount = Number(invObj.total_amount);
+      invToken = strVal(invObj.token).trim() || token;
+    }
+    const customRaw = parsed["custom_data"];
+    const customData =
+      customRaw && typeof customRaw === "object" && !Array.isArray(customRaw)
+        ? (customRaw as Record<string, unknown>)
+        : {};
+
+    if (!hash || !Number.isFinite(totalAmount)) return null;
+
+    this.logger.log(
+      `PayDunya confirm ← status=${status} amount=${String(totalAmount)}`,
+    );
+
+    return {
+      hash,
+      status,
+      totalAmount,
+      invoiceToken: invToken,
+      customData,
     };
   }
 

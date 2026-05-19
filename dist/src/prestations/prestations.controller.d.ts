@@ -18,6 +18,7 @@ export declare class PrestationsController {
         ville: any;
         noteParticulier: any;
         acceptedAt: any;
+        startedAt: any;
         completedAt: any;
         createdAt: any;
         particulier: {
@@ -46,6 +47,7 @@ export declare class PrestationsController {
         ville: any;
         noteParticulier: any;
         acceptedAt: any;
+        startedAt: any;
         completedAt: any;
         createdAt: any;
         particulier: {
@@ -74,6 +76,7 @@ export declare class PrestationsController {
         ville: any;
         noteParticulier: any;
         acceptedAt: any;
+        startedAt: any;
         completedAt: any;
         createdAt: any;
         particulier: {
@@ -109,6 +112,7 @@ export declare class PrestationsController {
         ville: any;
         noteParticulier: any;
         acceptedAt: any;
+        startedAt: any;
         completedAt: any;
         createdAt: any;
         particulier: {
@@ -137,6 +141,7 @@ export declare class PrestationsController {
         ville: any;
         noteParticulier: any;
         acceptedAt: any;
+        startedAt: any;
         completedAt: any;
         createdAt: any;
         particulier: {
@@ -165,6 +170,7 @@ export declare class PrestationsController {
         ville: any;
         noteParticulier: any;
         acceptedAt: any;
+        startedAt: any;
         completedAt: any;
         createdAt: any;
         particulier: {
@@ -193,6 +199,7 @@ export declare class PrestationsController {
         ville: any;
         noteParticulier: any;
         acceptedAt: any;
+        startedAt: any;
         completedAt: any;
         createdAt: any;
         particulier: {
@@ -221,6 +228,7 @@ export declare class PrestationsController {
         ville: any;
         noteParticulier: any;
         acceptedAt: any;
+        startedAt: any;
         completedAt: any;
         createdAt: any;
         particulier: {
@@ -306,5 +314,9 @@ export declare class PrestationsController {
             fees: number | undefined;
             currency: string | undefined;
         };
+    }>;
+    paydunyaInvoicePaid(user: CurrentUserPayload, id: string, invoiceToken: string): Promise<{
+        paid: boolean;
+        error?: string;
     }>;
 }

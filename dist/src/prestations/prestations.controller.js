@@ -75,6 +75,9 @@ let PrestationsController = class PrestationsController {
             method: "free_money_sn",
         });
     }
+    paydunyaInvoicePaid(user, id, invoiceToken) {
+        return this.prestations.syncPaydunyaPrestationPayment(user.userId, id, invoiceToken ?? "");
+    }
 };
 exports.PrestationsController = PrestationsController;
 __decorate([
@@ -207,6 +210,17 @@ __decorate([
     __metadata("design:paramtypes", [Object, String, softpay_prestation_dto_js_1.SoftPayPrestationBodyDto]),
     __metadata("design:returntype", void 0)
 ], PrestationsController.prototype, "payWithFreeMoney", null);
+__decorate([
+    (0, common_1.Get)(":id/paiement/paydunya/invoice-paid"),
+    (0, common_1.UseGuards)(roles_guard_js_1.RolesGuard),
+    (0, roles_decorator_js_1.Roles)("PARTICULIER"),
+    __param(0, (0, current_user_decorator_js_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)("id")),
+    __param(2, (0, common_1.Query)("invoiceToken")),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, String]),
+    __metadata("design:returntype", void 0)
+], PrestationsController.prototype, "paydunyaInvoicePaid", null);
 exports.PrestationsController = PrestationsController = __decorate([
     (0, common_1.Controller)("prestations"),
     (0, common_1.UseGuards)(jwt_auth_guard_js_1.JwtAuthGuard),

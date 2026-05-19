@@ -13,7 +13,7 @@ function computePlatformTakePrestationFcfa(baseWorkFcfa, serviceFeeFcfa, rate) {
     return Math.round((surTravail + service) * 100) / 100;
 }
 function executionHoursFromPrestationDates(input) {
-    const start = input.acceptedAt ?? input.createdAt;
+    const start = input.startedAt ?? input.acceptedAt ?? input.createdAt;
     const end = input.completedAt != null
         ? input.completedAt
         : input.useNowAsEndIfOpen

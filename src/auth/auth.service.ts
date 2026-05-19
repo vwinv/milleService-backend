@@ -908,22 +908,12 @@ export class AuthService {
     };
   }
 
-  /** Crée les types de documents prestataire s'ils n'existent pas. */
+  /** Catalogue types de documents prestataires. */
   private async ensureTypeDocumentsExist() {
-    const count = await this.prisma.typeDocument.count();
-    if (count > 0) return;
-    await this.prisma.typeDocument.createMany({
-      data: [
-        { code: "cni_recto", libelle: "CNI / Passeport (recto)", ordre: 1 },
-        { code: "cni_verso", libelle: "CNI / Passeport (verso)", ordre: 2 },
-        { code: "casier_judiciaire", libelle: "Casier judiciaire", ordre: 3 },
-        {
-          code: "certificat_bonne_moeurs",
-          libelle: "Certificat de bonne mœurs",
-          ordre: 4,
-        },
-      ],
-    });
+    const { syncPrestataireTypeDocuments } = await import(
+      "../prestataires/type-documents.catalog.js"
+    );
+    await syncPrestataireTypeDocuments(this.prisma);
   }
 
   private toNumber(value: unknown): number | null {

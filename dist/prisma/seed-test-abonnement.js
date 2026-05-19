@@ -3,7 +3,13 @@ Object.defineProperty(exports, "__esModule", { value: true });
 require("dotenv/config");
 const adapter_pg_1 = require("@prisma/adapter-pg");
 const client_1 = require("../generated/prisma/client");
-const email = (process.argv[2] ?? 'test@gmail.com').trim().toLowerCase();
+const emails = process.argv
+    .slice(2)
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+if (emails.length === 0) {
+    emails.push('test@gmail.com');
+}
 let connectionString = process.env.DATABASE_URL;
 if (!connectionString)
     throw new Error('DATABASE_URL est requis');
@@ -14,7 +20,7 @@ if (!isLocal && !connectionString.includes('sslmode=')) {
 }
 const adapter = new adapter_pg_1.PrismaPg({ connectionString });
 const prisma = new client_1.PrismaClient({ adapter });
-async function main() {
+async function createMonthlyForEmail(email) {
     const user = await prisma.user.findUnique({
         where: { email },
         include: { prestataire: true },
@@ -54,13 +60,18 @@ async function main() {
             offre: { select: { libelle: true, code: true } },
         },
     });
-    console.log('Abonnement créé :');
+    console.log('\nAbonnement créé :');
     console.log(`  Prestataire : ${user.prestataire.nom} (${email})`);
     console.log(`  Offre       : ${abo.offre.libelle} (${abo.offre.code})`);
     console.log(`  Début       : ${abo.dateDebut.toISOString().slice(0, 10)}`);
     console.log(`  Fin         : ${abo.dateFin.toISOString().slice(0, 10)}`);
     console.log(`  Statut      : ${abo.statut}`);
     console.log(`  ID          : ${abo.id}`);
+}
+async function main() {
+    for (const email of emails) {
+        await createMonthlyForEmail(email);
+    }
 }
 main()
     .catch((e) => {

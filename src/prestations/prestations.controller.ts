@@ -5,6 +5,7 @@ import {
   Patch,
   Body,
   Param,
+  Query,
   UseGuards,
 } from "@nestjs/common";
 import { PrestationsService } from "./prestations.service.js";
@@ -155,5 +156,23 @@ export class PrestationsController {
       ...dto,
       method: "free_money_sn",
     });
+  }
+
+  /**
+   * Vérifie chez PayDunya si la facture est payée et enregistre en base (repli IPN).
+   */
+  @Get(":id/paiement/paydunya/invoice-paid")
+  @UseGuards(RolesGuard)
+  @Roles("PARTICULIER")
+  paydunyaInvoicePaid(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param("id") id: string,
+    @Query("invoiceToken") invoiceToken: string,
+  ) {
+    return this.prestations.syncPaydunyaPrestationPayment(
+      user.userId,
+      id,
+      invoiceToken ?? "",
+    );
   }
 }

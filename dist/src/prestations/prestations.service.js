@@ -17,6 +17,7 @@ const client_js_1 = require("../../generated/prisma/client.js");
 const notifications_service_js_1 = require("../notifications/notifications.service.js");
 const wallets_service_js_1 = require("../wallets/wallets.service.js");
 const paydunya_service_js_1 = require("../paydunya/paydunya.service.js");
+const paydunya_callback_util_js_1 = require("../paydunya/paydunya-callback.util.js");
 const prestation_billing_util_js_1 = require("./prestation-billing.util.js");
 const service_catalog_tarif_util_js_1 = require("./service-catalog-tarif.util.js");
 const abonnements_service_js_1 = require("../abonnements/abonnements.service.js");
@@ -63,6 +64,12 @@ let PrestationsService = PrestationsService_1 = class PrestationsService {
         if (!service) {
             throw new common_1.BadRequestException("Service introuvable ou inactif pour ce prestataire");
         }
+        const openStatuts = [
+            client_js_1.StatutPrestation.EN_ATTENTE,
+            client_js_1.StatutPrestation.ACCEPTEE,
+            client_js_1.StatutPrestation.EN_COURS,
+            client_js_1.StatutPrestation.TERMINEE,
+        ];
         const now = new Date();
         const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
         const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
@@ -73,6 +80,7 @@ let PrestationsService = PrestationsService_1 = class PrestationsService {
                 prestataireId: prestataire.id,
                 prestataireServiceId: service.id,
                 typeDeTache: typeDeTacheValue,
+                statut: { in: openStatuts },
                 createdAt: { gte: startOfDay, lte: endOfDay },
             },
             include: {
@@ -82,7 +90,7 @@ let PrestationsService = PrestationsService_1 = class PrestationsService {
             },
         });
         if (existing) {
-            return this.formatPrestation(existing);
+            throw new common_1.ConflictException(this.messagePrestationDoublonOuverte(existing.statut));
         }
         const prestation = await this.prisma.prestation.create({
             data: {
@@ -174,10 +182,12 @@ let PrestationsService = PrestationsService_1 = class PrestationsService {
         if (prestation.statut !== client_js_1.StatutPrestation.ACCEPTEE) {
             throw new common_1.BadRequestException("Seule une prestation acceptée peut être démarrée");
         }
+        const now = new Date();
         const updated = await this.prisma.prestation.update({
             where: { id: prestationId },
             data: {
                 statut: client_js_1.StatutPrestation.EN_COURS,
+                startedAt: now,
             },
             include: {
                 particulier: { select: { userId: true, prenom: true, nom: true } },
@@ -252,9 +262,8 @@ let PrestationsService = PrestationsService_1 = class PrestationsService {
         if (!prestation) {
             throw new common_1.BadRequestException("Prestation introuvable");
         }
-        if (prestation.statut !== client_js_1.StatutPrestation.EN_COURS &&
-            prestation.statut !== client_js_1.StatutPrestation.ACCEPTEE) {
-            throw new common_1.BadRequestException("Seule une prestation acceptée/en cours peut être terminée");
+        if (prestation.statut !== client_js_1.StatutPrestation.EN_COURS) {
+            throw new common_1.BadRequestException("Indiquez d'abord votre arrivée sur place avant de terminer la prestation");
         }
         const updated = await this.prisma.prestation.update({
             where: { id: prestationId },
@@ -332,13 +341,7 @@ let PrestationsService = PrestationsService_1 = class PrestationsService {
         if (amount == null || amount <= 0) {
             throw new common_1.BadRequestException("Montant de paiement indisponible (tarif catalogue ou durée manquant)");
         }
-        const callbackBase = process.env.PAYDUNYA_CALLBACK_BASE_URL?.trim() ||
-            process.env.PUBLIC_API_URL?.trim() ||
-            "";
-        if (!callbackBase) {
-            throw new common_1.ServiceUnavailableException("PAYDUNYA_CALLBACK_BASE_URL ou PUBLIC_API_URL doit être défini pour l’IPN");
-        }
-        const callbackUrl = `${callbackBase.replace(/\/$/, "")}/webhooks/paydunya`;
+        const callbackUrl = (0, paydunya_callback_util_js_1.paydunyaIpnCallbackUrl)(this.logger);
         const storeName = process.env.PAYDUNYA_STORE_NAME?.trim() || "Mille Services";
         const serviceLibelle = prestation.prestataireService?.service?.libelle ?? "Prestation";
         this.logger.log(`Paiement prestation init PayDunya prestationId=${prestationId} particulierId=${particulier.id} amountFcfa=${String(amount)} service="${serviceLibelle.slice(0, 80)}"`);
@@ -526,6 +529,52 @@ let PrestationsService = PrestationsService_1 = class PrestationsService {
         this.logger.log(`IPN PayDunya prestation réglée prestationId=${prestation.id} montantFcfa=${String(paid)} attendu=${String(expected)} invoiceToken=${invTk}`);
         return { ok: true };
     }
+    async syncPaydunyaPrestationPayment(particulierUserId, prestationId, invoiceToken) {
+        const confirmed = await this.paydunya.confirmCheckoutInvoice(invoiceToken);
+        if (!confirmed) {
+            return { paid: false, error: "confirm_failed" };
+        }
+        if (!this.paydunya.verifyIpnHash(confirmed.hash)) {
+            this.logger.warn("Confirm PayDunya prestation: hash refusé");
+            return { paid: false, error: "invalid_hash" };
+        }
+        if (confirmed.status !== "completed") {
+            return { paid: false, error: `status_${confirmed.status}` };
+        }
+        const prestation = await this.prisma.prestation.findFirst({
+            where: { id: prestationId, particulier: { userId: particulierUserId } },
+            select: { id: true, statut: true },
+        });
+        if (!prestation) {
+            return { paid: false, error: "prestation_not_found" };
+        }
+        if (prestation.statut === client_js_1.StatutPrestation.PAYEE) {
+            return { paid: true };
+        }
+        const body = {
+            data: {
+                hash: confirmed.hash,
+                status: confirmed.status,
+                invoice: {
+                    total_amount: confirmed.totalAmount,
+                    token: confirmed.invoiceToken,
+                },
+                custom_data: {
+                    kind: "prestation",
+                    prestationId: prestation.id,
+                    ...confirmed.customData,
+                },
+            },
+        };
+        const result = await this.handlePaydunyaIpn(body);
+        if (result.ok && !("ignored" in result && result.ignored)) {
+            return { paid: true };
+        }
+        return {
+            paid: false,
+            error: "error" in result ? String(result.error) : "not_settled",
+        };
+    }
     normalizePaydunyaIpnPayload(body) {
         const root = body;
         const dataVal = root?.data ?? root;
@@ -588,6 +637,7 @@ let PrestationsService = PrestationsService_1 = class PrestationsService {
         if (tarif == null)
             return null;
         const hours = (0, prestation_billing_util_js_1.executionHoursFromPrestationDates)({
+            startedAt: p.startedAt,
             acceptedAt: p.acceptedAt,
             completedAt: p.completedAt,
             createdAt: p.createdAt,
@@ -700,6 +750,7 @@ let PrestationsService = PrestationsService_1 = class PrestationsService {
         if (tarif == null)
             return undefined;
         const hours = (0, prestation_billing_util_js_1.executionHoursFromPrestationDates)({
+            startedAt: p.startedAt,
             acceptedAt: p.acceptedAt,
             completedAt: p.completedAt,
             createdAt: p.createdAt,
@@ -800,6 +851,7 @@ let PrestationsService = PrestationsService_1 = class PrestationsService {
             ville: p.ville,
             noteParticulier: p.noteParticulier,
             acceptedAt: p.acceptedAt,
+            startedAt: p.startedAt,
             completedAt: p.completedAt,
             createdAt: p.createdAt,
             particulier: p.particulier
@@ -845,6 +897,7 @@ let PrestationsService = PrestationsService_1 = class PrestationsService {
             ville: p.ville,
             noteParticulier: p.noteParticulier,
             acceptedAt: p.acceptedAt,
+            startedAt: p.startedAt,
             completedAt: p.completedAt,
             createdAt: p.createdAt,
             particulier: p.particulier
@@ -858,6 +911,26 @@ let PrestationsService = PrestationsService_1 = class PrestationsService {
                 : undefined,
             service: this.formatPrestationServicePayload(p),
         };
+    }
+    messagePrestationDoublonOuverte(statut) {
+        const base = "Vous avez déjà une demande en cours pour ce prestataire et ce service aujourd'hui. ";
+        switch (statut) {
+            case client_js_1.StatutPrestation.EN_ATTENTE:
+                return (base +
+                    "Elle est en attente de réponse du prestataire. Retournez à l'écran d'accueil ou consultez vos notifications pour la suivre — vous ne pouvez pas en créer une seconde tant qu'elle n'est pas terminée ou annulée.");
+            case client_js_1.StatutPrestation.ACCEPTEE:
+                return (base +
+                    "Elle a été acceptée et attend le démarrage. Ouvrez la prestation en cours depuis vos notifications ou votre historique.");
+            case client_js_1.StatutPrestation.EN_COURS:
+                return (base +
+                    "Elle est actuellement en cours. Suivez-la depuis l'écran de déroulement déjà ouvert ou vos notifications.");
+            case client_js_1.StatutPrestation.TERMINEE:
+                return (base +
+                    "Elle est terminée et en attente de paiement. Réglez le paiement de cette prestation avant d'en demander une nouvelle identique aujourd'hui.");
+            default:
+                return (base +
+                    "Consultez la prestation existante avant d'en créer une nouvelle.");
+        }
     }
     formatPrestationServicePayload(p) {
         const ps = p.prestataireService;

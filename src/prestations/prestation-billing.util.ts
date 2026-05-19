@@ -18,13 +18,16 @@ export function computePlatformTakePrestationFcfa(
 }
 
 export function executionHoursFromPrestationDates(input: {
-  acceptedAt: Date | null;
+  /** Début réel = arrivée sur place (demarrer). */
+  startedAt?: Date | null;
+  acceptedAt?: Date | null;
   completedAt: Date | null;
   createdAt: Date;
   /** Si false (prestation encore ouverte), la fin est « maintenant » pour cohérence avec l’app */
   useNowAsEndIfOpen?: boolean;
 }): number {
-  const start = input.acceptedAt ?? input.createdAt;
+  const start =
+    input.startedAt ?? input.acceptedAt ?? input.createdAt;
   const end =
     input.completedAt != null
       ? input.completedAt

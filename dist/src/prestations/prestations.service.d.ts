@@ -36,6 +36,7 @@ export declare class PrestationsService {
         ville: any;
         noteParticulier: any;
         acceptedAt: any;
+        startedAt: any;
         completedAt: any;
         createdAt: any;
         particulier: {
@@ -64,6 +65,7 @@ export declare class PrestationsService {
         ville: any;
         noteParticulier: any;
         acceptedAt: any;
+        startedAt: any;
         completedAt: any;
         createdAt: any;
         particulier: {
@@ -92,6 +94,7 @@ export declare class PrestationsService {
         ville: any;
         noteParticulier: any;
         acceptedAt: any;
+        startedAt: any;
         completedAt: any;
         createdAt: any;
         particulier: {
@@ -120,6 +123,7 @@ export declare class PrestationsService {
         ville: any;
         noteParticulier: any;
         acceptedAt: any;
+        startedAt: any;
         completedAt: any;
         createdAt: any;
         particulier: {
@@ -148,6 +152,7 @@ export declare class PrestationsService {
         ville: any;
         noteParticulier: any;
         acceptedAt: any;
+        startedAt: any;
         completedAt: any;
         createdAt: any;
         particulier: {
@@ -176,6 +181,7 @@ export declare class PrestationsService {
         ville: any;
         noteParticulier: any;
         acceptedAt: any;
+        startedAt: any;
         completedAt: any;
         createdAt: any;
         particulier: {
@@ -250,6 +256,10 @@ export declare class PrestationsService {
         scope?: undefined;
         alreadyPaid?: undefined;
     }>;
+    syncPaydunyaPrestationPayment(particulierUserId: string, prestationId: string, invoiceToken: string): Promise<{
+        paid: boolean;
+        error?: string;
+    }>;
     private normalizePaydunyaIpnPayload;
     private computeCatalogPaymentAmountFcfa;
     private resolveGrossPaymentAmountFcfa;
@@ -267,6 +277,7 @@ export declare class PrestationsService {
         ville: any;
         noteParticulier: any;
         acceptedAt: any;
+        startedAt: any;
         completedAt: any;
         createdAt: any;
         particulier: {
@@ -295,6 +306,7 @@ export declare class PrestationsService {
         ville: any;
         noteParticulier: any;
         acceptedAt: any;
+        startedAt: any;
         completedAt: any;
         createdAt: any;
         particulier: {
@@ -320,5 +332,6 @@ export declare class PrestationsService {
     }>;
     private formatPrestationWithCoords;
     private formatPrestation;
+    private messagePrestationDoublonOuverte;
     private formatPrestationServicePayload;
 }

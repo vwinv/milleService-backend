@@ -16,6 +16,7 @@ const prisma_service_js_1 = require("../prisma/prisma.service.js");
 const client_js_1 = require("../../generated/prisma/client.js");
 const wallets_service_js_1 = require("../wallets/wallets.service.js");
 const paydunya_service_js_1 = require("../paydunya/paydunya.service.js");
+const paydunya_callback_util_js_1 = require("../paydunya/paydunya-callback.util.js");
 let AbonnementsService = AbonnementsService_1 = class AbonnementsService {
     prisma;
     wallets;
@@ -109,7 +110,49 @@ let AbonnementsService = AbonnementsService_1 = class AbonnementsService {
             select: { id: true },
         });
         if (!row) {
-            return { paid: false };
+            return this.syncPaydunyaAbonnementFromConfirm(userId, token);
+        }
+        const abonnement = await this.getAbonnementCourant(userId);
+        return { paid: true, abonnement: abonnement ?? undefined };
+    }
+    async syncPaydunyaAbonnementFromConfirm(userId, invoiceToken) {
+        const token = invoiceToken?.trim();
+        if (!token) {
+            return { paid: false, error: "missing_token" };
+        }
+        const confirmed = await this.paydunya.confirmCheckoutInvoice(token);
+        if (!confirmed) {
+            return { paid: false, error: "confirm_failed" };
+        }
+        if (!this.paydunya.verifyIpnHash(confirmed.hash)) {
+            return { paid: false, error: "invalid_hash" };
+        }
+        if (confirmed.status !== "completed") {
+            return { paid: false, error: `status_${confirmed.status}` };
+        }
+        const custom = confirmed.customData;
+        const kind = String(custom["kind"] ?? "").toLowerCase();
+        if (kind !== "abonnement") {
+            return { paid: false, error: "not_abonnement_invoice" };
+        }
+        const offreId = String(custom["offreId"] ?? "").trim();
+        const prestataireId = String(custom["prestataireId"] ?? "").trim();
+        const customUserId = String(custom["userId"] ?? "").trim();
+        if (!offreId || !prestataireId || !customUserId) {
+            return { paid: false, error: "invalid_custom_data" };
+        }
+        if (customUserId !== userId) {
+            return { paid: false, error: "user_mismatch" };
+        }
+        const r = await this.finalizeFromPaydunyaIpn({
+            offreId,
+            prestataireId,
+            userId: customUserId,
+            paidAmount: confirmed.totalAmount,
+            invoiceToken: confirmed.invoiceToken,
+        });
+        if (!r.ok) {
+            return { paid: false, error: "error" in r ? String(r.error) : "finalize_failed" };
         }
         const abonnement = await this.getAbonnementCourant(userId);
         return { paid: true, abonnement: abonnement ?? undefined };
@@ -185,13 +228,7 @@ let AbonnementsService = AbonnementsService_1 = class AbonnementsService {
         if (!Number.isFinite(amount) || amount <= 0) {
             throw new common_1.BadRequestException("Prix d'offre invalide pour le paiement");
         }
-        const callbackBase = process.env.PAYDUNYA_CALLBACK_BASE_URL?.trim() ||
-            process.env.PUBLIC_API_URL?.trim() ||
-            "";
-        if (!callbackBase) {
-            throw new common_1.ServiceUnavailableException("PAYDUNYA_CALLBACK_BASE_URL ou PUBLIC_API_URL doit être défini pour l’IPN");
-        }
-        const callbackUrl = `${callbackBase.replace(/\/$/, "")}/webhooks/paydunya`;
+        const callbackUrl = (0, paydunya_callback_util_js_1.paydunyaIpnCallbackUrl)(this.logger);
         const storeName = process.env.PAYDUNYA_STORE_NAME?.trim() || "Mille Services";
         const inv = await this.paydunya.createCheckoutInvoice({
             totalAmountFcfa: amount,
@@ -516,13 +553,7 @@ let AbonnementsService = AbonnementsService_1 = class AbonnementsService {
         if (phone.length < 8) {
             throw new common_1.BadRequestException("Numéro de téléphone requis pour un paiement mobile money");
         }
-        const callbackBase = process.env.PAYDUNYA_CALLBACK_BASE_URL?.trim() ||
-            process.env.PUBLIC_API_URL?.trim() ||
-            "";
-        if (!callbackBase) {
-            throw new common_1.ServiceUnavailableException("PAYDUNYA_CALLBACK_BASE_URL ou PUBLIC_API_URL doit être défini pour l’IPN");
-        }
-        const callbackUrl = `${callbackBase.replace(/\/$/, "")}/webhooks/paydunya`;
+        const callbackUrl = (0, paydunya_callback_util_js_1.paydunyaIpnCallbackUrl)(this.logger);
         const storeName = process.env.PAYDUNYA_STORE_NAME?.trim() || "Mille Services";
         const invoice = await this.paydunya.createCheckoutInvoice({
             totalAmountFcfa: amount,

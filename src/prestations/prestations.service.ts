@@ -1,6 +1,7 @@
 import {
   Injectable,
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Logger,
   ServiceUnavailableException,
@@ -13,6 +14,7 @@ import {
 import { NotificationsService } from "../notifications/notifications.service.js";
 import { WalletsService } from "../wallets/wallets.service.js";
 import { PaydunyaService } from "../paydunya/paydunya.service.js";
+import { paydunyaIpnCallbackUrl } from "../paydunya/paydunya-callback.util.js";
 import type { PaydunyaSoftPayResponse } from "../paydunya/paydunya-softpay.types.js";
 import type { PayerPrestationDto } from "./dto/payer-prestation.dto.js";
 import type { SoftPayPrestationDto } from "./dto/softpay-prestation.dto.js";
@@ -89,7 +91,15 @@ export class PrestationsService {
       );
     }
 
-    // Éviter les doublons : même particulier, prestataire, type de tâche, service et même date de création
+    // Éviter les doublons (double clic / re-soumission) : même jour, même trio
+    // particulier + prestataire + service, uniquement si une prestation est encore « ouverte ».
+    // Une prestation PAYEE / REFUSEE / ANNULEE ne bloque pas une nouvelle demande.
+    const openStatuts: StatutPrestation[] = [
+      StatutPrestation.EN_ATTENTE,
+      StatutPrestation.ACCEPTEE,
+      StatutPrestation.EN_COURS,
+      StatutPrestation.TERMINEE,
+    ];
     const now = new Date();
     const startOfDay = new Date(
       now.getFullYear(),
@@ -116,6 +126,7 @@ export class PrestationsService {
         prestataireId: prestataire.id,
         prestataireServiceId: service.id,
         typeDeTache: typeDeTacheValue,
+        statut: { in: openStatuts },
         createdAt: { gte: startOfDay, lte: endOfDay },
       },
       include: {
@@ -125,7 +136,9 @@ export class PrestationsService {
       },
     });
     if (existing) {
-      return this.formatPrestation(existing);
+      throw new ConflictException(
+        this.messagePrestationDoublonOuverte(existing.statut),
+      );
     }
 
     const prestation = await this.prisma.prestation.create({
@@ -241,10 +254,12 @@ export class PrestationsService {
       );
     }
 
+    const now = new Date();
     const updated = await this.prisma.prestation.update({
       where: { id: prestationId },
       data: {
         statut: StatutPrestation.EN_COURS,
+        startedAt: now,
       },
       include: {
         particulier: { select: { userId: true, prenom: true, nom: true } },
@@ -339,12 +354,9 @@ export class PrestationsService {
     if (!prestation) {
       throw new BadRequestException("Prestation introuvable");
     }
-    if (
-      prestation.statut !== StatutPrestation.EN_COURS &&
-      prestation.statut !== StatutPrestation.ACCEPTEE
-    ) {
+    if (prestation.statut !== StatutPrestation.EN_COURS) {
       throw new BadRequestException(
-        "Seule une prestation acceptée/en cours peut être terminée",
+        "Indiquez d'abord votre arrivée sur place avant de terminer la prestation",
       );
     }
 
@@ -462,16 +474,7 @@ export class PrestationsService {
       );
     }
 
-    const callbackBase =
-      process.env.PAYDUNYA_CALLBACK_BASE_URL?.trim() ||
-      process.env.PUBLIC_API_URL?.trim() ||
-      "";
-    if (!callbackBase) {
-      throw new ServiceUnavailableException(
-        "PAYDUNYA_CALLBACK_BASE_URL ou PUBLIC_API_URL doit être défini pour l’IPN",
-      );
-    }
-    const callbackUrl = `${callbackBase.replace(/\/$/, "")}/webhooks/paydunya`;
+    const callbackUrl = paydunyaIpnCallbackUrl(this.logger);
     const storeName =
       process.env.PAYDUNYA_STORE_NAME?.trim() || "Mille Services";
     const serviceLibelle =
@@ -738,6 +741,64 @@ export class PrestationsService {
     return { ok: true as const };
   }
 
+  /**
+   * Repli : interroge PayDunya (confirm) et enregistre le paiement si `completed`.
+   * Utile quand l’IPN n’atteint pas le serveur (PUBLIC_API_URL = localhost, etc.).
+   */
+  async syncPaydunyaPrestationPayment(
+    particulierUserId: string,
+    prestationId: string,
+    invoiceToken: string,
+  ): Promise<{ paid: boolean; error?: string }> {
+    const confirmed = await this.paydunya.confirmCheckoutInvoice(invoiceToken);
+    if (!confirmed) {
+      return { paid: false, error: "confirm_failed" };
+    }
+    if (!this.paydunya.verifyIpnHash(confirmed.hash)) {
+      this.logger.warn("Confirm PayDunya prestation: hash refusé");
+      return { paid: false, error: "invalid_hash" };
+    }
+    if (confirmed.status !== "completed") {
+      return { paid: false, error: `status_${confirmed.status}` };
+    }
+
+    const prestation = await this.prisma.prestation.findFirst({
+      where: { id: prestationId, particulier: { userId: particulierUserId } },
+      select: { id: true, statut: true },
+    });
+    if (!prestation) {
+      return { paid: false, error: "prestation_not_found" };
+    }
+    if (prestation.statut === StatutPrestation.PAYEE) {
+      return { paid: true };
+    }
+
+    const body: Record<string, unknown> = {
+      data: {
+        hash: confirmed.hash,
+        status: confirmed.status,
+        invoice: {
+          total_amount: confirmed.totalAmount,
+          token: confirmed.invoiceToken,
+        },
+        custom_data: {
+          kind: "prestation",
+          prestationId: prestation.id,
+          ...confirmed.customData,
+        },
+      },
+    };
+
+    const result = await this.handlePaydunyaIpn(body);
+    if (result.ok && !("ignored" in result && result.ignored)) {
+      return { paid: true };
+    }
+    return {
+      paid: false,
+      error: "error" in result ? String(result.error) : "not_settled",
+    };
+  }
+
   private normalizePaydunyaIpnPayload(
     body: Record<string, unknown>,
   ):
@@ -823,6 +884,7 @@ export class PrestationsService {
 
   /** Montant catalogue (durée × tarif + frais), aligné app mobile. */
   private computeCatalogPaymentAmountFcfa(p: {
+    startedAt: Date | null;
     acceptedAt: Date | null;
     completedAt: Date | null;
     createdAt: Date;
@@ -834,6 +896,7 @@ export class PrestationsService {
     const tarif = resolveHourlyTarifForPrestation(p.prestataireService);
     if (tarif == null) return null;
     const hours = executionHoursFromPrestationDates({
+      startedAt: p.startedAt,
       acceptedAt: p.acceptedAt,
       completedAt: p.completedAt,
       createdAt: p.createdAt,
@@ -852,6 +915,7 @@ export class PrestationsService {
         tarifHoraire?: unknown;
         service?: { tarifs?: string | null } | null;
       } | null;
+      startedAt: Date | null;
       acceptedAt: Date | null;
       completedAt: Date | null;
       createdAt: Date;
@@ -985,6 +1049,7 @@ export class PrestationsService {
 
   /** Base « travail » pour le split : tarif×durée (frais service / déplacement gérés dans le util wallet). */
   private prestationSplitCommissionOpts(p: {
+    startedAt: Date | null;
     acceptedAt: Date | null;
     completedAt: Date | null;
     createdAt: Date;
@@ -998,6 +1063,7 @@ export class PrestationsService {
     const tarif = resolveHourlyTarifForPrestation(p.prestataireService);
     if (tarif == null) return undefined;
     const hours = executionHoursFromPrestationDates({
+      startedAt: p.startedAt,
       acceptedAt: p.acceptedAt,
       completedAt: p.completedAt,
       createdAt: p.createdAt,
@@ -1113,6 +1179,7 @@ export class PrestationsService {
       ville: p.ville,
       noteParticulier: p.noteParticulier,
       acceptedAt: p.acceptedAt,
+      startedAt: p.startedAt,
       completedAt: p.completedAt,
       createdAt: p.createdAt,
       particulier: p.particulier
@@ -1165,6 +1232,7 @@ export class PrestationsService {
       ville: p.ville,
       noteParticulier: p.noteParticulier,
       acceptedAt: p.acceptedAt,
+      startedAt: p.startedAt,
       completedAt: p.completedAt,
       createdAt: p.createdAt,
       particulier: p.particulier
@@ -1178,6 +1246,39 @@ export class PrestationsService {
         : undefined,
       service: this.formatPrestationServicePayload(p),
     };
+  }
+
+  /** Message affiché au particulier si une demande ouverte existe déjà (même jour, même prestataire / service). */
+  private messagePrestationDoublonOuverte(statut: StatutPrestation): string {
+    const base =
+      "Vous avez déjà une demande en cours pour ce prestataire et ce service aujourd'hui. ";
+    switch (statut) {
+      case StatutPrestation.EN_ATTENTE:
+        return (
+          base +
+          "Elle est en attente de réponse du prestataire. Retournez à l'écran d'accueil ou consultez vos notifications pour la suivre — vous ne pouvez pas en créer une seconde tant qu'elle n'est pas terminée ou annulée."
+        );
+      case StatutPrestation.ACCEPTEE:
+        return (
+          base +
+          "Elle a été acceptée et attend le démarrage. Ouvrez la prestation en cours depuis vos notifications ou votre historique."
+        );
+      case StatutPrestation.EN_COURS:
+        return (
+          base +
+          "Elle est actuellement en cours. Suivez-la depuis l'écran de déroulement déjà ouvert ou vos notifications."
+        );
+      case StatutPrestation.TERMINEE:
+        return (
+          base +
+          "Elle est terminée et en attente de paiement. Réglez le paiement de cette prestation avant d'en demander une nouvelle identique aujourd'hui."
+        );
+      default:
+        return (
+          base +
+          "Consultez la prestation existante avant d'en créer une nouvelle."
+        );
+    }
   }
 
   /** Tarif horaire affiché / facturé : `Service.tarifs` (admin), repli sur `PrestataireService.tarifHoraire`. */
