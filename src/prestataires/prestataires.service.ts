@@ -72,7 +72,31 @@ export class PrestatairesService {
    *
    * Réponse : `{ listeProximite, prestataires }` (`listeProximite` true uniquement pour le palier 3).
    */
+  /** Favoris publics (invité) : lat/lng obligatoires. */
+  async getPrestatairesFavorisPublic(lat?: number, lng?: number) {
+    const userLat = toNumber(lat);
+    const userLng = toNumber(lng);
+    if (userLat == null || userLng == null) {
+      throw new BadRequestException(
+        "Les coordonnées lat et lng sont requises pour afficher les favoris",
+      );
+    }
+    return this.buildPrestatairesFavorisPayload(userLat, userLng);
+  }
+
   async getPrestatairesFavoris(userId: string, lat?: number, lng?: number) {
+    const coords = await this.resolveParticulierFavorisCoords(userId, lat, lng);
+    if (coords == null) {
+      return { listeProximite: false, prestataires: [] };
+    }
+    return this.buildPrestatairesFavorisPayload(coords.lat, coords.lng);
+  }
+
+  private async resolveParticulierFavorisCoords(
+    userId: string,
+    lat?: number,
+    lng?: number,
+  ): Promise<{ lat: number; lng: number } | null> {
     const particulier = await this.prisma.particulier.findUnique({
       where: { userId },
       select: { latitude: true, longitude: true, adresse: true },
@@ -110,9 +134,15 @@ export class PrestatairesService {
     }
 
     if (userLat == null || userLng == null) {
-      return { listeProximite: false, prestataires: [] };
+      return null;
     }
+    return { lat: userLat, lng: userLng };
+  }
 
+  private async buildPrestatairesFavorisPayload(
+    userLat: number,
+    userLng: number,
+  ) {
     const { debut, fin } = getCurrentWeekBounds();
 
     // Prestataires ayant eu au moins une prestation terminée cette semaine
@@ -356,6 +386,32 @@ export class PrestatairesService {
    * de base (actif, vérifié, géolocalisé) — le tri par proximité / note reste inchangé.
    * Retourne le même format que getPrestatairesFavoris (note, distance si position disponible).
    */
+  /** Recherche publique (invité) : lat/lng obligatoires. */
+  async searchPublic(
+    lat?: number,
+    lng?: number,
+    serviceId?: string,
+    tarifMin?: number,
+    tarifMax?: number,
+    date?: string,
+  ) {
+    const userLat = toNumber(lat);
+    const userLng = toNumber(lng);
+    if (userLat == null || userLng == null) {
+      throw new BadRequestException(
+        "Les coordonnées lat et lng sont requises pour lancer une recherche",
+      );
+    }
+    return this.buildPrestatairesSearchPayload(
+      userLat,
+      userLng,
+      serviceId,
+      tarifMin,
+      tarifMax,
+      date,
+    );
+  }
+
   async search(
     userId: string,
     serviceId?: string,
@@ -365,48 +421,30 @@ export class PrestatairesService {
     lat?: number,
     lng?: number,
   ) {
-    const particulier = await this.prisma.particulier.findUnique({
-      where: { userId },
-      select: { latitude: true, longitude: true, adresse: true },
-    });
-    if (!particulier) {
-      throw new BadRequestException("Profil particulier introuvable");
-    }
-
-    let userLat = toNumber(particulier.latitude);
-    let userLng = toNumber(particulier.longitude);
-    if (lat != null && lng != null) {
-      userLat = lat;
-      userLng = lng;
-    }
-
-    if (userLat == null || userLng == null) {
-      const addr = particulier.adresse?.trim();
-      if (addr && addr.length >= 3) {
-        try {
-          const geo = await this.geocodingService.geocodeWithFallbacks(addr);
-          if (geo) {
-            userLat = geo.lat;
-            userLng = geo.lng;
-            void this.prisma.particulier
-              .update({
-                where: { userId },
-                data: { latitude: geo.lat, longitude: geo.lng },
-              })
-              .catch(() => {});
-          }
-        } catch {
-          // adresse invalide ou géocodage indisponible
-        }
-      }
-    }
-
-    if (userLat == null || userLng == null) {
+    const coords = await this.resolveParticulierFavorisCoords(userId, lat, lng);
+    if (coords == null) {
       throw new BadRequestException(
         "Renseignez une adresse complète dans votre profil, ou activez la localisation pour lancer une recherche.",
       );
     }
+    return this.buildPrestatairesSearchPayload(
+      coords.lat,
+      coords.lng,
+      serviceId,
+      tarifMin,
+      tarifMax,
+      date,
+    );
+  }
 
+  private async buildPrestatairesSearchPayload(
+    userLat: number,
+    userLng: number,
+    serviceId?: string,
+    tarifMin?: number,
+    tarifMax?: number,
+    date?: string,
+  ) {
     const tarifFilter =
       tarifMin != null && tarifMax != null
         ? { gte: tarifMin, lte: tarifMax }

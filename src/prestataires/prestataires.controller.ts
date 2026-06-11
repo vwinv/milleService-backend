@@ -123,6 +123,28 @@ export class PrestatairesController {
     return this.prestatairesService.addPhoto(user.userId, dto);
   }
 
+  /** Favoris de la semaine (public, sans auth — lat/lng requis). */
+  @Get("public/favoris")
+  getPublicFavoris(@Query() query: FavorisQueryDto) {
+    return this.prestatairesService.getPrestatairesFavorisPublic(
+      query.lat,
+      query.lng,
+    );
+  }
+
+  /** Recherche prestataires (public, sans auth — lat/lng requis). */
+  @Get("public/search")
+  publicSearch(@Query() query: SearchQueryDto) {
+    return this.prestatairesService.searchPublic(
+      query.lat,
+      query.lng,
+      query.serviceId,
+      query.tarifMin,
+      query.tarifMax,
+      query.date,
+    );
+  }
+
   /** Avis clients pour la landing (public, sans auth). */
   @Get("public/avis")
   getPublicAvis() {
