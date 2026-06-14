@@ -1,21 +1,31 @@
 import { Injectable, OnModuleInit, OnModuleDestroy } from "@nestjs/common";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { Pool, type PoolConfig } from "pg";
 import { PrismaClient } from "../../generated/prisma/client.js";
 
-/** Render / hébergeurs distants exigent SSL ; aligné sur les scripts prisma/*. */
-function resolveDatabaseUrl(): string {
+function isLocalDatabaseUrl(connectionString: string): boolean {
+  return (
+    connectionString.includes("localhost") ||
+    connectionString.includes("127.0.0.1")
+  );
+}
+
+/** Render / hébergeurs distants : SSL requis ; certificat souvent non reconnu par Node sans rejectUnauthorized: false. */
+function resolvePgPoolConfig(): PoolConfig {
   let connectionString = process.env.DATABASE_URL;
   if (!connectionString) {
     throw new Error("DATABASE_URL is not set in environment");
   }
-  const isLocal =
-    connectionString.includes("localhost") ||
-    connectionString.includes("127.0.0.1");
+  const isLocal = isLocalDatabaseUrl(connectionString);
   if (!isLocal && !connectionString.includes("sslmode=")) {
     connectionString +=
       (connectionString.includes("?") ? "&" : "?") + "sslmode=require";
   }
-  return connectionString;
+  const config: PoolConfig = { connectionString };
+  if (!isLocal) {
+    config.ssl = { rejectUnauthorized: false };
+  }
+  return config;
 }
 
 @Injectable()
@@ -23,9 +33,13 @@ export class PrismaService
   extends PrismaClient
   implements OnModuleInit, OnModuleDestroy
 {
+  private readonly pool: Pool;
+
   constructor() {
-    const adapter = new PrismaPg({ connectionString: resolveDatabaseUrl() });
+    const pool = new Pool(resolvePgPoolConfig());
+    const adapter = new PrismaPg(pool, { disposeExternalPool: true });
     super({ adapter });
+    this.pool = pool;
   }
 
   async onModuleInit() {
@@ -34,5 +48,6 @@ export class PrismaService
 
   async onModuleDestroy() {
     await this.$disconnect();
+    await this.pool.end();
   }
 }
