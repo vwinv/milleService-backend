@@ -3,6 +3,28 @@
 import "dotenv/config";
 import { defineConfig } from "prisma/config";
 
+function isLocalDatabaseUrl(connectionString: string): boolean {
+  return (
+    connectionString.includes("localhost") ||
+    connectionString.includes("127.0.0.1")
+  );
+}
+
+/** Render / hébergeurs distants : sslmode=require + certificat souvent auto-signé (CLI Prisma). */
+function resolveDatabaseUrl(): string | undefined {
+  let url = process.env["DATABASE_URL"];
+  if (!url) return undefined;
+
+  const isLocal = isLocalDatabaseUrl(url);
+  if (!isLocal && !url.includes("sslmode=")) {
+    url += (url.includes("?") ? "&" : "?") + "sslmode=require";
+  }
+  if (!isLocal) {
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+  }
+  return url;
+}
+
 export default defineConfig({
   schema: "prisma/schema.prisma",
   migrations: {
@@ -10,6 +32,6 @@ export default defineConfig({
     seed: "npx ts-node prisma/seed.ts",
   },
   datasource: {
-    url: process.env["DATABASE_URL"],
+    url: resolveDatabaseUrl(),
   },
 });
