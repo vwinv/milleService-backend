@@ -1,46 +1,37 @@
-import { Injectable, OnModuleInit, OnModuleDestroy } from "@nestjs/common";
+import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from "@nestjs/common";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { Pool, type PoolConfig } from "pg";
 import { PrismaClient } from "../../generated/prisma/client.js";
 import {
-  appendSslModeIfNeeded,
-  databaseUrlNeedsSsl,
+  describeDatabaseUrl,
+  resolvePgPoolConfig,
 } from "./database-url.util.js";
-
-/** Local / Render internal : pas de SSL. External Render : sslmode=require + certificat auto-signé. */
-function resolvePgPoolConfig(): PoolConfig {
-  const raw = process.env.DATABASE_URL;
-  if (!raw) {
-    throw new Error("DATABASE_URL is not set in environment");
-  }
-  const connectionString = appendSslModeIfNeeded(raw);
-  const config: PoolConfig = { connectionString };
-  if (databaseUrlNeedsSsl(raw)) {
-    config.ssl = { rejectUnauthorized: false };
-  }
-  return config;
-}
 
 @Injectable()
 export class PrismaService
   extends PrismaClient
   implements OnModuleInit, OnModuleDestroy
 {
-  private readonly pool: Pool;
+  private readonly logger = new Logger(PrismaService.name);
 
   constructor() {
-    const pool = new Pool(resolvePgPoolConfig());
-    const adapter = new PrismaPg(pool, { disposeExternalPool: true });
+    const raw = process.env.DATABASE_URL;
+    if (!raw) {
+      throw new Error("DATABASE_URL is not set in environment");
+    }
+    // Passer PoolConfig, pas une instance Pool : sinon instanceof pg échoue et findMany plante.
+    const poolConfig = resolvePgPoolConfig(raw);
+    const adapter = new PrismaPg(poolConfig);
     super({ adapter });
-    this.pool = pool;
+    this.logger.log(`DB mode: ${describeDatabaseUrl(raw)}`);
   }
 
   async onModuleInit() {
     await this.$connect();
+    await this.prestation.findMany({ take: 1 });
+    this.logger.log("DB connection OK");
   }
 
   async onModuleDestroy() {
     await this.$disconnect();
-    await this.pool.end();
   }
 }
