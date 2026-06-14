@@ -2,27 +2,20 @@ import { Injectable, OnModuleInit, OnModuleDestroy } from "@nestjs/common";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool, type PoolConfig } from "pg";
 import { PrismaClient } from "../../generated/prisma/client.js";
+import {
+  appendSslModeIfNeeded,
+  databaseUrlNeedsSsl,
+} from "./database-url.util.js";
 
-function isLocalDatabaseUrl(connectionString: string): boolean {
-  return (
-    connectionString.includes("localhost") ||
-    connectionString.includes("127.0.0.1")
-  );
-}
-
-/** Render / hébergeurs distants : SSL requis ; certificat souvent non reconnu par Node sans rejectUnauthorized: false. */
+/** Local / Render internal : pas de SSL. External Render : sslmode=require + certificat auto-signé. */
 function resolvePgPoolConfig(): PoolConfig {
-  let connectionString = process.env.DATABASE_URL;
-  if (!connectionString) {
+  const raw = process.env.DATABASE_URL;
+  if (!raw) {
     throw new Error("DATABASE_URL is not set in environment");
   }
-  const isLocal = isLocalDatabaseUrl(connectionString);
-  if (!isLocal && !connectionString.includes("sslmode=")) {
-    connectionString +=
-      (connectionString.includes("?") ? "&" : "?") + "sslmode=require";
-  }
+  const connectionString = appendSslModeIfNeeded(raw);
   const config: PoolConfig = { connectionString };
-  if (!isLocal) {
+  if (databaseUrlNeedsSsl(raw)) {
     config.ssl = { rejectUnauthorized: false };
   }
   return config;

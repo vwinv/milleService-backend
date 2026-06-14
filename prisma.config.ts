@@ -2,27 +2,20 @@
 // npm install --save-dev prisma dotenv
 import "dotenv/config";
 import { defineConfig } from "prisma/config";
+import {
+  appendSslModeIfNeeded,
+  databaseUrlNeedsSsl,
+} from "./src/prisma/database-url.util";
 
-function isLocalDatabaseUrl(connectionString: string): boolean {
-  return (
-    connectionString.includes("localhost") ||
-    connectionString.includes("127.0.0.1")
-  );
-}
-
-/** Render / hébergeurs distants : sslmode=require + certificat souvent auto-signé (CLI Prisma). */
+/** CLI Prisma : SSL seulement pour connexions externes (pas URL interne Render). */
 function resolveDatabaseUrl(): string | undefined {
-  let url = process.env["DATABASE_URL"];
-  if (!url) return undefined;
+  const raw = process.env["DATABASE_URL"];
+  if (!raw) return undefined;
 
-  const isLocal = isLocalDatabaseUrl(url);
-  if (!isLocal && !url.includes("sslmode=")) {
-    url += (url.includes("?") ? "&" : "?") + "sslmode=require";
-  }
-  if (!isLocal) {
+  if (databaseUrlNeedsSsl(raw)) {
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
   }
-  return url;
+  return appendSslModeIfNeeded(raw);
 }
 
 export default defineConfig({
