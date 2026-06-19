@@ -14,15 +14,32 @@ export class GeocodingController {
       return { lat: null, lng: null, found: false };
     }
     const result = await this.geocodingService.geocode(q);
-    if (result) return { ...result, found: true };
-    return { lat: null, lng: null, found: false };
+    if (result) {
+      return {
+        lat: result.lat,
+        lng: result.lng,
+        formattedAddress: result.formattedAddress ?? null,
+        found: true,
+      };
+    }
+    return { lat: null, lng: null, formattedAddress: null, found: false };
   }
 
   @Get("autocomplete")
-  async autocomplete(@Query("q") q: string | undefined) {
+  async autocomplete(
+    @Query("q") q: string | undefined,
+    @Query("lat") lat: string | undefined,
+    @Query("lng") lng: string | undefined,
+  ) {
     const query = (q ?? "").trim();
     if (query.length < 2) return [];
-    return this.geocodingService.autocomplete(query);
+    const biasLat = Number(lat);
+    const biasLng = Number(lng);
+    const bias =
+      Number.isFinite(biasLat) && Number.isFinite(biasLng)
+        ? { lat: biasLat, lng: biasLng }
+        : undefined;
+    return this.geocodingService.autocomplete(query, bias);
   }
 
   @Get("place-details")
@@ -32,6 +49,21 @@ export class GeocodingController {
     const result = await this.geocodingService.placeDetails(id);
     if (!result) return { lat: null, lng: null, found: false };
     return { ...result, found: true };
+  }
+
+  @Get("reverse")
+  async reverse(
+    @Query("lat") lat: string | undefined,
+    @Query("lng") lng: string | undefined,
+  ) {
+    const aLat = Number(lat);
+    const aLng = Number(lng);
+    if (!Number.isFinite(aLat) || !Number.isFinite(aLng)) {
+      return { formattedAddress: null, found: false };
+    }
+    const result = await this.geocodingService.reverseGeocode(aLat, aLng);
+    if (!result) return { formattedAddress: null, found: false };
+    return { formattedAddress: result.formattedAddress, found: true };
   }
 
   @Get("route")

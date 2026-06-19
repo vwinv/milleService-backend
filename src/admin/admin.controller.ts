@@ -1423,6 +1423,25 @@ export class AdminController {
     return { id: updated.id, actif: updated.actif };
   }
 
+  @Delete("prestataires/:id")
+  async deletePrestataire(@Param("id") prestataireId: string) {
+    const prestataire = await this.prisma.prestataire.findUnique({
+      where: { id: prestataireId },
+      select: {
+        userId: true,
+        user: { select: { role: true } },
+      },
+    });
+    if (!prestataire) {
+      throw new BadRequestException("Prestataire introuvable");
+    }
+    if (prestataire.user.role !== Role.PRESTATAIRE) {
+      throw new BadRequestException("Utilisateur invalide");
+    }
+    await this.prisma.user.delete({ where: { id: prestataire.userId } });
+    return { success: true };
+  }
+
   /**
    * Paiements des particuliers vers ce prestataire uniquement
    * (écritures PRESTATION sur le wallet prestataire, liées à une prestation).
@@ -1568,6 +1587,37 @@ export class AdminController {
           ? libelles[0]
           : libelles.join(", ");
 
+    const latestAbonnement = await this.prisma.abonnement.findFirst({
+      where: { prestataireId },
+      orderBy: { createdAt: "desc" },
+      include: {
+        offre: {
+          select: {
+            id: true,
+            code: true,
+            libelle: true,
+            prix: true,
+            dureeMois: true,
+          },
+        },
+      },
+    });
+
+    const abonnementCourant = latestAbonnement
+      ? {
+          id: latestAbonnement.id,
+          offreId: latestAbonnement.offreId,
+          offreLibelle: latestAbonnement.offre.libelle,
+          offrePrix: Number(latestAbonnement.offre.prix),
+          dureeMois: latestAbonnement.offre.dureeMois,
+          dateDebut: latestAbonnement.dateDebut.toISOString().slice(0, 10),
+          dateFin: latestAbonnement.dateFin.toISOString().slice(0, 10),
+          statutAffichage: this.abonnements.resolveStatutAffichage(
+            latestAbonnement,
+          ),
+        }
+      : null;
+
     return {
       id: prestataire.id,
       nom: prestataire.nom,
@@ -1602,6 +1652,7 @@ export class AdminController {
         nomFichier: d.nomFichier,
         updatedAt: d.updatedAt,
       })),
+      abonnementCourant,
     };
   }
 

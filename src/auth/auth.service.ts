@@ -151,7 +151,10 @@ export class AuthService {
       }
 
       if (role === Role.PRESTATAIRE) {
-        if (!dto.name) {
+        const prenom = dto.prenom?.trim() ?? "";
+        const nom = dto.name?.trim() ?? "";
+        const nomComplet = [prenom, nom].filter(Boolean).join(" ").trim();
+        if (!nomComplet) {
           throw new ConflictException("Nom requis pour un prestataire");
         }
         if (!dto.telephone || dto.telephone.trim().length === 0) {
@@ -198,7 +201,7 @@ export class AuthService {
         const prestataire = await this.prisma.prestataire.create({
           data: {
             userId: user.id,
-            nom: dto.name,
+            nom: nomComplet,
             telephone: dto.telephone ?? null,
             adresse: dto.adresse?.trim() ?? null,
             bio: dto.bio ?? null,
@@ -788,11 +791,21 @@ export class AuthService {
           userId: user.id,
           nom: nomComplet.length > 0 ? nomComplet : part.nom,
           telephone: part.telephone ?? null,
+          adresse: adresse.length > 0 ? adresse : null,
           bio: null,
           zoneIntervention: [],
           latitude: lat,
           longitude: lng,
           actif: false,
+        },
+      });
+    } else {
+      await this.prisma.prestataire.update({
+        where: { userId: user.id },
+        data: {
+          ...(adresse.length > 0 ? { adresse } : {}),
+          ...(lat != null ? { latitude: lat } : {}),
+          ...(lng != null ? { longitude: lng } : {}),
         },
       });
     }

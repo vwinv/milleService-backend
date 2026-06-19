@@ -3,6 +3,7 @@ import {
   BadRequestException,
   Logger,
   ServiceUnavailableException,
+  ForbiddenException,
 } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service.js";
 import {
@@ -93,6 +94,16 @@ export class AbonnementsService {
         prix: abo.offre.prix != null ? Number(abo.offre.prix) : 0,
       },
     };
+  }
+
+  /** Refuse l'accès métier prestataire si aucun abonnement actif. */
+  async assertPrestataireHasActiveAbonnement(userId: string): Promise<void> {
+    const abo = await this.getAbonnementCourant(userId);
+    if (!abo) {
+      throw new ForbiddenException(
+        "Votre abonnement a expiré. Veuillez le renouveler pour accéder à cette fonctionnalité.",
+      );
+    }
   }
 
   /**
@@ -205,6 +216,13 @@ export class AbonnementsService {
       throw new BadRequestException("Offre introuvable ou inactive");
     }
 
+    const prixFcfa = Number(offre.prix);
+    if (!Number.isFinite(prixFcfa) || prixFcfa > 0) {
+      throw new BadRequestException(
+        "Cette offre nécessite un paiement. Utilisez le parcours PayDunya.",
+      );
+    }
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const dateFin = new Date(today);
@@ -227,18 +245,6 @@ export class AbonnementsService {
           dateFin,
           statut: StatutAbonnement.ACTIF,
         },
-      });
-
-      const generalWallet = await this.wallets.ensureGeneralWallet(tx);
-      await this.wallets.creditWallet({
-        tx,
-        walletId: generalWallet.id,
-        amount: Number(offre.prix),
-        type: TransactionType.ABONNEMENT,
-        abonnementId: created.id,
-        offreId: offre.id,
-        createdByUserId: userId,
-        meta: { prestataireId: prestataire.id, provider: "app_manual" },
       });
 
       return created;
@@ -830,20 +836,23 @@ export class AbonnementsService {
       });
 
       const generalWallet = await this.wallets.ensureGeneralWallet(tx);
-      await this.wallets.creditWallet({
-        tx,
-        walletId: generalWallet.id,
-        amount: Number(params.offre.prix),
-        type: TransactionType.ABONNEMENT,
-        abonnementId: abo.id,
-        offreId: params.offre.id,
-        createdByUserId: params.adminUserId,
-        meta: {
-          prestataireId: params.prestataireId,
-          provider: "cash",
-          recordedByAdminUserId: params.adminUserId,
-        },
-      });
+      const prixFcfa = Number(params.offre.prix);
+      if (prixFcfa > 0) {
+        await this.wallets.creditWallet({
+          tx,
+          walletId: generalWallet.id,
+          amount: prixFcfa,
+          type: TransactionType.ABONNEMENT,
+          abonnementId: abo.id,
+          offreId: params.offre.id,
+          createdByUserId: params.adminUserId,
+          meta: {
+            prestataireId: params.prestataireId,
+            provider: "cash",
+            recordedByAdminUserId: params.adminUserId,
+          },
+        });
+      }
 
       return abo;
     });

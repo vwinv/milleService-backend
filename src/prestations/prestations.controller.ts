@@ -17,6 +17,7 @@ import {
 } from "./dto/softpay-prestation.dto.js";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard.js";
 import { RolesGuard } from "../auth/guards/roles.guard.js";
+import { PrestataireActiveAbonnementGuard } from "../auth/guards/prestataire-active-abonnement.guard.js";
 import { Roles } from "../auth/decorators/roles.decorator.js";
 import {
   CurrentUser,
@@ -52,28 +53,28 @@ export class PrestationsController {
   }
 
   @Patch(":id/accepter")
-  @UseGuards(RolesGuard)
+  @UseGuards(RolesGuard, PrestataireActiveAbonnementGuard)
   @Roles("PRESTATAIRE")
   accepter(@CurrentUser() user: CurrentUserPayload, @Param("id") id: string) {
     return this.prestations.accepter(user.userId, id);
   }
 
   @Patch(":id/demarrer")
-  @UseGuards(RolesGuard)
+  @UseGuards(RolesGuard, PrestataireActiveAbonnementGuard)
   @Roles("PRESTATAIRE")
   demarrer(@CurrentUser() user: CurrentUserPayload, @Param("id") id: string) {
     return this.prestations.demarrer(user.userId, id);
   }
 
   @Patch(":id/refuser")
-  @UseGuards(RolesGuard)
+  @UseGuards(RolesGuard, PrestataireActiveAbonnementGuard)
   @Roles("PRESTATAIRE")
   refuser(@CurrentUser() user: CurrentUserPayload, @Param("id") id: string) {
     return this.prestations.refuser(user.userId, id);
   }
 
   @Patch(":id/terminer")
-  @UseGuards(RolesGuard)
+  @UseGuards(RolesGuard, PrestataireActiveAbonnementGuard)
   @Roles("PRESTATAIRE")
   terminer(@CurrentUser() user: CurrentUserPayload, @Param("id") id: string) {
     return this.prestations.terminer(user.userId, id);

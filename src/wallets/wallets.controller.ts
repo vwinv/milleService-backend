@@ -9,6 +9,7 @@ import {
 } from "@nestjs/common";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard.js";
 import { RolesGuard } from "../auth/guards/roles.guard.js";
+import { PrestataireActiveAbonnementGuard } from "../auth/guards/prestataire-active-abonnement.guard.js";
 import { Roles } from "../auth/decorators/roles.decorator.js";
 import {
   CurrentUser,
@@ -24,7 +25,7 @@ export class WalletsController {
   constructor(private readonly prisma: PrismaService) {}
 
   @Get("me")
-  @UseGuards(RolesGuard)
+  @UseGuards(RolesGuard, PrestataireActiveAbonnementGuard)
   @Roles("PRESTATAIRE")
   async me(
     @CurrentUser() user: CurrentUserPayload,
@@ -102,7 +103,7 @@ export class WalletsController {
   }
 
   @Post("withdrawals/request")
-  @UseGuards(RolesGuard)
+  @UseGuards(RolesGuard, PrestataireActiveAbonnementGuard)
   @Roles("PRESTATAIRE")
   async requestWithdrawal(
     @CurrentUser() user: CurrentUserPayload,

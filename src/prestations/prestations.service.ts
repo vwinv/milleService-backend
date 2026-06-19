@@ -1102,6 +1102,7 @@ export class PrestationsService {
       select: { id: true },
     });
     if (!prestataire) return [];
+    await this.abonnements.assertPrestataireHasActiveAbonnement(userId);
     const list = await this.prisma.prestation.findMany({
       where: { prestataireId: prestataire.id },
       orderBy: { createdAt: "desc" },
@@ -1161,6 +1162,9 @@ export class PrestationsService {
       role === "PRESTATAIRE" && prestataire?.id === prestation.prestataireId;
     if (!isParticulier && !isPrestataire) {
       throw new ForbiddenException("Accès non autorisé à cette prestation");
+    }
+    if (isPrestataire) {
+      await this.abonnements.assertPrestataireHasActiveAbonnement(userId);
     }
 
     return this.formatPrestationWithCoords(prestation);

@@ -3,6 +3,8 @@ import { Injectable, BadRequestException, Logger } from "@nestjs/common";
 const GOOGLE_GEOCODING_URL = "https://maps.googleapis.com/maps/api/geocode/json";
 const GOOGLE_AUTOCOMPLETE_URL =
   "https://maps.googleapis.com/maps/api/place/autocomplete/json";
+const GOOGLE_PLACE_TEXT_SEARCH_URL =
+  "https://maps.googleapis.com/maps/api/place/textsearch/json";
 const GOOGLE_PLACE_DETAILS_URL =
   "https://maps.googleapis.com/maps/api/place/details/json";
 const GOOGLE_ROUTES_URL = "https://routes.googleapis.com/directions/v2:computeRoutes";
@@ -25,7 +27,14 @@ export class GeocodingService {
 
   private readonly geocodeCache = new Map<
     string,
-    { expiresAt: number; value: { lat: number; lng: number } | null }
+    {
+      expiresAt: number;
+      value: { lat: number; lng: number; formattedAddress?: string } | null;
+    }
+  >();
+  private readonly reverseGeocodeCache = new Map<
+    string,
+    { expiresAt: number; value: { formattedAddress: string } | null }
   >();
   private readonly autocompleteCache = new Map<
     string,
@@ -56,7 +65,9 @@ export class GeocodingService {
   /**
    * Convertit une adresse en coordonnées (lat, lng) via Google Geocoding API.
    */
-  async geocode(address: string): Promise<{ lat: number; lng: number } | null> {
+  async geocode(
+    address: string,
+  ): Promise<{ lat: number; lng: number; formattedAddress?: string } | null> {
     const trimmed = (address ?? "").trim();
     if (trimmed.length < 3) {
       throw new BadRequestException("Adresse trop courte (min. 3 caractères)");
@@ -81,19 +92,95 @@ export class GeocodingService {
 
     const data = (await res.json()) as {
       status?: string;
-      results?: Array<{ geometry?: { location?: { lat?: number; lng?: number } } }>;
+      results?: Array<{
+        formatted_address?: string;
+        geometry?: { location?: { lat?: number; lng?: number } };
+      }>;
     };
     if (data.status !== "OK") {
       this.setCache(this.geocodeCache, cacheKey, null, GeocodingService.GEOCODE_TTL_MS);
       return null;
     }
-    const first = data.results?.[0]?.geometry?.location;
+    const firstResult = data.results?.[0];
+    const first = firstResult?.geometry?.location;
     if (!first || typeof first.lat !== "number" || typeof first.lng !== "number") {
       this.setCache(this.geocodeCache, cacheKey, null, GeocodingService.GEOCODE_TTL_MS);
       return null;
     }
-    const out = { lat: first.lat, lng: first.lng };
+    const formattedAddress = (firstResult?.formatted_address ?? "").trim();
+    const out = {
+      lat: first.lat,
+      lng: first.lng,
+      ...(formattedAddress ? { formattedAddress } : {}),
+    };
     this.setCache(this.geocodeCache, cacheKey, out, GeocodingService.GEOCODE_TTL_MS);
+    return out;
+  }
+
+  /**
+   * Convertit des coordonnées en adresse lisible via Google Geocoding API.
+   */
+  async reverseGeocode(
+    lat: number,
+    lng: number,
+  ): Promise<{ formattedAddress: string } | null> {
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+    if (!this.hasApiKey) return null;
+
+    const cacheKey = `rev:${lat.toFixed(5)},${lng.toFixed(5)}`;
+    const cached = this.getCache(this.reverseGeocodeCache, cacheKey);
+    if (cached !== undefined) return cached;
+
+    const params = new URLSearchParams({
+      latlng: `${lat},${lng}`,
+      key: this.apiKey,
+      language: "fr",
+      region: "sn",
+    });
+    const url = `${GOOGLE_GEOCODING_URL}?${params.toString()}`;
+    const res = await fetch(url, { headers: { Accept: "application/json" } });
+    if (!res.ok) {
+      this.setCache(
+        this.reverseGeocodeCache,
+        cacheKey,
+        null,
+        GeocodingService.GEOCODE_TTL_MS,
+      );
+      return null;
+    }
+
+    const data = (await res.json()) as {
+      status?: string;
+      results?: Array<{ formatted_address?: string }>;
+    };
+    if (data.status !== "OK") {
+      this.setCache(
+        this.reverseGeocodeCache,
+        cacheKey,
+        null,
+        GeocodingService.GEOCODE_TTL_MS,
+      );
+      return null;
+    }
+
+    const formattedAddress = (data.results?.[0]?.formatted_address ?? "").trim();
+    if (!formattedAddress) {
+      this.setCache(
+        this.reverseGeocodeCache,
+        cacheKey,
+        null,
+        GeocodingService.GEOCODE_TTL_MS,
+      );
+      return null;
+    }
+
+    const out = { formattedAddress };
+    this.setCache(
+      this.reverseGeocodeCache,
+      cacheKey,
+      out,
+      GeocodingService.GEOCODE_TTL_MS,
+    );
     return out;
   }
 
@@ -110,60 +197,39 @@ export class GeocodingService {
     return null;
   }
 
+  /** Centre Dakar — biais par défaut si le client n'envoie pas de position. */
+  private static readonly DEFAULT_BIAS = { lat: 14.7167, lng: -17.4677 };
+  private static readonly BIAS_RADIUS_M = 80_000;
+
   /**
-   * Autocomplétion d'adresse via Google Places Autocomplete.
-   * Pour garder la compatibilité front, on renseigne lat/lng via Place Details.
+   * Autocomplétion : Places Autocomplete → Text Search → Geocoding (quartiers / lieux-dits).
    */
-  async autocomplete(query: string): Promise<AutocompleteSuggestion[]> {
+  async autocomplete(
+    query: string,
+    bias?: { lat: number; lng: number },
+  ): Promise<AutocompleteSuggestion[]> {
     const trimmed = (query ?? "").trim();
     if (trimmed.length < 2) return [];
     if (!this.hasApiKey) return [];
-    const cacheKey = trimmed.toLowerCase();
+
+    const biasLat = bias?.lat ?? GeocodingService.DEFAULT_BIAS.lat;
+    const biasLng = bias?.lng ?? GeocodingService.DEFAULT_BIAS.lng;
+    const cacheKey = `${trimmed.toLowerCase()}|${biasLat.toFixed(3)},${biasLng.toFixed(3)}`;
     const cached = this.getCache(this.autocompleteCache, cacheKey);
     if (cached !== undefined) return cached;
 
-    const params = new URLSearchParams({
-      input: trimmed,
-      key: this.apiKey,
-      language: "fr",
-      components: "country:sn",
-      types: "address",
-    });
-    const url = `${GOOGLE_AUTOCOMPLETE_URL}?${params.toString()}`;
-    const res = await fetch(url, { headers: { Accept: "application/json" } });
-    if (!res.ok) {
-      this.setCache(
-        this.autocompleteCache,
-        cacheKey,
-        [],
-        GeocodingService.AUTOCOMPLETE_TTL_MS,
-      );
-      return [];
+    let out = await this.placesAutocompletePredictions(
+      trimmed,
+      biasLat,
+      biasLng,
+    );
+    if (out.length === 0) {
+      out = await this.placesTextSearchSuggestions(trimmed);
+    }
+    if (out.length === 0) {
+      out = await this.geocodeSearchSuggestions(trimmed);
     }
 
-    const data = (await res.json()) as {
-      status?: string;
-      predictions?: Array<{ description?: string; place_id?: string }>;
-    };
-    if (data.status !== "OK" && data.status !== "ZERO_RESULTS") {
-      this.setCache(
-        this.autocompleteCache,
-        cacheKey,
-        [],
-        GeocodingService.AUTOCOMPLETE_TTL_MS,
-      );
-      return [];
-    }
-    const predictions = data.predictions ?? [];
-    const top = predictions.slice(0, 8);
-    const out = top
-      .map((p): AutocompleteSuggestion | null => {
-        const displayName = (p.description ?? "").trim();
-        const placeId = (p.place_id ?? "").trim();
-        if (!displayName || !placeId) return null;
-        return { displayName, placeId };
-      })
-      .filter((x): x is AutocompleteSuggestion => x !== null);
     this.setCache(
       this.autocompleteCache,
       cacheKey,
@@ -171,6 +237,173 @@ export class GeocodingService {
       GeocodingService.AUTOCOMPLETE_TTL_MS,
     );
     return out;
+  }
+
+  private async placesAutocompletePredictions(
+    input: string,
+    biasLat: number,
+    biasLng: number,
+  ): Promise<AutocompleteSuggestion[]> {
+    const params = new URLSearchParams({
+      input,
+      key: this.apiKey,
+      language: "fr",
+      components: "country:sn",
+      location: `${biasLat},${biasLng}`,
+      radius: String(GeocodingService.BIAS_RADIUS_M),
+    });
+    const url = `${GOOGLE_AUTOCOMPLETE_URL}?${params.toString()}`;
+    const res = await fetch(url, { headers: { Accept: "application/json" } });
+    if (!res.ok) return [];
+
+    const data = (await res.json()) as {
+      status?: string;
+      predictions?: Array<{ description?: string; place_id?: string }>;
+    };
+    if (data.status !== "OK" && data.status !== "ZERO_RESULTS") {
+      this.logger.warn(
+        `Places autocomplete status=${data.status ?? "unknown"} input="${input.slice(0, 48)}"`,
+      );
+      return [];
+    }
+
+    return (data.predictions ?? [])
+      .slice(0, 8)
+      .map((p): AutocompleteSuggestion | null => {
+        const displayName = (p.description ?? "").trim();
+        const placeId = (p.place_id ?? "").trim();
+        if (!displayName || !placeId) return null;
+        return { displayName, placeId };
+      })
+      .filter((x): x is AutocompleteSuggestion => x !== null);
+  }
+
+  /** Recherche textuelle (meilleure pour quartiers : Liberté, Sacré-Cœur, etc.). */
+  private async placesTextSearchSuggestions(
+    query: string,
+  ): Promise<AutocompleteSuggestion[]> {
+    const attempts = [
+      `${query}, Dakar, Sénégal`,
+      `${query}, Sénégal`,
+      query,
+    ];
+    const seen = new Set<string>();
+    const out: AutocompleteSuggestion[] = [];
+
+    for (const attempt of attempts) {
+      const params = new URLSearchParams({
+        query: attempt,
+        key: this.apiKey,
+        language: "fr",
+        region: "sn",
+      });
+      const url = `${GOOGLE_PLACE_TEXT_SEARCH_URL}?${params.toString()}`;
+      const res = await fetch(url, { headers: { Accept: "application/json" } });
+      if (!res.ok) continue;
+
+      const data = (await res.json()) as {
+        status?: string;
+        results?: Array<{
+          formatted_address?: string;
+          name?: string;
+          place_id?: string;
+          geometry?: { location?: { lat?: number; lng?: number } };
+        }>;
+      };
+      if (data.status !== "OK" && data.status !== "ZERO_RESULTS") {
+        this.logger.warn(
+          `Places text search status=${data.status ?? "unknown"} query="${attempt.slice(0, 48)}"`,
+        );
+        continue;
+      }
+
+      for (const r of data.results ?? []) {
+        const placeId = (r.place_id ?? "").trim();
+        const name = (r.name ?? "").trim();
+        const formatted = (r.formatted_address ?? "").trim();
+        const displayName = formatted || name;
+        const lat = r.geometry?.location?.lat;
+        const lng = r.geometry?.location?.lng;
+        if (!displayName || !placeId || seen.has(placeId)) continue;
+        seen.add(placeId);
+        out.push({
+          displayName,
+          placeId,
+          lat: typeof lat === "number" ? lat : undefined,
+          lng: typeof lng === "number" ? lng : undefined,
+        });
+        if (out.length >= 8) return out;
+      }
+      if (out.length > 0) return out;
+    }
+    return out;
+  }
+
+  /** Repli Geocoding API (plusieurs variantes avec Dakar / Sénégal). */
+  private async geocodeSearchSuggestions(
+    query: string,
+  ): Promise<AutocompleteSuggestion[]> {
+    const attempts = [
+      `${query}, Dakar, Sénégal`,
+      `${query}, Sénégal`,
+      query,
+    ];
+    const seen = new Set<string>();
+    const out: AutocompleteSuggestion[] = [];
+
+    for (const attempt of attempts) {
+      const batch = await this.fetchGeocodeApiSuggestions(attempt);
+      for (const item of batch) {
+        if (seen.has(item.placeId)) continue;
+        seen.add(item.placeId);
+        out.push(item);
+        if (out.length >= 8) return out;
+      }
+      if (out.length > 0) return out;
+    }
+    return out;
+  }
+
+  private async fetchGeocodeApiSuggestions(
+    address: string,
+  ): Promise<AutocompleteSuggestion[]> {
+    const params = new URLSearchParams({
+      address,
+      key: this.apiKey,
+      language: "fr",
+      region: "sn",
+      components: "country:sn",
+    });
+    const url = `${GOOGLE_GEOCODING_URL}?${params.toString()}`;
+    const res = await fetch(url, { headers: { Accept: "application/json" } });
+    if (!res.ok) return [];
+
+    const data = (await res.json()) as {
+      status?: string;
+      results?: Array<{
+        formatted_address?: string;
+        place_id?: string;
+        geometry?: { location?: { lat?: number; lng?: number } };
+      }>;
+    };
+    if (data.status !== "OK") return [];
+
+    return (data.results ?? [])
+      .slice(0, 5)
+      .map((r): AutocompleteSuggestion | null => {
+        const displayName = (r.formatted_address ?? "").trim();
+        const placeId = (r.place_id ?? "").trim();
+        const lat = r.geometry?.location?.lat;
+        const lng = r.geometry?.location?.lng;
+        if (!displayName || !placeId) return null;
+        return {
+          displayName,
+          placeId,
+          lat: typeof lat === "number" ? lat : undefined,
+          lng: typeof lng === "number" ? lng : undefined,
+        };
+      })
+      .filter((x): x is AutocompleteSuggestion => x !== null);
   }
 
   async placeDetails(placeId: string): Promise<{ lat: number; lng: number } | null> {
