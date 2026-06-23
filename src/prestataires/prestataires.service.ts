@@ -10,6 +10,7 @@ import { CreatePrestatairePhotoDto } from "./dto/create-photo.dto.js";
 import { GeocodingService } from "../geocoding/geocoding.service.js";
 import { UpdateMePrestataireDto } from "./dto/update-me.dto.js";
 import { NotificationsService } from "../notifications/notifications.service.js";
+import { PRESTATAIRE_TYPE_DOCUMENTS_CATALOG } from "./type-documents.catalog.js";
 
 const RAYON_METRES = 500;
 const NOTE_MAX = 5;
@@ -651,7 +652,7 @@ export class PrestatairesService {
    * Permet au prestataire connecté de renvoyer/mettre à jour ses documents.
    * - Met à jour ou crée les PrestataireDocument correspondants
    * - Remet leur statut à EN_ATTENTE
-   * - Replace le statut global de vérification à EN_ATTENTE
+   * - Passe le profil en EN_ATTENTE seulement lorsque les 4 documents sont présents
    */
   async updateMyDocuments(
     userId: string,
@@ -710,9 +711,16 @@ export class PrestatairesService {
       );
     }
 
+    const allOnboardingDocsPresent =
+      await this.prestataireHasAllOnboardingDocuments(prestataire.id);
+
     const updated = await this.prisma.prestataire.update({
       where: { id: prestataire.id },
-      data: { statutVerification: StatutVerificationPrestataire.EN_ATTENTE },
+      data: {
+        statutVerification: allOnboardingDocsPresent
+          ? StatutVerificationPrestataire.EN_ATTENTE
+          : StatutVerificationPrestataire.NON_VERIFIE,
+      },
       select: { id: true, statutVerification: true },
     });
 
@@ -720,6 +728,32 @@ export class PrestatairesService {
       id: updated.id,
       statutVerification: updated.statutVerification,
     };
+  }
+
+  /** Les 4 types du catalogue onboarding (CNI recto/verso, certificat, diplôme). */
+  private async prestataireHasAllOnboardingDocuments(
+    prestataireId: string,
+  ): Promise<boolean> {
+    const requiredCodes = PRESTATAIRE_TYPE_DOCUMENTS_CATALOG.map(
+      (item) => item.code,
+    );
+    const docs = await this.prisma.prestataireDocument.findMany({
+      where: {
+        prestataireId,
+        fichierUrl: { not: "" },
+        typeDocument: { code: { in: [...requiredCodes] }, actif: true },
+      },
+      select: {
+        fichierUrl: true,
+        typeDocument: { select: { code: true } },
+      },
+    });
+    const present = new Set(
+      docs
+        .filter((d) => d.fichierUrl?.trim())
+        .map((d) => d.typeDocument.code),
+    );
+    return requiredCodes.every((code) => present.has(code));
   }
 
   /** Catalogue types de documents (CNI, certificat de résidence, diplôme). */
@@ -737,7 +771,7 @@ export class PrestatairesService {
   async getMyVerificationStatus(userId: string) {
     const prestataire = await this.prisma.prestataire.findUnique({
       where: { userId },
-      select: { id: true, statutVerification: true },
+      select: { id: true, statutVerification: true, actif: true },
     });
     if (!prestataire) {
       throw new BadRequestException("Profil prestataire introuvable");
@@ -759,6 +793,7 @@ export class PrestatairesService {
 
     return {
       statutVerification: prestataire.statutVerification,
+      actif: prestataire.actif,
       documents: docs.map((d) => ({
         id: d.id,
         typeCode: d.typeDocument.code,
