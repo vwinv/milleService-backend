@@ -1990,6 +1990,61 @@ export class AdminController {
     };
   }
 
+  /** Inscriptions testeurs Android (landing page). */
+  @Get("testeurs")
+  async getTesteurs(
+    @Query("limit") limit?: string,
+    @Query("offset") offset?: string,
+    @Query("q") q?: string,
+  ) {
+    const take = Math.min(Math.max(Number(limit ?? 20), 1), 100);
+    const skip = Math.max(Number(offset ?? 0), 0);
+    const search = (q ?? "").trim();
+
+    const where: Prisma.BetaTesteurInscriptionWhereInput = search
+      ? {
+          OR: [
+            { nom: { contains: search, mode: "insensitive" } },
+            { prenom: { contains: search, mode: "insensitive" } },
+            { email: { contains: search, mode: "insensitive" } },
+            { telephone: { contains: search, mode: "insensitive" } },
+          ],
+        }
+      : {};
+
+    const [total, rows] = await Promise.all([
+      this.prisma.betaTesteurInscription.count({ where }),
+      this.prisma.betaTesteurInscription.findMany({
+        where,
+        take,
+        skip,
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          nom: true,
+          prenom: true,
+          email: true,
+          telephone: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      }),
+    ]);
+
+    return {
+      total,
+      items: rows.map((r) => ({
+        id: r.id,
+        nom: r.nom,
+        prenom: r.prenom,
+        email: r.email,
+        telephone: r.telephone,
+        createdAt: r.createdAt.toISOString(),
+        updatedAt: r.updatedAt.toISOString(),
+      })),
+    };
+  }
+
   /** Liste des métiers (services) avec nombre de prestataires liés (ligne PrestataireService). */
   @Get("services")
   async getServicesForAdmin() {

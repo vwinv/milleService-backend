@@ -13,6 +13,7 @@ import { ServicesModule } from "./services/services.module.js";
 import { AbonnementsModule } from "./abonnements/abonnements.module.js";
 import { WalletsModule } from "./wallets/wallets.module.js";
 import { AdminModule } from "./admin/admin.module.js";
+import { BetaTesteursModule } from "./beta-testeurs/beta-testeurs.module.js";
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { AdminModule } from "./admin/admin.module.js";
     AbonnementsModule,
     WalletsModule,
     AdminModule,
+    BetaTesteursModule,
   ],
   controllers: [AppController],
   providers: [AppService],
