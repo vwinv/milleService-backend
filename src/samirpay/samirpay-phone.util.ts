@@ -1,16 +1,19 @@
 import { WithdrawalMethod } from "../../generated/prisma/client.js";
 
-/** Modes PayDunya documentés pour le Sénégal (mobile money). */
-export function withdrawModeFromWithdrawalMethod(
+/**
+ * Nom d’opérateur attendu par SamirPay (`operatorName`).
+ * La collection partenaire montre `WAVE`. Orange et Free suivent le même format court.
+ */
+export function samirOperatorFromWithdrawalMethod(
   method: WithdrawalMethod,
 ): string | null {
   switch (method) {
     case WithdrawalMethod.ORANGE_MONEY:
-      return "orange-money-senegal";
+      return "ORANGE";
     case WithdrawalMethod.WAVE:
-      return "wave-senegal";
+      return "WAVE";
     case WithdrawalMethod.FREE_MONEY:
-      return "free-money-senegal";
+      return "FREE";
     case WithdrawalMethod.RIB:
       return null;
     default:
@@ -22,7 +25,7 @@ export function withdrawModeFromWithdrawalMethod(
  * Numéro local SN sans indicatif (9 chiffres, ex. 771234567).
  * Accepte +221, 221, espaces, 07…
  */
-export function normalizeSenegalMsisdnForPaydunya(raw: string): string | null {
+export function normalizeSenegalMsisdn(raw: string): string | null {
   const digits = raw.replace(/\D/g, "");
   let s = digits;
   if (s.startsWith("221") && s.length >= 12) {

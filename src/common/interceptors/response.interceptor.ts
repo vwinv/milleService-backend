@@ -6,7 +6,7 @@ import {
 } from "@nestjs/common";
 import { Observable } from "rxjs";
 import { map } from "rxjs/operators";
-import { Request, Response } from "express";
+import { Response } from "express";
 
 export interface ApiResponse<T> {
   success: boolean;
@@ -24,14 +24,6 @@ export class ResponseInterceptor<T> implements NestInterceptor<
     context: ExecutionContext,
     next: CallHandler,
   ): Observable<ApiResponse<T>> {
-    const req = context.switchToHttp().getRequest<Request>();
-    const path = req.path ?? req.url ?? "";
-    if (
-      path.includes("webhooks/paydunya") ||
-      path.includes("webhooks/paydunya/disburse")
-    ) {
-      return next.handle() as unknown as Observable<ApiResponse<T>>;
-    }
     const res = context.switchToHttp().getResponse<Response>();
     return next.handle().pipe(
       map((data: T) => {

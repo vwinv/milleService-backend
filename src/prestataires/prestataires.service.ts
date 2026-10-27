@@ -359,24 +359,30 @@ export class PrestatairesService {
       throw new BadRequestException("Prestataire introuvable");
     }
 
-    const avis = await this.prisma.avisPrestataire.upsert({
+    const existing = await this.prisma.avisPrestataire.findFirst({
       where: {
-        particulierId_prestataireId: {
-          particulierId: particulier.id,
-          prestataireId,
-        },
-      },
-      create: {
         particulierId: particulier.id,
         prestataireId,
-        note,
-        commentaire: commentaire ?? null,
-      },
-      update: {
-        note,
-        commentaire: commentaire ?? undefined,
+        prestationId: null,
       },
     });
+
+    const avis = existing
+      ? await this.prisma.avisPrestataire.update({
+          where: { id: existing.id },
+          data: {
+            note,
+            commentaire: commentaire ?? undefined,
+          },
+        })
+      : await this.prisma.avisPrestataire.create({
+          data: {
+            particulierId: particulier.id,
+            prestataireId,
+            note,
+            commentaire: commentaire ?? null,
+          },
+        });
 
     return avis;
   }

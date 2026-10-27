@@ -23,15 +23,15 @@ import {
 import { NotificationsService } from "../notifications/notifications.service.js";
 import { WalletsService } from "../wallets/wallets.service.js";
 import { metaWithdrawalAmount } from "../wallets/withdrawal-meta.util.js";
-import { PaydunyaService } from "../paydunya/paydunya.service.js";
+import { SamirPayService } from "../samirpay/samirpay.service.js";
 import { AbonnementsService } from "../abonnements/abonnements.service.js";
 import { AuthService } from "../auth/auth.service.js";
 import { RegisterDto } from "../auth/dto/register.dto.js";
 import { AdminRenouvelerAbonnementDto } from "../abonnements/dto/admin-renouveler-abonnement.dto.js";
 import {
-  normalizeSenegalMsisdnForPaydunya,
-  withdrawModeFromWithdrawalMethod,
-} from "../paydunya/paydunya-disburse.util.js";
+  normalizeSenegalMsisdn,
+  samirOperatorFromWithdrawalMethod,
+} from "../samirpay/samirpay-phone.util.js";
 import {
   ParticulierStatut,
   PrestataireWalletStatut,
@@ -143,7 +143,7 @@ export class AdminController {
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
     private readonly wallets: WalletsService,
-    private readonly paydunya: PaydunyaService,
+    private readonly samirpay: SamirPayService,
     private readonly abonnements: AbonnementsService,
     private readonly auth: AuthService,
   ) {}
@@ -512,9 +512,10 @@ export class AdminController {
       amount?: number;
       payoutMethod?: WithdrawalMethod;
       note?: string;
-      /** Si true : envoi immédiat via PayDunya PUSH (sinon enregistrement manuel après virement). */
+      /** Si true : envoi immédiat via SamirPay (sinon enregistrement manuel après virement). */
       payWithPaydunya?: boolean;
-      /** Téléphone bénéficiaire (9 chiffres SN sans +221) — requis si payWithPaydunya. */
+      payWithSamirPay?: boolean;
+      /** Téléphone bénéficiaire (9 chiffres SN sans +221) — requis si envoi SamirPay. */
       accountAlias?: string;
     },
   ) {
@@ -523,55 +524,55 @@ export class AdminController {
       throw new BadRequestException("Montant invalide");
     }
 
-    if (body.payWithPaydunya === true) {
+    if (body.payWithSamirPay === true || body.payWithPaydunya === true) {
       if (
         body.payoutMethod == null ||
         !Object.values(WithdrawalMethod).includes(body.payoutMethod)
       ) {
         throw new BadRequestException(
-          "Moyen de paiement requis pour un envoi PayDunya",
+          "Moyen de paiement requis pour un envoi SamirPay",
         );
       }
-      const wm = withdrawModeFromWithdrawalMethod(body.payoutMethod);
-      if (!wm) {
+      const operator = samirOperatorFromWithdrawalMethod(body.payoutMethod);
+      if (!operator) {
         throw new BadRequestException(
-          "PayDunya ne prend pas en charge ce moyen (ex. carte bancaire). Choisissez Orange Money, Wave ou Free Money, ou désactivez l’envoi PayDunya.",
+          "SamirPay ne prend pas en charge ce moyen (ex. carte bancaire). Choisissez Orange Money, Wave ou Free Money, ou désactivez l’envoi SamirPay.",
         );
       }
       const rawPhone = String(body.accountAlias ?? "").trim();
       if (!rawPhone) {
         throw new BadRequestException(
-          "Numéro de téléphone du bénéficiaire requis pour l’envoi PayDunya",
+          "Numéro de téléphone du bénéficiaire requis pour l’envoi SamirPay",
         );
       }
-      const phone = normalizeSenegalMsisdnForPaydunya(rawPhone);
+      const phone = normalizeSenegalMsisdn(rawPhone);
       if (!phone) {
         throw new BadRequestException(
           "Numéro mobile invalide (attendu : mobile Sénégal, ex. 77 123 45 67)",
         );
       }
-      const disburseId = `gw-${admin.userId}-${String(Date.now())}`;
-      let push: Awaited<ReturnType<PaydunyaService["disbursePush"]>>;
+      const reference = `gw-${admin.userId}-${String(Date.now())}`;
+      let push: Awaited<ReturnType<SamirPayService["cashOut"]>>;
       try {
-        push = await this.paydunya.disbursePush({
-          account_alias: phone,
+        push = await this.samirpay.cashOut({
+          phoneNumber: phone,
+          operatorName: operator,
           amountFcfa: amount,
-          withdraw_mode: wm,
-          disburse_id: disburseId,
+          reference,
         });
       } catch (e) {
         if (e instanceof ServiceUnavailableException) throw e;
-        const msg = e instanceof Error ? e.message : "Erreur PayDunya";
+        const msg = e instanceof Error ? e.message : "Erreur SamirPay";
         throw new BadRequestException(msg);
       }
       if (push.outcome === "pending") {
         throw new BadRequestException(
-          "Transaction PayDunya en attente de confirmation opérateur. Le solde n’a pas été débité — réessayez plus tard ou utilisez l’enregistrement manuel.",
+          "Transaction SamirPay en attente de confirmation opérateur. Le solde n’a pas été débité — réessayez plus tard ou utilisez l’enregistrement manuel.",
         );
       }
       if (push.outcome === "failed") {
         throw new BadRequestException(
-          push.responseText ?? "Déboursement PayDunya refusé",
+          push.responseText ?? "Versement SamirPay refusé",
         );
       }
       await this.wallets.debitGeneralWallet({
@@ -580,12 +581,12 @@ export class AdminController {
         meta: {
           payoutMethod: body.payoutMethod,
           note: body.note?.trim() || undefined,
-          paydunyaDisburse: true,
-          paydunyaTransactionId: push.transactionId,
-          paydunyaDisburseToken: push.disburseToken,
+          samirpayDisburse: true,
+          samirpayTransactionId: push.transactionId,
+          samirpayReference: push.disburseToken,
         },
       });
-      return { ok: true as const, paydunya: true as const };
+      return { ok: true as const, samirpay: true as const };
     }
 
     await this.wallets.debitGeneralWallet({
@@ -642,8 +643,9 @@ export class AdminController {
       decision?: string;
       /** Moyen utilisé par l’admin pour effectuer le versement (modal Paiement). */
       payoutMethod?: WithdrawalMethod;
-      /** Si true : envoi PayDunya PUSH puis débit wallet (ou attente IPN si pending). */
+      /** Si true : envoi SamirPay puis débit wallet (ou attente si pending). */
       payWithPaydunya?: boolean;
+      payWithSamirPay?: boolean;
       /** Surcharge du numéro (sinon téléphone du profil prestataire). */
       accountAlias?: string;
     },
@@ -690,11 +692,11 @@ export class AdminController {
         ? { ...(row.meta as Record<string, unknown>) }
         : {};
 
-    if (body.payWithPaydunya === true) {
-      const wm = withdrawModeFromWithdrawalMethod(effectiveMethod);
-      if (!wm) {
+    if (body.payWithSamirPay === true || body.payWithPaydunya === true) {
+      const operator = samirOperatorFromWithdrawalMethod(effectiveMethod);
+      if (!operator) {
         throw new BadRequestException(
-          "PayDunya ne prend pas en charge ce moyen (ex. carte bancaire). Choisissez Orange Money, Wave ou Free Money, ou validez sans envoi PayDunya.",
+          "SamirPay ne prend pas en charge ce moyen (ex. carte bancaire). Choisissez Orange Money, Wave ou Free Money, ou validez sans envoi SamirPay.",
         );
       }
       const amount = metaWithdrawalAmount(row.meta);
@@ -723,33 +725,33 @@ export class AdminController {
       ).trim();
       if (!rawPhone) {
         throw new BadRequestException(
-          "Numéro de téléphone du prestataire manquant : complétez le profil ou saisissez le numéro pour PayDunya.",
+          "Numéro de téléphone du prestataire manquant : complétez le profil ou saisissez le numéro pour SamirPay.",
         );
       }
-      const phone = normalizeSenegalMsisdnForPaydunya(rawPhone);
+      const phone = normalizeSenegalMsisdn(rawPhone);
       if (!phone) {
         throw new BadRequestException(
           "Numéro mobile invalide (attendu : mobile Sénégal)",
         );
       }
-      let push: Awaited<ReturnType<PaydunyaService["disbursePush"]>>;
+      let push: Awaited<ReturnType<SamirPayService["cashOut"]>>;
       try {
-        push = await this.paydunya.disbursePush({
-          account_alias: phone,
+        push = await this.samirpay.cashOut({
+          phoneNumber: phone,
+          operatorName: operator,
           amountFcfa: amount,
-          withdraw_mode: wm,
-          disburse_id: `wr-${row.id}`,
+          reference: `wr-${row.id}`,
         });
       } catch (e) {
         if (e instanceof ServiceUnavailableException) throw e;
-        const msg = e instanceof Error ? e.message : "Erreur PayDunya";
+        const msg = e instanceof Error ? e.message : "Erreur SamirPay";
         throw new BadRequestException(msg);
       }
       if (push.outcome === "pending") {
         metaBase.adminPayoutMethod = effectiveMethod;
-        metaBase.paydunyaDisburseToken = push.disburseToken;
-        metaBase.paydunyaPendingAt = new Date().toISOString();
-        metaBase.paydunyaDisburseId = `wr-${row.id}`;
+        metaBase.samirpayReference = push.disburseToken;
+        metaBase.samirpayPendingAt = new Date().toISOString();
+        metaBase.samirpayDisburseId = `wr-${row.id}`;
         await this.prisma.withdrawalRequest.update({
           where: { id: row.id },
           data: {
@@ -760,20 +762,21 @@ export class AdminController {
           ok: true,
           status: WithdrawalStatus.EN_ATTENTE,
           paydunyaStatus: "pending" as const,
+          samirpayStatus: "pending" as const,
           message:
-            "Transaction en cours chez l’opérateur. Le wallet n’est pas débité tant que PayDunya n’a pas confirmé le succès (notification automatique).",
+            "Transaction en cours chez l’opérateur. Le wallet n’est pas débité tant que SamirPay n’a pas confirmé le succès. Réessayez la validation plus tard.",
         };
       }
       if (push.outcome === "failed") {
         throw new BadRequestException(
-          push.responseText ?? "Déboursement PayDunya refusé",
+          push.responseText ?? "Versement SamirPay refusé",
         );
       }
       metaBase.adminPayoutMethod = effectiveMethod;
       metaBase.adminProcessedAt = new Date().toISOString();
-      metaBase.paydunyaDisburse = true;
-      metaBase.paydunyaTransactionId = push.transactionId;
-      metaBase.paydunyaDisburseToken = push.disburseToken;
+      metaBase.samirpayDisburse = true;
+      metaBase.samirpayTransactionId = push.transactionId;
+      metaBase.samirpayReference = push.disburseToken;
       const metaPayloadPay = metaBase as Prisma.InputJsonValue;
       await this.prisma.$transaction([
         this.prisma.wallet.update({
@@ -792,6 +795,7 @@ export class AdminController {
         ok: true,
         status: WithdrawalStatus.TRAITE,
         paydunyaStatus: "success" as const,
+        samirpayStatus: "success" as const,
       };
     }
 

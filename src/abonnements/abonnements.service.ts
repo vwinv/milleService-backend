@@ -12,9 +12,7 @@ import {
   TransactionType,
 } from "../../generated/prisma/client.js";
 import { WalletsService } from "../wallets/wallets.service.js";
-import { PaydunyaService } from "../paydunya/paydunya.service.js";
-import { paydunyaIpnCallbackUrl } from "../paydunya/paydunya-callback.util.js";
-import type { PaydunyaSoftPayResponse } from "../paydunya/paydunya-softpay.types.js";
+import { SamirPayService } from "../samirpay/samirpay.service.js";
 import type { SoftPayAbonnementDto } from "./dto/softpay-abonnement.dto.js";
 
 @Injectable()
@@ -24,7 +22,7 @@ export class AbonnementsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly wallets: WalletsService,
-    private readonly paydunya: PaydunyaService,
+    private readonly samirpay: SamirPayService,
   ) {}
 
   /**
@@ -107,8 +105,7 @@ export class AbonnementsService {
   }
 
   /**
-   * Vrai si l’IPN PayDunya a enregistré le paiement pour ce token (transaction ABONNEMENT liée au prestataire).
-   * Utilisé par l’app pour le bouton « Terminer » après SoftPay (évite de confondre avec un ancien abonnement actif).
+   * Vrai si SamirPay a confirmé le paiement pour ce token (transaction ABONNEMENT liée au prestataire).
    */
   async isPaydunyaInvoicePaidForPrestataire(
     userId: string,
@@ -125,13 +122,21 @@ export class AbonnementsService {
     if (!prestataire) {
       return { paid: false };
     }
+    const intent = await this.samirpay.findIntent(token);
+    const keys = Array.from(
+      new Set(
+        [token, intent?.orderId, intent?.transactionId].filter(
+          (v): v is string => typeof v === "string" && v.length > 0,
+        ),
+      ),
+    );
     const row = await this.prisma.walletTransaction.findFirst({
       where: {
         type: TransactionType.ABONNEMENT,
-        meta: {
-          path: ["paydunyaInvoiceToken"],
-          equals: token,
-        },
+        OR: keys.flatMap((k) => [
+          { meta: { path: ["samirOrderId"], equals: k } },
+          { meta: { path: ["paydunyaInvoiceToken"], equals: k } },
+        ]),
         abonnement: { prestataireId: prestataire.id },
       },
       select: { id: true },
@@ -144,7 +149,7 @@ export class AbonnementsService {
   }
 
   /**
-   * Repli si l’IPN n’a pas atteint le serveur : interroge PayDunya puis active l’abonnement.
+   * Interroge SamirPay puis active l’abonnement si le paiement est confirmé.
    */
   async syncPaydunyaAbonnementFromConfirm(
     userId: string,
@@ -154,45 +159,40 @@ export class AbonnementsService {
     if (!token) {
       return { paid: false, error: "missing_token" };
     }
-
-    const confirmed = await this.paydunya.confirmCheckoutInvoice(token);
-    if (!confirmed) {
-      return { paid: false, error: "confirm_failed" };
+    const intent = await this.samirpay.findIntent(token);
+    const meta =
+      intent?.meta && typeof intent.meta === "object" && !Array.isArray(intent.meta)
+        ? (intent.meta as Record<string, unknown>)
+        : null;
+    if (!intent || intent.kind !== "abonnement" || !meta) {
+      return { paid: false, error: "payment_not_found" };
     }
-    if (!this.paydunya.verifyIpnHash(confirmed.hash)) {
-      return { paid: false, error: "invalid_hash" };
+    const offreId = String(meta["offreId"] ?? "").trim();
+    const prestataireId = String(meta["prestataireId"] ?? "").trim();
+    const customUserId = String(meta["userId"] ?? "").trim();
+    if (!offreId || !prestataireId || customUserId !== userId) {
+      return { paid: false, error: "invalid_intent" };
     }
-    if (confirmed.status !== "completed") {
-      return { paid: false, error: `status_${confirmed.status}` };
+    const status = await this.samirpay.getPaymentStatus(
+      intent.transactionId || intent.orderId,
+    );
+    if (status.state !== "paid") {
+      return { paid: false, error: `status_${status.state}` };
     }
-
-    const custom = confirmed.customData;
-    const kind = String(custom["kind"] ?? "").toLowerCase();
-    if (kind !== "abonnement") {
-      return { paid: false, error: "not_abonnement_invoice" };
+    const paidAmount = status.amountFcfa ?? intent.amountFcfa;
+    if (Math.abs(paidAmount - intent.amountFcfa) > 1) {
+      return { paid: false, error: "amount_mismatch" };
     }
-
-    const offreId = String(custom["offreId"] ?? "").trim();
-    const prestataireId = String(custom["prestataireId"] ?? "").trim();
-    const customUserId = String(custom["userId"] ?? "").trim();
-    if (!offreId || !prestataireId || !customUserId) {
-      return { paid: false, error: "invalid_custom_data" };
-    }
-    if (customUserId !== userId) {
-      return { paid: false, error: "user_mismatch" };
-    }
-
     const r = await this.finalizeFromPaydunyaIpn({
       offreId,
       prestataireId,
       userId: customUserId,
-      paidAmount: confirmed.totalAmount,
-      invoiceToken: confirmed.invoiceToken,
+      paidAmount,
+      invoiceToken: intent.orderId,
     });
     if (!r.ok) {
       return { paid: false, error: "error" in r ? String(r.error) : "finalize_failed" };
     }
-
     const abonnement = await this.getAbonnementCourant(userId);
     return { paid: true, abonnement: abonnement ?? undefined };
   }
@@ -219,7 +219,7 @@ export class AbonnementsService {
     const prixFcfa = Number(offre.prix);
     if (!Number.isFinite(prixFcfa) || prixFcfa > 0) {
       throw new BadRequestException(
-        "Cette offre nécessite un paiement. Utilisez le parcours PayDunya.",
+        "Cette offre nécessite un paiement. Utilisez le parcours SamirPay.",
       );
     }
 
@@ -255,13 +255,13 @@ export class AbonnementsService {
   }
 
   /**
-   * Crée une facture PayDunya pour payer un abonnement (checkout / SoftPay).
-   * Finalisation via IPN `POST /webhooks/paydunya` (custom_data.kind = abonnement).
+   * Crée un encaissement SamirPay pour payer un abonnement.
+   * L’abonnement n’est activé qu’après confirmation du statut SamirPay.
    */
   async initPaydunyaCheckout(userId: string, offreId: string) {
-    if (!this.paydunya.isConfigured()) {
+    if (!this.samirpay.isConfigured()) {
       throw new ServiceUnavailableException(
-        "Paiement PayDunya non configuré sur le serveur",
+        "Paiement SamirPay non configuré sur le serveur",
       );
     }
     const prestataire = await this.prisma.prestataire.findUnique({
@@ -281,144 +281,84 @@ export class AbonnementsService {
     if (!Number.isFinite(amount) || amount <= 0) {
       throw new BadRequestException("Prix d'offre invalide pour le paiement");
     }
-    const callbackUrl = paydunyaIpnCallbackUrl(this.logger);
-    const storeName =
-      process.env.PAYDUNYA_STORE_NAME?.trim() || "Mille Services";
-
-    const inv = await this.paydunya.createCheckoutInvoice({
-      totalAmountFcfa: amount,
-      description: `Abonnement ${offre.libelle} — ${prestataire.nom ?? prestataire.id}`,
-      storeName,
-      callbackUrl,
-      returnUrl: process.env.PAYDUNYA_RETURN_URL?.trim() || undefined,
-      cancelUrl: process.env.PAYDUNYA_CANCEL_URL?.trim() || undefined,
-      customData: {
+    const orderId = `abo_${prestataire.id}_${offre.id}_${String(Date.now())}`;
+    const inv = await this.samirpay.initPayment({ amountFcfa: amount, orderId });
+    await this.samirpay.saveIntent({
+      orderId,
+      transactionId: inv.transactionId,
+      kind: "abonnement",
+      amountFcfa: amount,
+      checkoutUrl: inv.checkoutUrl,
+      meta: {
         kind: "abonnement",
         offreId: offre.id,
         prestataireId: prestataire.id,
         userId,
       },
     });
-
     return {
       amountFcfa: amount,
-      invoiceToken: inv.invoiceToken,
-      checkoutUrl: inv.checkoutUrl,
+      invoiceToken: inv.publicToken,
+      checkoutUrl: inv.checkoutUrl ?? "",
       description: offre.libelle,
     };
   }
 
   /**
-   * SoftPay (Wave / Orange Money / Free Money) sur une facture abonnement
-   * déjà créée via [initPaydunyaCheckout]. L’abonnement n’est créé qu’après IPN complété.
+   * Renvoie le lien SamirPay déjà créé. L’opérateur se choisit sur la page SamirPay.
    */
   async softPayAbonnement(userId: string, dto: SoftPayAbonnementDto) {
-    if (!this.paydunya.isConfigured()) {
+    if (!this.samirpay.isConfigured()) {
       throw new ServiceUnavailableException(
-        "Paiement PayDunya non configuré sur le serveur",
+        "Paiement SamirPay non configuré sur le serveur",
       );
     }
-
     const prestataire = await this.prisma.prestataire.findUnique({
       where: { userId },
-      select: { id: true, nom: true },
+      select: { id: true },
     });
     if (!prestataire) {
       throw new BadRequestException("Profil prestataire introuvable");
     }
-
     const offre = await this.prisma.offre.findUnique({
       where: { id: dto.offreId, actif: true },
     });
     if (!offre) {
       throw new BadRequestException("Offre introuvable ou inactive");
     }
-
     const amount = Math.round(Number(offre.prix));
     if (!Number.isFinite(amount) || amount <= 0) {
       throw new BadRequestException("Prix d'offre invalide pour le paiement");
     }
-
     const invoiceToken = dto.invoiceToken.trim();
-
-    const dbUser = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { email: true },
-    });
-    const email = (
-      dto.email?.trim() ||
-      dbUser?.email ||
-      "prestataire@milleservices.sn"
-    ).slice(0, 200);
-    const phone = dto.telephone.replace(/\s+/g, "");
-    const fullName = `${dto.prenom} ${dto.nom}`.trim();
-
-    const telMask =
-      phone.length >= 2 ? `***${phone.slice(-2)}` : "[short]";
-    const tokenMask =
-      invoiceToken.length > 8
-        ? `${invoiceToken.slice(0, 8)}…`
-        : "[short]";
-    this.logger.log(
-      `Abonnement SoftPay → offreId=${dto.offreId} method=${dto.method} amountFcfa=${String(amount)} invoiceToken=${tokenMask} telephone=${telMask}`,
-    );
-
-    let soft: PaydunyaSoftPayResponse;
-    switch (dto.method) {
-      case "orange_money_sn":
-        soft = await this.paydunya.softPayOrangeMoneySenegal({
-          customer_name: fullName,
-          customer_email: email,
-          phone_number: phone,
-          invoice_token: invoiceToken,
-        });
-        break;
-      case "free_money_sn":
-        soft = await this.paydunya.softPayFreeMoneySenegal({
-          customer_name: fullName,
-          customer_email: email,
-          phone_number: phone,
-          payment_token: invoiceToken,
-        });
-        break;
-      case "wave_sn":
-        soft = await this.paydunya.softPayWaveSenegal({
-          wave_senegal_fullName: fullName,
-          wave_senegal_email: email,
-          wave_senegal_phone: phone,
-          wave_senegal_payment_token: invoiceToken,
-        });
-        break;
-      default:
-        throw new BadRequestException("Moyen de paiement inconnu");
-    }
-
-    if (!soft.success) {
-      this.logger.warn(
-        `Abonnement SoftPay KO offreId=${dto.offreId} method=${dto.method} message=${soft.message ?? "n/a"}`,
-      );
+    const intent = await this.samirpay.findIntent(invoiceToken);
+    const meta =
+      intent?.meta && typeof intent.meta === "object" && !Array.isArray(intent.meta)
+        ? (intent.meta as Record<string, unknown>)
+        : null;
+    if (
+      !intent ||
+      intent.kind !== "abonnement" ||
+      meta?.offreId !== offre.id ||
+      meta?.userId !== userId
+    ) {
       throw new BadRequestException(
-        typeof soft.message === "string" && soft.message.trim()
-          ? soft.message
-          : "Paiement mobile refusé par PayDunya",
+        "Paiement SamirPay introuvable. Relancez le paiement.",
       );
     }
-
+    const url = intent.checkoutUrl?.trim() || undefined;
     this.logger.log(
-      `Abonnement SoftPay OK offreId=${dto.offreId} method=${dto.method} url=${soft.url ? "yes" : "no"}`,
+      `Abonnement SamirPay lien offreId=${dto.offreId} method=${dto.method} url=${url ? "yes" : "no"}`,
     );
-
     return {
       amountFcfa: amount,
       invoiceToken,
       description: offre.libelle,
       softPay: {
-        url: soft.url,
-        other_url: soft.other_url,
-        return_url: soft.return_url,
-        message: soft.message,
-        fees: soft.fees,
-        currency: soft.currency,
+        url,
+        message: url
+          ? "Ouvrez la page SamirPay pour valider le paiement."
+          : "Paiement initié. Validez-le dans votre application mobile money.",
       },
     };
   }
@@ -502,7 +442,8 @@ export class AbonnementsService {
         createdByUserId: input.userId,
         meta: {
           prestataireId: prestataire.id,
-          provider: "paydunya",
+          provider: "samirpay",
+          samirOrderId: input.invoiceToken,
           paydunyaInvoiceToken: input.invoiceToken,
         },
       });
@@ -636,8 +577,8 @@ export class AbonnementsService {
   /**
    * Renouvellement d’abonnement par l’admin :
    *   - method = "cash"          → abonnement créé immédiatement, transaction wallet meta provider=cash.
-   *   - method = "wave_sn"|"orange_money_sn" → init PayDunya + SoftPay ; l’abonnement
-   *     n’est créé qu’après IPN (réutilise finalizeFromPaydunyaIpn).
+   *   - method = "wave_sn"|"orange_money_sn" → init SamirPay ; l’abonnement
+   *     n’est créé qu’après confirmation du statut.
    */
   async adminRenouvelerAbonnement(params: {
     prestataireId: string;
@@ -652,8 +593,6 @@ export class AbonnementsService {
         id: true,
         userId: true,
         nom: true,
-        telephone: true,
-        user: { select: { email: true } },
       },
     });
     if (!prestataire) {
@@ -680,34 +619,24 @@ export class AbonnementsService {
       });
     }
 
-    if (!this.paydunya.isConfigured()) {
+    if (!this.samirpay.isConfigured()) {
       throw new ServiceUnavailableException(
-        "Paiement PayDunya non configuré sur le serveur",
+        "Paiement SamirPay non configuré sur le serveur",
       );
     }
 
-    const phone = (params.telephone ?? prestataire.telephone ?? "")
-      .replace(/\s+/g, "")
-      .trim();
-    if (phone.length < 8) {
-      throw new BadRequestException(
-        "Numéro de téléphone requis pour un paiement mobile money",
-      );
-    }
-
-    const callbackUrl = paydunyaIpnCallbackUrl(this.logger);
-    const storeName =
-      process.env.PAYDUNYA_STORE_NAME?.trim() || "Mille Services";
-
-    /** Création de la facture PayDunya — `userId = prestataire.userId` pour que l’IPN trouve le bon profil. */
-    const invoice = await this.paydunya.createCheckoutInvoice({
-      totalAmountFcfa: amount,
-      description: `Abonnement ${offre.libelle} — ${prestataire.nom ?? prestataire.id}`,
-      storeName,
-      callbackUrl,
-      returnUrl: process.env.PAYDUNYA_RETURN_URL?.trim() || undefined,
-      cancelUrl: process.env.PAYDUNYA_CANCEL_URL?.trim() || undefined,
-      customData: {
+    const orderId = `abo_${prestataire.id}_${offre.id}_${String(Date.now())}`;
+    const invoice = await this.samirpay.initPayment({
+      amountFcfa: amount,
+      orderId,
+    });
+    await this.samirpay.saveIntent({
+      orderId,
+      transactionId: invoice.transactionId,
+      kind: "abonnement",
+      amountFcfa: amount,
+      checkoutUrl: invoice.checkoutUrl,
+      meta: {
         kind: "abonnement",
         offreId: offre.id,
         prestataireId: prestataire.id,
@@ -716,41 +645,8 @@ export class AbonnementsService {
       },
     });
 
-    const fullName = prestataire.nom ?? "Prestataire";
-    const email = (
-      prestataire.user.email || "prestataire@milleservices.sn"
-    ).slice(0, 200);
-
-    let soft: PaydunyaSoftPayResponse;
-    if (params.method === "wave_sn") {
-      soft = await this.paydunya.softPayWaveSenegal({
-        wave_senegal_fullName: fullName,
-        wave_senegal_email: email,
-        wave_senegal_phone: phone,
-        wave_senegal_payment_token: invoice.invoiceToken,
-      });
-    } else {
-      soft = await this.paydunya.softPayOrangeMoneySenegal({
-        customer_name: fullName,
-        customer_email: email,
-        phone_number: phone,
-        invoice_token: invoice.invoiceToken,
-      });
-    }
-
-    if (!soft.success) {
-      this.logger.warn(
-        `Admin renouvellement KO method=${params.method} message=${soft.message ?? "n/a"}`,
-      );
-      throw new BadRequestException(
-        typeof soft.message === "string" && soft.message.trim()
-          ? soft.message
-          : "Paiement mobile refusé par PayDunya",
-      );
-    }
-
     this.logger.log(
-      `Admin renouvellement OK method=${params.method} prestataire=${prestataire.id} amount=${amount}`,
+      `Admin renouvellement SamirPay OK method=${params.method} prestataire=${prestataire.id} amount=${amount}`,
     );
 
     return {
@@ -758,22 +654,20 @@ export class AbonnementsService {
       paymentStatus: "pending_payment" as const,
       method: params.method,
       amountFcfa: amount,
-      invoiceToken: invoice.invoiceToken,
-      checkoutUrl: invoice.checkoutUrl,
+      invoiceToken: invoice.publicToken,
+      checkoutUrl: invoice.checkoutUrl ?? "",
       message:
-        "Paiement initié. L’abonnement sera activé uniquement après confirmation PayDunya.",
+        "Paiement initié. L’abonnement sera activé uniquement après confirmation SamirPay.",
       softPay: {
-        url: soft.url,
-        other_url: soft.other_url,
-        return_url: soft.return_url,
-        message: soft.message,
-        fees: soft.fees,
-        currency: soft.currency,
+        url: invoice.checkoutUrl,
+        message: invoice.checkoutUrl
+          ? "Ouvrez la page SamirPay pour valider le paiement."
+          : "Paiement initié. Validez-le dans l’application mobile money.",
       },
     };
   }
 
-  /** Admin : vérifie si l’IPN PayDunya a soldé la facture (abonnement créé). */
+  /** Admin : vérifie si SamirPay a soldé le paiement (abonnement créé). */
   async adminIsInvoicePaid(prestataireId: string, invoiceToken: string) {
     const prestataire = await this.prisma.prestataire.findUnique({
       where: { id: prestataireId },

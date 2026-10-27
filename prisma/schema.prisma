@@ -393,6 +393,8 @@ model Prestation {
   /// Horodatage du clic « arrivé à destination » (début du décompte prestation).
   startedAt            DateTime?         @map("started_at")
   completedAt          DateTime?         @map("completed_at")
+  /// PARTICULIER ou PRESTATAIRE, renseigné quand le statut passe à ANNULEE.
+  annulePar            Role?             @map("annule_par")
   createdAt            DateTime          @default(now()) @map("created_at")
   updatedAt            DateTime          @updatedAt @map("updated_at")
 
@@ -400,6 +402,7 @@ model Prestation {
   prestataire       Prestataire        @relation(fields: [prestataireId], references: [id], onDelete: Cascade)
   prestataireService PrestataireService @relation(fields: [prestataireServiceId], references: [id], onDelete: Restrict)
   walletTransactions WalletTransaction[]
+  avis               AvisPrestataire?
 
   @@index([particulierId])
   @@index([prestataireId])
@@ -436,15 +439,17 @@ model AvisPrestataire {
   id             String   @id @default(cuid())
   particulierId  String   @map("particulier_id")
   prestataireId  String   @map("prestataire_id")
+  prestationId   String?  @unique @map("prestation_id")
   note           Int      // 1 à 5 étoiles
   commentaire    String?  @db.Text
   createdAt      DateTime @default(now()) @map("created_at")
 
   particulier  Particulier @relation(fields: [particulierId], references: [id], onDelete: Cascade)
   prestataire  Prestataire @relation(fields: [prestataireId], references: [id], onDelete: Cascade)
+  prestation   Prestation? @relation(fields: [prestationId], references: [id], onDelete: Cascade)
 
-  @@unique([particulierId, prestataireId]) // un avis par particulier par prestataire
   @@index([prestataireId])
+  @@index([particulierId, prestataireId])
   @@map("avis_prestataire")
 }
 
@@ -462,4 +467,22 @@ model BetaTesteurInscription {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("beta_testeur_inscriptions")
+}
+
+// =============================================================================
+// SAMIRPAY — intention de paiement (cashin) pour corréler le statut
+// =============================================================================
+
+model SamirPaymentIntent {
+  id            String   @id @default(cuid())
+  orderId       String   @unique @map("order_id")
+  transactionId String?  @unique @map("transaction_id")
+  kind          String
+  amountFcfa    Int      @map("amount_fcfa")
+  checkoutUrl   String?  @map("checkout_url") @db.Text
+  meta          Json
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@map("samir_payment_intents")
 }

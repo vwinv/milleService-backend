@@ -8,14 +8,13 @@ import {
 } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service.js";
 import {
+  Role,
   StatutPrestation,
   TransactionType,
 } from "../../generated/prisma/client.js";
 import { NotificationsService } from "../notifications/notifications.service.js";
 import { WalletsService } from "../wallets/wallets.service.js";
-import { PaydunyaService } from "../paydunya/paydunya.service.js";
-import { paydunyaIpnCallbackUrl } from "../paydunya/paydunya-callback.util.js";
-import type { PaydunyaSoftPayResponse } from "../paydunya/paydunya-softpay.types.js";
+import { SamirPayService } from "../samirpay/samirpay.service.js";
 import type { PayerPrestationDto } from "./dto/payer-prestation.dto.js";
 import type { SoftPayPrestationDto } from "./dto/softpay-prestation.dto.js";
 import {
@@ -34,7 +33,7 @@ export class PrestationsService {
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
     private readonly wallets: WalletsService,
-    private readonly paydunya: PaydunyaService,
+    private readonly samirpay: SamirPayService,
     private readonly abonnements: AbonnementsService,
   ) {}
 
@@ -331,6 +330,219 @@ export class PrestationsService {
   }
 
   /**
+   * Annulation par le client ou le prestataire, tant que la prestation
+   * n'a pas démarré (EN_ATTENTE ou ACCEPTEE). Interdit dès EN_COURS.
+   */
+  async annuler(userId: string, role: string, prestationId: string) {
+    if (role === "PARTICULIER") {
+      return this.annulerParParticulier(userId, prestationId);
+    }
+    if (role === "PRESTATAIRE") {
+      return this.annulerParPrestataire(userId, prestationId);
+    }
+    throw new ForbiddenException("Accès non autorisé");
+  }
+
+  private readonly statutsAnnulables: StatutPrestation[] = [
+    StatutPrestation.EN_ATTENTE,
+    StatutPrestation.ACCEPTEE,
+  ];
+
+  private messageAnnulationImpossible() {
+    return "Cette demande ne peut plus être annulée : la prestation a déjà démarré.";
+  }
+
+  private async annulerParParticulier(
+    particulierUserId: string,
+    prestationId: string,
+  ) {
+    const particulier = await this.prisma.particulier.findUnique({
+      where: { userId: particulierUserId },
+      select: { id: true, prenom: true, nom: true },
+    });
+    if (!particulier) {
+      throw new BadRequestException("Profil particulier introuvable");
+    }
+
+    const prestation = await this.prisma.prestation.findFirst({
+      where: { id: prestationId, particulierId: particulier.id },
+      include: {
+        prestataire: { include: { user: { select: { id: true } } } },
+        prestataireService: { include: { service: true } },
+      },
+    });
+    if (!prestation) {
+      throw new BadRequestException("Prestation introuvable");
+    }
+    if (!this.statutsAnnulables.includes(prestation.statut)) {
+      throw new BadRequestException(this.messageAnnulationImpossible());
+    }
+
+    const cancelled = await this.prisma.prestation.updateMany({
+      where: {
+        id: prestationId,
+        particulierId: particulier.id,
+        statut: { in: this.statutsAnnulables },
+      },
+      data: {
+        statut: StatutPrestation.ANNULEE,
+        annulePar: Role.PARTICULIER,
+      },
+    });
+    if (cancelled.count === 0) {
+      throw new BadRequestException(this.messageAnnulationImpossible());
+    }
+
+    const updated = await this.prisma.prestation.findUniqueOrThrow({
+      where: { id: prestationId },
+      include: {
+        particulier: { select: { prenom: true, nom: true, userId: true } },
+        prestataire: { select: { nom: true } },
+        prestataireService: { include: { service: true } },
+      },
+    });
+
+    const nomClient = `${particulier.prenom} ${particulier.nom}`.trim();
+    const serviceLibelle =
+      prestation.prestataireService?.service?.libelle ?? "prestation";
+    await this.notifications.sendToUser(prestation.prestataire.user.id, {
+      title: "Demande annulée",
+      body: `${nomClient || "Le client"} a annulé la demande (${serviceLibelle}).`,
+      type: "prestation_cancelled",
+      data: { prestationId: updated.id },
+    });
+
+    return this.formatPrestation(updated);
+  }
+
+  private async annulerParPrestataire(
+    prestataireUserId: string,
+    prestationId: string,
+  ) {
+    const prestataire = await this.prisma.prestataire.findUnique({
+      where: { userId: prestataireUserId },
+      select: { id: true, nom: true },
+    });
+    if (!prestataire) {
+      throw new BadRequestException("Profil prestataire introuvable");
+    }
+
+    const prestation = await this.prisma.prestation.findFirst({
+      where: { id: prestationId, prestataireId: prestataire.id },
+      include: {
+        particulier: { select: { userId: true } },
+        prestataireService: { include: { service: true } },
+      },
+    });
+    if (!prestation) {
+      throw new BadRequestException("Prestation introuvable");
+    }
+    if (!this.statutsAnnulables.includes(prestation.statut)) {
+      throw new BadRequestException(this.messageAnnulationImpossible());
+    }
+
+    const cancelled = await this.prisma.prestation.updateMany({
+      where: {
+        id: prestationId,
+        prestataireId: prestataire.id,
+        statut: { in: this.statutsAnnulables },
+      },
+      data: {
+        statut: StatutPrestation.ANNULEE,
+        annulePar: Role.PRESTATAIRE,
+      },
+    });
+    if (cancelled.count === 0) {
+      throw new BadRequestException(this.messageAnnulationImpossible());
+    }
+
+    const updated = await this.prisma.prestation.findUniqueOrThrow({
+      where: { id: prestationId },
+      include: {
+        particulier: { select: { prenom: true, nom: true, userId: true } },
+        prestataire: { select: { nom: true } },
+        prestataireService: { include: { service: true } },
+      },
+    });
+
+    const serviceLibelle =
+      prestation.prestataireService?.service?.libelle ?? "prestation";
+    await this.notifications.sendToUser(prestation.particulier.userId, {
+      title: "Demande annulée",
+      body: `${prestataire.nom || "Le prestataire"} a annulé la demande (${serviceLibelle}).`,
+      type: "prestation_cancelled",
+      data: { prestationId: updated.id },
+    });
+
+    return this.formatPrestation(updated);
+  }
+
+  /**
+   * Note (1 à 5) et commentaire du client sur une prestation payée.
+   * Un seul avis par prestation ; un nouvel envoi met à jour l'avis existant.
+   */
+  async noter(
+    particulierUserId: string,
+    prestationId: string,
+    dto: { note: number; commentaire?: string },
+  ) {
+    const particulier = await this.prisma.particulier.findUnique({
+      where: { userId: particulierUserId },
+      select: { id: true, prenom: true, nom: true },
+    });
+    if (!particulier) {
+      throw new BadRequestException("Profil particulier introuvable");
+    }
+
+    const prestation = await this.prisma.prestation.findFirst({
+      where: { id: prestationId, particulierId: particulier.id },
+      include: {
+        prestataire: { include: { user: { select: { id: true } } } },
+        prestataireService: { include: { service: true } },
+      },
+    });
+    if (!prestation) {
+      throw new BadRequestException("Prestation introuvable");
+    }
+    if (prestation.statut !== StatutPrestation.PAYEE) {
+      throw new BadRequestException(
+        "Vous pourrez noter le prestataire une fois la prestation payée",
+      );
+    }
+
+    const commentaire = dto.commentaire?.trim() || null;
+    const avis = await this.prisma.avisPrestataire.upsert({
+      where: { prestationId },
+      create: {
+        particulierId: particulier.id,
+        prestataireId: prestation.prestataireId,
+        prestationId,
+        note: dto.note,
+        commentaire,
+      },
+      update: {
+        note: dto.note,
+        commentaire,
+      },
+    });
+
+    const nomClient = `${particulier.prenom} ${particulier.nom}`.trim();
+    const serviceLibelle =
+      prestation.prestataireService?.service?.libelle ?? "prestation";
+    await this.notifications.sendToUser(prestation.prestataire.user.id, {
+      title: "Nouvel avis",
+      body: `${nomClient || "Un client"} a noté « ${serviceLibelle} » : ${dto.note}/5.`,
+      type: "prestation_reviewed",
+      data: { prestationId },
+    });
+
+    return {
+      note: avis.note,
+      commentaire: avis.commentaire,
+    };
+  }
+
+  /**
    * Terminer une prestation (prestataire). Passe le statut en TERMINEE.
    * Le particulier est notifié (pour procéder au paiement).
    */
@@ -432,14 +644,13 @@ export class PrestationsService {
   }
 
   /**
-   * Crée une facture PayDunya (checkout + token SoftPay) pour une prestation terminée.
-   * Le client paie sur la page PayDunya ou via les endpoints SoftPay avec `invoiceToken`.
-   * La confirmation passe par l’IPN `POST /webhooks/paydunya`.
+   * Initie un encaissement SamirPay (`initPayment`) pour une prestation terminée.
+   * La confirmation se fait en interrogeant le statut SamirPay (pas d’IPN documentée).
    */
   async initPaydunyaCheckout(particulierUserId: string, prestationId: string) {
-    if (!this.paydunya.isConfigured()) {
+    if (!this.samirpay.isConfigured()) {
       throw new ServiceUnavailableException(
-        "Paiement PayDunya non configuré sur le serveur",
+        "Paiement SamirPay non configuré sur le serveur",
       );
     }
 
@@ -474,24 +685,25 @@ export class PrestationsService {
       );
     }
 
-    const callbackUrl = paydunyaIpnCallbackUrl(this.logger);
-    const storeName =
-      process.env.PAYDUNYA_STORE_NAME?.trim() || "Mille Services";
     const serviceLibelle =
       prestation.prestataireService?.service?.libelle ?? "Prestation";
+    const orderId = `pst_${prestation.id}_${String(Date.now())}`;
 
     this.logger.log(
-      `Paiement prestation init PayDunya prestationId=${prestationId} particulierId=${particulier.id} amountFcfa=${String(amount)} service="${serviceLibelle.slice(0, 80)}"`,
+      `Paiement prestation init SamirPay prestationId=${prestationId} particulierId=${particulier.id} amountFcfa=${String(amount)} service="${serviceLibelle.slice(0, 80)}"`,
     );
 
-    const inv = await this.paydunya.createCheckoutInvoice({
-      totalAmountFcfa: amount,
-      description: `Paiement prestation — ${serviceLibelle} (${prestation.id})`,
-      storeName,
-      callbackUrl,
-      returnUrl: process.env.PAYDUNYA_RETURN_URL?.trim() || undefined,
-      cancelUrl: process.env.PAYDUNYA_CANCEL_URL?.trim() || undefined,
-      customData: {
+    const inv = await this.samirpay.initPayment({
+      amountFcfa: amount,
+      orderId,
+    });
+    await this.samirpay.saveIntent({
+      orderId,
+      transactionId: inv.transactionId,
+      kind: "prestation",
+      amountFcfa: amount,
+      checkoutUrl: inv.checkoutUrl,
+      meta: {
         kind: "prestation",
         prestationId: prestation.id,
         particulierId: particulier.id,
@@ -499,28 +711,29 @@ export class PrestationsService {
     });
 
     this.logger.log(
-      `Paiement prestation init OK prestationId=${prestationId} invoiceToken=${inv.invoiceToken.length > 8 ? `${inv.invoiceToken.slice(0, 8)}…` : "[short]"}`,
+      `Paiement prestation init OK prestationId=${prestationId} invoiceToken=${inv.publicToken.length > 8 ? `${inv.publicToken.slice(0, 8)}…` : "[short]"}`,
     );
 
     return {
       amountFcfa: amount,
-      invoiceToken: inv.invoiceToken,
-      checkoutUrl: inv.checkoutUrl,
+      invoiceToken: inv.publicToken,
+      checkoutUrl: inv.checkoutUrl ?? "",
       description: serviceLibelle,
     };
   }
 
   /**
-   * SoftPay (Wave / OM / Free Money Sénégal) sur une facture déjà créée via `initPaydunyaCheckout`.
+   * Le cashin SamirPay ne prend pas d’opérateur : on renvoie le lien créé à l’init.
+   * L’écran mobile ouvre cette URL (Wave, Orange Money ou Free se choisissent chez SamirPay).
    */
   async softPayPrestation(
     particulierUserId: string,
     prestationId: string,
     dto: SoftPayPrestationDto,
   ) {
-    if (!this.paydunya.isConfigured()) {
+    if (!this.samirpay.isConfigured()) {
       throw new ServiceUnavailableException(
-        "Paiement PayDunya non configuré sur le serveur",
+        "Paiement SamirPay non configuré sur le serveur",
       );
     }
 
@@ -557,72 +770,24 @@ export class PrestationsService {
     const serviceLibelle =
       prestation.prestataireService?.service?.libelle ?? "Prestation";
     const invoiceToken = dto.invoiceToken.trim();
+    const intent = await this.samirpay.findIntent(invoiceToken);
+    const meta =
+      intent?.meta && typeof intent.meta === "object" && !Array.isArray(intent.meta)
+        ? (intent.meta as Record<string, unknown>)
+        : null;
+    if (!intent || intent.kind !== "prestation" || meta?.prestationId !== prestation.id) {
+      throw new BadRequestException(
+        "Paiement SamirPay introuvable. Relancez le paiement.",
+      );
+    }
 
-    const dbUser = await this.prisma.user.findUnique({
-      where: { id: particulierUserId },
-      select: { email: true },
-    });
-    const email = (
-      dto.email?.trim() ||
-      dbUser?.email ||
-      "client@milleservices.sn"
-    ).slice(0, 200);
-    const phone = dto.telephone.replace(/\s+/g, "");
-    const fullName = `${dto.prenom} ${dto.nom}`.trim();
-
+    const url = intent.checkoutUrl?.trim() || undefined;
     const telMask =
-      phone.length >= 2 ? `***${phone.slice(-2)}` : "[short]";
-    const tokenMask =
-      invoiceToken.length > 8
-        ? `${invoiceToken.slice(0, 8)}…`
+      dto.telephone.replace(/\s+/g, "").length >= 2
+        ? `***${dto.telephone.replace(/\s+/g, "").slice(-2)}`
         : "[short]";
     this.logger.log(
-      `Paiement prestation SoftPay → prestationId=${prestationId} method=${dto.method} amountFcfa=${String(amount)} invoiceToken=${tokenMask} telephone=${telMask}`,
-    );
-
-    let soft: PaydunyaSoftPayResponse;
-    switch (dto.method) {
-      case "orange_money_sn":
-        soft = await this.paydunya.softPayOrangeMoneySenegal({
-          customer_name: fullName,
-          customer_email: email,
-          phone_number: phone,
-          invoice_token: invoiceToken,
-        });
-        break;
-      case "free_money_sn":
-        soft = await this.paydunya.softPayFreeMoneySenegal({
-          customer_name: fullName,
-          customer_email: email,
-          phone_number: phone,
-          payment_token: invoiceToken,
-        });
-        break;
-      case "wave_sn":
-        soft = await this.paydunya.softPayWaveSenegal({
-          wave_senegal_fullName: fullName,
-          wave_senegal_email: email,
-          wave_senegal_phone: phone,
-          wave_senegal_payment_token: invoiceToken,
-        });
-        break;
-      default:
-        throw new BadRequestException("Moyen de paiement inconnu");
-    }
-
-    if (!soft.success) {
-      this.logger.warn(
-        `Paiement prestation SoftPay KO prestationId=${prestationId} method=${dto.method} message=${soft.message ?? "n/a"}`,
-      );
-      throw new BadRequestException(
-        typeof soft.message === "string" && soft.message.trim()
-          ? soft.message
-          : "Paiement mobile refusé par PayDunya",
-      );
-    }
-
-    this.logger.log(
-      `Paiement prestation SoftPay OK prestationId=${prestationId} method=${dto.method} url=${soft.url ? "yes" : "no"} om_url=${soft.other_url?.om_url ? "yes" : "no"} maxit_url=${soft.other_url?.maxit_url ? "yes" : "no"} message="${(soft.message ?? "").slice(0, 120)}"`,
+      `Paiement prestation SamirPay lien prestationId=${prestationId} method=${dto.method} url=${url ? "yes" : "no"} tel=${telMask}`,
     );
 
     return {
@@ -630,138 +795,22 @@ export class PrestationsService {
       invoiceToken,
       description: serviceLibelle,
       softPay: {
-        url: soft.url,
-        other_url: soft.other_url,
-        return_url: soft.return_url,
-        message: soft.message,
-        fees: soft.fees,
-        currency: soft.currency,
+        url,
+        message: url
+          ? "Ouvrez la page SamirPay pour valider le paiement."
+          : "Paiement initié. Validez-le dans votre application mobile money.",
       },
     };
   }
 
   /**
-   * IPN PayDunya (Instant Payment Notification).
-   * Vérification du hash SHA-512 (Master Key) + montant attendu + idempotence.
-   */
-  async handlePaydunyaIpn(body: Record<string, unknown>) {
-    const parsed = this.normalizePaydunyaIpnPayload(body);
-    if (!parsed) {
-      this.logger.warn("IPN PayDunya: payload non reconnu");
-      return { ok: false as const, error: "invalid_payload" };
-    }
-
-    if (!this.paydunya.verifyIpnHash(parsed.hash)) {
-      this.logger.warn("IPN PayDunya: hash refusé");
-      throw new ForbiddenException("Notification PayDunya non authentifiée");
-    }
-
-    if (parsed.status.toLowerCase() !== "completed") {
-      return {
-        ok: true as const,
-        ignored: true as const,
-        status: parsed.status,
-      };
-    }
-
-    if (parsed.kind === "abonnement") {
-      const r = await this.abonnements.finalizeFromPaydunyaIpn({
-        offreId: parsed.offreId,
-        prestataireId: parsed.prestataireId,
-        userId: parsed.userId,
-        paidAmount: parsed.totalAmount,
-        invoiceToken: parsed.invoiceToken,
-      });
-      if (!r.ok) {
-        this.logger.warn(`IPN PayDunya abonnement: ${r.error}`);
-        return { ok: false as const, error: r.error };
-      }
-      return { ok: true as const, scope: "abonnement" as const };
-    }
-
-    const prestation = await this.prisma.prestation.findUnique({
-      where: { id: parsed.prestationId },
-      include: {
-        prestataire: { include: { user: { select: { id: true } } } },
-        prestataireService: { include: { service: true } },
-        particulier: { select: { userId: true } },
-      },
-    });
-    if (!prestation) {
-      this.logger.warn(
-        `IPN PayDunya: prestation ${parsed.prestationId} introuvable`,
-      );
-      return { ok: false as const, error: "prestation_not_found" };
-    }
-
-    if (prestation.statut === StatutPrestation.PAYEE) {
-      return { ok: true as const, alreadyPaid: true as const };
-    }
-
-    if (prestation.statut !== StatutPrestation.TERMINEE) {
-      this.logger.warn(
-        `IPN PayDunya: statut prestation invalide ${prestation.statut}`,
-      );
-      return { ok: false as const, error: "invalid_prestation_status" };
-    }
-
-    const expected = this.resolveGrossPaymentAmountFcfa(prestation);
-    if (expected == null || expected <= 0) {
-      return { ok: false as const, error: "amount_unavailable" };
-    }
-
-    const paid = Math.round(parsed.totalAmount);
-    if (Math.abs(paid - expected) > 1) {
-      this.logger.warn(
-        `IPN PayDunya: écart montant payé=${paid} attendu=${expected} prestation=${prestation.id}`,
-      );
-      return { ok: false as const, error: "amount_mismatch" };
-    }
-
-    const particulierUserId = prestation.particulier?.userId;
-    if (!particulierUserId) {
-      return { ok: false as const, error: "particulier_missing" };
-    }
-
-    await this.settlePrestationAsPaidInternal(
-      particulierUserId,
-      prestation.id,
-      paid,
-      "paydunya",
-    );
-
-    const invTk =
-      parsed.invoiceToken.length > 8
-        ? `${parsed.invoiceToken.slice(0, 8)}…`
-        : "[short]";
-    this.logger.log(
-      `IPN PayDunya prestation réglée prestationId=${prestation.id} montantFcfa=${String(paid)} attendu=${String(expected)} invoiceToken=${invTk}`,
-    );
-
-    return { ok: true as const };
-  }
-
-  /**
-   * Repli : interroge PayDunya (confirm) et enregistre le paiement si `completed`.
-   * Utile quand l’IPN n’atteint pas le serveur (PUBLIC_API_URL = localhost, etc.).
+   * Interroge SamirPay et enregistre le paiement si le statut est payé.
    */
   async syncPaydunyaPrestationPayment(
     particulierUserId: string,
     prestationId: string,
     invoiceToken: string,
   ): Promise<{ paid: boolean; error?: string }> {
-    const confirmed = await this.paydunya.confirmCheckoutInvoice(invoiceToken);
-    if (!confirmed) {
-      return { paid: false, error: "confirm_failed" };
-    }
-    if (!this.paydunya.verifyIpnHash(confirmed.hash)) {
-      this.logger.warn("Confirm PayDunya prestation: hash refusé");
-      return { paid: false, error: "invalid_hash" };
-    }
-    if (confirmed.status !== "completed") {
-      return { paid: false, error: `status_${confirmed.status}` };
-    }
-
     const prestation = await this.prisma.prestation.findFirst({
       where: { id: prestationId, particulier: { userId: particulierUserId } },
       select: { id: true, statut: true },
@@ -773,113 +822,36 @@ export class PrestationsService {
       return { paid: true };
     }
 
-    const body: Record<string, unknown> = {
-      data: {
-        hash: confirmed.hash,
-        status: confirmed.status,
-        invoice: {
-          total_amount: confirmed.totalAmount,
-          token: confirmed.invoiceToken,
-        },
-        custom_data: {
-          kind: "prestation",
-          prestationId: prestation.id,
-          ...confirmed.customData,
-        },
-      },
-    };
-
-    const result = await this.handlePaydunyaIpn(body);
-    if (result.ok && !("ignored" in result && result.ignored)) {
-      return { paid: true };
-    }
-    return {
-      paid: false,
-      error: "error" in result ? String(result.error) : "not_settled",
-    };
-  }
-
-  private normalizePaydunyaIpnPayload(
-    body: Record<string, unknown>,
-  ):
-    | {
-        kind: "prestation";
-        hash: string;
-        status: string;
-        totalAmount: number;
-        prestationId: string;
-        invoiceToken: string;
-      }
-    | {
-        kind: "abonnement";
-        hash: string;
-        status: string;
-        totalAmount: number;
-        offreId: string;
-        prestataireId: string;
-        userId: string;
-        invoiceToken: string;
-      }
-    | null {
-    const root = body as Record<string, unknown>;
-    const dataVal = root?.data ?? root;
-    if (!dataVal || typeof dataVal !== "object" || Array.isArray(dataVal)) {
-      return null;
-    }
-    const data = dataVal as Record<string, unknown>;
-
-    const hash = data.hash?.toString()?.trim();
-    const status = data.status?.toString()?.trim() ?? "";
-    const inv = data.invoice;
-    let totalAmount = NaN;
-    let invoiceToken = "";
-    if (inv && typeof inv === "object" && !Array.isArray(inv)) {
-      const invObj = inv as Record<string, unknown>;
-      totalAmount = Number(invObj.total_amount);
-      invoiceToken = invObj.token?.toString()?.trim() ?? "";
-    }
-    const custom = data.custom_data;
-    if (!custom || typeof custom !== "object" || Array.isArray(custom)) {
-      return null;
-    }
-    const c = custom as Record<string, unknown>;
-    const kindRaw = c.kind?.toString()?.trim().toLowerCase();
-    const prestationId =
-      c.prestationId?.toString()?.trim() ||
-      c.prestation_id?.toString()?.trim() ||
-      "";
-    const offreId = c.offreId?.toString()?.trim() || "";
-    const prestataireId = c.prestataireId?.toString()?.trim() || "";
-    const userId = c.userId?.toString()?.trim() || "";
-
-    if (!hash || !Number.isFinite(totalAmount) || !invoiceToken) return null;
-
-    if (prestationId && kindRaw !== "abonnement") {
-      return {
-        kind: "prestation",
-        hash,
-        status,
-        totalAmount,
-        prestationId,
-        invoiceToken,
-      };
+    const intent = await this.samirpay.findIntent(invoiceToken);
+    const meta =
+      intent?.meta && typeof intent.meta === "object" && !Array.isArray(intent.meta)
+        ? (intent.meta as Record<string, unknown>)
+        : null;
+    if (!intent || intent.kind !== "prestation" || meta?.prestationId !== prestation.id) {
+      return { paid: false, error: "payment_not_found" };
     }
 
-    if (kindRaw === "abonnement" || (offreId && prestataireId && userId)) {
-      if (!offreId || !prestataireId || !userId) return null;
-      return {
-        kind: "abonnement",
-        hash,
-        status,
-        totalAmount,
-        offreId,
-        prestataireId,
-        userId,
-        invoiceToken,
-      };
+    const status = await this.samirpay.getPaymentStatus(
+      intent.transactionId || intent.orderId,
+    );
+    if (status.state !== "paid") {
+      return { paid: false, error: `status_${status.state}` };
+    }
+    const paidAmount = status.amountFcfa ?? intent.amountFcfa;
+    if (Math.abs(paidAmount - intent.amountFcfa) > 1) {
+      this.logger.warn(
+        `SamirPay prestation écart montant payé=${String(paidAmount)} attendu=${String(intent.amountFcfa)} prestation=${prestation.id}`,
+      );
+      return { paid: false, error: "amount_mismatch" };
     }
 
-    return null;
+    await this.settlePrestationAsPaidInternal(
+      particulierUserId,
+      prestation.id,
+      paidAmount,
+      "samirpay",
+    );
+    return { paid: true };
   }
 
   /** Montant catalogue (durée × tarif + frais), aligné app mobile. */
@@ -1092,6 +1064,7 @@ export class PrestationsService {
         include: {
           prestataire: { select: { nom: true, avatarUrl: true } },
           prestataireService: { include: { service: true } },
+          avis: { select: { note: true, commentaire: true } },
         },
       });
       return list.map((p) => this.formatPrestation(p));
@@ -1106,10 +1079,11 @@ export class PrestationsService {
     const list = await this.prisma.prestation.findMany({
       where: { prestataireId: prestataire.id },
       orderBy: { createdAt: "desc" },
-      include: {
-        particulier: { select: { prenom: true, nom: true } },
-        prestataireService: { include: { service: true } },
-      },
+        include: {
+          particulier: { select: { prenom: true, nom: true } },
+          prestataireService: { include: { service: true } },
+          avis: { select: { note: true, commentaire: true } },
+        },
     });
     return list.map((p) => this.formatPrestation(p));
   }
@@ -1149,6 +1123,7 @@ export class PrestationsService {
           },
         },
         prestataireService: { include: { service: true } },
+        avis: { select: { note: true, commentaire: true } },
       },
     });
 
@@ -1186,6 +1161,7 @@ export class PrestationsService {
       startedAt: p.startedAt,
       completedAt: p.completedAt,
       createdAt: p.createdAt,
+      annulePar: p.annulePar ?? undefined,
       particulier: p.particulier
         ? {
             prenom: p.particulier.prenom,
@@ -1220,6 +1196,7 @@ export class PrestationsService {
       // Le tarif est sur PrestataireService ; ne pas exiger la relation Service (catalogue)
       // sinon `service` disparaît du JSON alors que `tarif_horaire` est bien en base.
       service: this.formatPrestationServicePayload(p),
+      avis: this.formatAvis(p.avis),
     };
   }
 
@@ -1239,6 +1216,7 @@ export class PrestationsService {
       startedAt: p.startedAt,
       completedAt: p.completedAt,
       createdAt: p.createdAt,
+      annulePar: p.annulePar ?? undefined,
       particulier: p.particulier
         ? {
             prenom: p.particulier.prenom,
@@ -1249,6 +1227,17 @@ export class PrestationsService {
         ? { nom: p.prestataire.nom, avatarUrl: p.prestataire.avatarUrl }
         : undefined,
       service: this.formatPrestationServicePayload(p),
+      avis: this.formatAvis(p.avis),
+    };
+  }
+
+  private formatAvis(
+    avis: { note?: number; commentaire?: string | null } | null | undefined,
+  ) {
+    if (!avis || avis.note == null) return null;
+    return {
+      note: avis.note,
+      commentaire: avis.commentaire ?? null,
     };
   }
 

@@ -36,6 +36,7 @@ async function main() {
   }
 
   const [p1, p2] = prestataires;
+  const particulierId = particulier.id;
 
   console.log(
     `Création / mise à jour des avis pour :\n` +
@@ -43,44 +44,37 @@ async function main() {
       `- ${p2.nom} (4/5)`,
   );
 
-  // 3) Upsert des avis (un seul avis par couple particulier/prestataire)
-  await prisma.avisPrestataire.upsert({
-    where: {
-      particulierId_prestataireId: {
-        particulierId: particulier.id,
-        prestataireId: p1.id,
+  async function upsertAvis(
+    prestataireId: string,
+    note: number,
+    commentaire: string,
+  ) {
+    const existing = await prisma.avisPrestataire.findFirst({
+      where: {
+        particulierId,
+        prestataireId,
+        prestationId: null,
       },
-    },
-    create: {
-      particulierId: particulier.id,
-      prestataireId: p1.id,
-      note: 5,
-      commentaire: "Note ajoutée automatiquement (5/5).",
-    },
-    update: {
-      note: 5,
-      commentaire: "Note mise à jour automatiquement (5/5).",
-    },
-  });
+    });
+    if (existing) {
+      await prisma.avisPrestataire.update({
+        where: { id: existing.id },
+        data: { note, commentaire },
+      });
+      return;
+    }
+    await prisma.avisPrestataire.create({
+      data: {
+        particulierId,
+        prestataireId,
+        note,
+        commentaire,
+      },
+    });
+  }
 
-  await prisma.avisPrestataire.upsert({
-    where: {
-      particulierId_prestataireId: {
-        particulierId: particulier.id,
-        prestataireId: p2.id,
-      },
-    },
-    create: {
-      particulierId: particulier.id,
-      prestataireId: p2.id,
-      note: 4,
-      commentaire: "Note ajoutée automatiquement (4/5).",
-    },
-    update: {
-      note: 4,
-      commentaire: "Note mise à jour automatiquement (4/5).",
-    },
-  });
+  await upsertAvis(p1.id, 5, "Note ajoutée automatiquement (5/5).");
+  await upsertAvis(p2.id, 4, "Note ajoutée automatiquement (4/5).");
 
   console.log("Avis créés / mis à jour avec succès.");
 }

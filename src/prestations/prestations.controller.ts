@@ -11,6 +11,7 @@ import {
 import { PrestationsService } from "./prestations.service.js";
 import { CreatePrestationDto } from "./dto/create-prestation.dto.js";
 import { PayerPrestationDto } from "./dto/payer-prestation.dto.js";
+import { NoterPrestationDto } from "./dto/noter-prestation.dto.js";
 import {
   SoftPayPrestationBodyDto,
   SoftPayPrestationDto,
@@ -78,6 +79,29 @@ export class PrestationsController {
   @Roles("PRESTATAIRE")
   terminer(@CurrentUser() user: CurrentUserPayload, @Param("id") id: string) {
     return this.prestations.terminer(user.userId, id);
+  }
+
+  /**
+   * Annulation par le client ou le prestataire, tant que la prestation
+   * n'a pas démarré (statuts EN_ATTENTE ou ACCEPTEE uniquement).
+   */
+  @Patch(":id/annuler")
+  @UseGuards(RolesGuard)
+  @Roles("PARTICULIER", "PRESTATAIRE")
+  annuler(@CurrentUser() user: CurrentUserPayload, @Param("id") id: string) {
+    return this.prestations.annuler(user.userId, user.role, id);
+  }
+
+  /** Note et commentaire du client, une fois la prestation payée. */
+  @Post(":id/avis")
+  @UseGuards(RolesGuard)
+  @Roles("PARTICULIER")
+  noter(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param("id") id: string,
+    @Body() dto: NoterPrestationDto,
+  ) {
+    return this.prestations.noter(user.userId, id, dto);
   }
 
   @Patch(":id/payer")
