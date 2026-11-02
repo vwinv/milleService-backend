@@ -2058,6 +2058,7 @@ export class AdminController {
         id: true,
         libelle: true,
         slug: true,
+        icone: true,
         tarifs: true,
         actif: true,
         createdAt: true,
@@ -2071,6 +2072,7 @@ export class AdminController {
         id: s.id,
         libelle: s.libelle,
         slug: s.slug,
+        icone: s.icone,
         tarif: this.parseServiceTarifValue(s.tarifs),
         actif: s.actif,
         createdAt: s.createdAt.toISOString(),
@@ -2081,19 +2083,21 @@ export class AdminController {
 
   @Post("services")
   async createService(
-    @Body() body: { libelle?: string; tarif?: number | string },
+    @Body() body: { libelle?: string; tarif?: number | string; icone?: string | null },
   ) {
     const libelle = body?.libelle?.trim();
     if (!libelle) {
       throw new BadRequestException("Libellé requis");
     }
     const tarif = this.parsePositiveTarif(body?.tarif, { required: true });
+    const icone = this.normalizeServiceIcone(body?.icone);
     const base = this.slugifyServiceLabel(libelle);
     const slug = await this.ensureUniqueServiceSlug(base);
     const created = await this.prisma.service.create({
       data: {
         libelle,
         slug,
+        icone,
         tarifs: tarif != null ? String(tarif) : null,
         actif: true,
       },
@@ -2101,6 +2105,7 @@ export class AdminController {
         id: true,
         libelle: true,
         slug: true,
+        icone: true,
         tarifs: true,
         actif: true,
         createdAt: true,
@@ -2111,6 +2116,7 @@ export class AdminController {
       id: created.id,
       libelle: created.libelle,
       slug: created.slug,
+      icone: created.icone,
       tarif: this.parseServiceTarifValue(created.tarifs),
       actif: created.actif,
       createdAt: created.createdAt.toISOString(),
@@ -2122,7 +2128,12 @@ export class AdminController {
   async updateService(
     @Param("serviceId") serviceId: string,
     @Body()
-    body: { actif?: boolean; libelle?: string; tarif?: number | string | null },
+    body: {
+      actif?: boolean;
+      libelle?: string;
+      tarif?: number | string | null;
+      icone?: string | null;
+    },
   ) {
     const existing = await this.prisma.service.findUnique({
       where: { id: serviceId },
@@ -2146,6 +2157,7 @@ export class AdminController {
       libelle?: string;
       slug?: string;
       tarifs?: string | null;
+      icone?: string | null;
     } = {};
     if (typeof body.actif === "boolean") {
       data.actif = body.actif;
@@ -2163,6 +2175,9 @@ export class AdminController {
       const tarif = this.parsePositiveTarif(body.tarif);
       data.tarifs = tarif != null ? String(tarif) : null;
     }
+    if (body.icone !== undefined) {
+      data.icone = this.normalizeServiceIcone(body.icone);
+    }
     if (Object.keys(data).length === 0) {
       throw new BadRequestException("Aucune modification");
     }
@@ -2173,6 +2188,7 @@ export class AdminController {
         id: true,
         libelle: true,
         slug: true,
+        icone: true,
         tarifs: true,
         actif: true,
         createdAt: true,
@@ -2183,6 +2199,7 @@ export class AdminController {
       id: updated.id,
       libelle: updated.libelle,
       slug: updated.slug,
+      icone: updated.icone,
       tarif: this.parseServiceTarifValue(updated.tarifs),
       actif: updated.actif,
       createdAt: updated.createdAt.toISOString(),
@@ -2206,6 +2223,19 @@ export class AdminController {
       throw new BadRequestException("Tarif invalide");
     }
     return Math.round(n * 100) / 100;
+  }
+
+  private normalizeServiceIcone(value: unknown): string | null {
+    if (value == null) return null;
+    const s = String(value).trim();
+    if (!s) return null;
+    if (s.length > 2000) {
+      throw new BadRequestException("URL d'icône trop longue");
+    }
+    if (!/^https?:\/\//i.test(s)) {
+      throw new BadRequestException("L'icône doit être une adresse https");
+    }
+    return s;
   }
 
   private parseServiceTarifValue(

@@ -324,6 +324,7 @@ export class PrestatairesService {
               prestataireServiceId: ps.id,
               libelle: ps.service?.libelle,
               slug: ps.service?.slug,
+              icone: ps.service?.icone ?? null,
               tarifHoraire: resolveHourlyTarifForPrestation(ps),
               description: ps.description ?? null,
             }))
@@ -563,6 +564,7 @@ export class PrestatairesService {
               prestataireServiceId: ps.id,
               libelle: ps.service?.libelle,
               slug: ps.service?.slug,
+              icone: ps.service?.icone ?? null,
               tarifHoraire: resolveHourlyTarifForPrestation(ps),
               description: ps.description ?? null,
             }))

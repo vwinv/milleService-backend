@@ -5,6 +5,7 @@ export interface ServiceDto {
   id: string;
   libelle: string;
   slug: string;
+  icone: string | null;
 }
 
 @Injectable()
@@ -18,7 +19,7 @@ export class ServicesService {
     const rows = await this.prisma.service.findMany({
       where: { actif: true },
       orderBy: { libelle: "asc" },
-      select: { id: true, libelle: true, slug: true },
+      select: { id: true, libelle: true, slug: true, icone: true },
     });
     return rows;
   }
