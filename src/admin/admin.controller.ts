@@ -32,6 +32,7 @@ import {
   normalizeSenegalMsisdn,
   samirOperatorFromWithdrawalMethod,
 } from "../samirpay/samirpay-phone.util.js";
+import { collapseDuplicateNameTokens } from "../common/display-name.util.js";
 import {
   ParticulierStatut,
   PrestataireWalletStatut,
@@ -625,7 +626,7 @@ export class AdminController {
         id: r.id,
         date: r.createdAt.toISOString(),
         prestataireId: r.prestataireId,
-        prestataireNom: r.prestataire.nom,
+        prestataireNom: collapseDuplicateNameTokens(r.prestataire.nom),
         prestataireTelephone: r.prestataire.telephone,
         montant: metaWithdrawalAmount(r.meta),
         wallet: withdrawalMethodLabel(r.method),
@@ -923,7 +924,9 @@ export class AdminController {
         };
       }
       if (row.type === TransactionType.ABONNEMENT) {
-        const nom = row.abonnement?.prestataire?.nom ?? "Prestataire";
+        const nom = collapseDuplicateNameTokens(
+          row.abonnement?.prestataire?.nom ?? "Prestataire",
+        );
         const offreLib = row.offre?.libelle?.trim();
         const prestataireNom = offreLib
           ? `${nom} — Abonnement (${offreLib})`
@@ -941,7 +944,9 @@ export class AdminController {
       return {
         id: row.id,
         date: row.createdAt,
-        prestataireNom: row.prestation?.prestataire?.nom ?? "Prestataire",
+        prestataireNom: collapseDuplicateNameTokens(
+          row.prestation?.prestataire?.nom ?? "Prestataire",
+        ),
         montant: Number(row.amount),
         wallet: "Wallet Général",
         statut: "Depot",
@@ -952,7 +957,9 @@ export class AdminController {
     const withdrawals = withdrawalRows.map((row) => ({
       id: row.id,
       date: row.createdAt,
-      prestataireNom: row.prestataire?.nom ?? "Prestataire",
+      prestataireNom: collapseDuplicateNameTokens(
+        row.prestataire?.nom ?? "Prestataire",
+      ),
       montant: metaWithdrawalAmount(row.meta),
       wallet:
         row.method === "ORANGE_MONEY"
@@ -1375,7 +1382,7 @@ export class AdminController {
         return {
           id: p.id,
           userId: p.userId,
-          nom: p.nom,
+          nom: collapseDuplicateNameTokens(p.nom),
           email: p.user?.email ?? "",
           telephone: p.telephone ?? "",
           metier: p.servicesProposes[0]?.service?.libelle ?? "—",
@@ -1624,7 +1631,7 @@ export class AdminController {
 
     return {
       id: prestataire.id,
-      nom: prestataire.nom,
+      nom: collapseDuplicateNameTokens(prestataire.nom),
       email: prestataire.user?.email ?? "",
       telephone: prestataire.telephone ?? "",
       adresse: prestataire.adresse ?? "",
@@ -1987,7 +1994,7 @@ export class AdminController {
         },
         prestataire: {
           id: r.prestataire.id,
-          nom: r.prestataire.nom,
+          nom: collapseDuplicateNameTokens(r.prestataire.nom),
           telephone: r.prestataire.telephone ?? null,
         },
       })),
@@ -2309,7 +2316,7 @@ export class AdminController {
       service: { id: service.id, libelle: service.libelle },
       items: links.map((l) => ({
         id: l.prestataire.id,
-        nom: l.prestataire.nom,
+        nom: collapseDuplicateNameTokens(l.prestataire.nom),
         email: l.prestataire.user?.email ?? "",
         telephone: l.prestataire.telephone ?? "",
         actif: l.prestataire.actif,

@@ -129,8 +129,10 @@ export class PrestationsService {
         createdAt: { gte: startOfDay, lte: endOfDay },
       },
       include: {
-        particulier: { select: { prenom: true, nom: true } },
-        prestataire: { select: { nom: true, avatarUrl: true } },
+        particulier: { select: { prenom: true, nom: true, telephone: true } },
+        prestataire: {
+          select: { nom: true, avatarUrl: true, telephone: true },
+        },
         prestataireService: { include: { service: true } },
       },
     });
@@ -156,8 +158,8 @@ export class PrestationsService {
         statut: StatutPrestation.EN_ATTENTE,
       },
       include: {
-        particulier: { select: { prenom: true, nom: true } },
-        prestataire: { select: { nom: true } },
+        particulier: { select: { prenom: true, nom: true, telephone: true } },
+        prestataire: { select: { nom: true, telephone: true } },
         prestataireService: { include: { service: true } },
       },
     });
@@ -1062,7 +1064,9 @@ export class PrestationsService {
         where: { particulierId: particulier.id },
         orderBy: { createdAt: "desc" },
         include: {
-          prestataire: { select: { nom: true, avatarUrl: true } },
+          prestataire: {
+            select: { nom: true, avatarUrl: true, telephone: true },
+          },
           prestataireService: { include: { service: true } },
           avis: { select: { note: true, commentaire: true } },
         },
@@ -1080,7 +1084,9 @@ export class PrestationsService {
       where: { prestataireId: prestataire.id },
       orderBy: { createdAt: "desc" },
         include: {
-          particulier: { select: { prenom: true, nom: true } },
+          particulier: {
+            select: { prenom: true, nom: true, telephone: true },
+          },
           prestataireService: { include: { service: true } },
           avis: { select: { note: true, commentaire: true } },
         },
@@ -1109,6 +1115,7 @@ export class PrestationsService {
           select: {
             prenom: true,
             nom: true,
+            telephone: true,
             latitude: true,
             longitude: true,
           },
@@ -1116,6 +1123,7 @@ export class PrestationsService {
         prestataire: {
           select: {
             nom: true,
+            telephone: true,
             avatarUrl: true,
             adresse: true,
             latitude: true,
@@ -1221,10 +1229,15 @@ export class PrestationsService {
         ? {
             prenom: p.particulier.prenom,
             nom: p.particulier.nom,
+            telephone: p.particulier.telephone ?? undefined,
           }
         : undefined,
       prestataire: p.prestataire
-        ? { nom: p.prestataire.nom, avatarUrl: p.prestataire.avatarUrl }
+        ? {
+            nom: p.prestataire.nom,
+            telephone: p.prestataire.telephone ?? undefined,
+            avatarUrl: p.prestataire.avatarUrl,
+          }
         : undefined,
       service: this.formatPrestationServicePayload(p),
       avis: this.formatAvis(p.avis),

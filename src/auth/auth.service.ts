@@ -22,6 +22,10 @@ import type { UpdateParticulierDto } from "./dto/update-particulier.dto.js";
 import { GeocodingService } from "../geocoding/geocoding.service.js";
 import { AbonnementsService } from "../abonnements/abonnements.service.js";
 import { WalletsService } from "../wallets/wallets.service.js";
+import {
+  buildPrestataireNomComplet,
+  collapseDuplicateNameTokens,
+} from "../common/display-name.util.js";
 
 @Injectable()
 export class AuthService {
@@ -151,9 +155,11 @@ export class AuthService {
       }
 
       if (role === Role.PRESTATAIRE) {
-        const prenom = dto.prenom?.trim() ?? "";
-        const nom = dto.name?.trim() ?? "";
-        const nomComplet = [prenom, nom].filter(Boolean).join(" ").trim();
+        const nomComplet = buildPrestataireNomComplet({
+          prenom: dto.prenom,
+          nom: dto.nom,
+          name: dto.name,
+        });
         if (!nomComplet) {
           throw new ConflictException("Nom requis pour un prestataire");
         }
@@ -972,9 +978,12 @@ export class AuthService {
   }) {
     const mapProfile = (p: Record<string, unknown> | null | undefined) => {
       if (!p) return undefined;
-      const { latitude, longitude, ...rest } = p;
+      const { latitude, longitude, nom, ...rest } = p;
       return {
         ...rest,
+        ...(nom !== undefined
+          ? { nom: collapseDuplicateNameTokens(String(nom ?? "")) }
+          : {}),
         latitude: this.toNumber(latitude),
         longitude: this.toNumber(longitude),
       };

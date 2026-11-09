@@ -14,6 +14,7 @@ import {
 import { WalletsService } from "../wallets/wallets.service.js";
 import { SamirPayService } from "../samirpay/samirpay.service.js";
 import type { SoftPayAbonnementDto } from "./dto/softpay-abonnement.dto.js";
+import { collapseDuplicateNameTokens } from "../common/display-name.util.js";
 
 @Injectable()
 export class AbonnementsService {
@@ -535,7 +536,7 @@ export class AbonnementsService {
       return {
         id: abo.id,
         prestataireId: abo.prestataireId,
-        prestataireNom: abo.prestataire.nom,
+        prestataireNom: collapseDuplicateNameTokens(abo.prestataire.nom),
         prestataireEmail: abo.prestataire.user.email,
         offreId: abo.offreId,
         offreLibelle: abo.offre.libelle,

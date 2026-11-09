@@ -11,6 +11,7 @@ import { GeocodingService } from "../geocoding/geocoding.service.js";
 import { UpdateMePrestataireDto } from "./dto/update-me.dto.js";
 import { NotificationsService } from "../notifications/notifications.service.js";
 import { PRESTATAIRE_TYPE_DOCUMENTS_CATALOG } from "./type-documents.catalog.js";
+import { collapseDuplicateNameTokens } from "../common/display-name.util.js";
 
 const RAYON_METRES = 500;
 const NOTE_MAX = 5;
@@ -303,7 +304,7 @@ export class PrestatairesService {
     const prestataires = ordonnes.map(
       ({ prestataire, noteMoyenne, nbAvis, distanceMetres }) => ({
         id: prestataire.id,
-        nom: prestataire.nom,
+        nom: collapseDuplicateNameTokens(prestataire.nom),
         adresse: prestataire.adresse,
         telephone: prestataire.telephone,
         bio: prestataire.bio,
@@ -543,7 +544,7 @@ export class PrestatairesService {
     return ordonnes.map(
       ({ prestataire, noteMoyenne, nbAvis, distanceMetres }) => ({
         id: prestataire.id,
-        nom: prestataire.nom,
+        nom: collapseDuplicateNameTokens(prestataire.nom),
         adresse: prestataire.adresse,
         telephone: prestataire.telephone,
         bio: prestataire.bio,
@@ -1065,7 +1066,7 @@ export class PrestatairesService {
 
     return {
       id: updated.id,
-      nom: updated.nom,
+      nom: collapseDuplicateNameTokens(updated.nom),
       telephone: updated.telephone,
       adresse: updated.adresse,
       bio: updated.bio,
