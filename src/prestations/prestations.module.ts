@@ -7,6 +7,7 @@ import { NotificationsModule } from "../notifications/notifications.module.js";
 import { WalletsModule } from "../wallets/wallets.module.js";
 import { SamirPayModule } from "../samirpay/samirpay.module.js";
 import { AbonnementsModule } from "../abonnements/abonnements.module.js";
+import { SmsModule } from "../sms/sms.module.js";
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { AbonnementsModule } from "../abonnements/abonnements.module.js";
     WalletsModule,
     SamirPayModule,
     AbonnementsModule,
+    SmsModule,
   ],
   controllers: [PrestationsController],
   providers: [PrestationsService, PrestataireActiveAbonnementGuard],

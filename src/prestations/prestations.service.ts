@@ -24,6 +24,7 @@ import {
 } from "./prestation-billing.util.js";
 import { resolveHourlyTarifForPrestation } from "./service-catalog-tarif.util.js";
 import { AbonnementsService } from "../abonnements/abonnements.service.js";
+import { YasSmsService } from "../sms/yas-sms.service.js";
 
 @Injectable()
 export class PrestationsService {
@@ -35,6 +36,7 @@ export class PrestationsService {
     private readonly wallets: WalletsService,
     private readonly samirpay: SamirPayService,
     private readonly abonnements: AbonnementsService,
+    private readonly sms: YasSmsService,
   ) {}
 
   /**
@@ -167,12 +169,18 @@ export class PrestationsService {
     const nomClient =
       [particulier.prenom, particulier.nom].filter(Boolean).join(" ").trim() ||
       "Un client";
-    await this.notifications.sendToUser(prestataire.user.id, {
-      title: "Nouvelle demande de prestation",
-      body: `${nomClient} vous a demandé une prestation (${service.service.libelle}).`,
-      type: "prestation_created",
-      data: { prestationId: prestation.id },
-    });
+    await Promise.all([
+      this.notifications.sendToUser(prestataire.user.id, {
+        title: "Nouvelle demande de prestation",
+        body: `${nomClient} vous a demandé une prestation (${service.service.libelle}).`,
+        type: "prestation_created",
+        data: { prestationId: prestation.id },
+      }),
+      this.sms.send(
+        prestataire.telephone,
+        `Mille Services: nouvelle demande de ${nomClient} pour ${service.service.libelle}. Ouvrez l'application pour repondre.`,
+      ),
+    ]);
 
     return this.formatPrestation(prestation);
   }
@@ -214,8 +222,10 @@ export class PrestationsService {
         acceptedAt: new Date(),
       },
       include: {
-        particulier: { select: { prenom: true, nom: true, userId: true } },
-        prestataire: { select: { nom: true } },
+        particulier: {
+          select: { prenom: true, nom: true, telephone: true, userId: true },
+        },
+        prestataire: { select: { nom: true, telephone: true } },
         prestataireService: { include: { service: true } },
       },
     });
