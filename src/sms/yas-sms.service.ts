@@ -1,6 +1,6 @@
 import { Injectable, Logger } from "@nestjs/common";
 
-const DEFAULT_YAS_SMS_BASE_URL = "https://api.yasbusiness.sn";
+const DEFAULT_YAS_SMS_BASE_URL = "http://api.yasbusiness.sn";
 const YAS_SMS_SEND_PATH = "/sms/1/text/single";
 const DEFAULT_TIMEOUT_MS = 10_000;
 
@@ -28,7 +28,7 @@ export class YasSmsService {
     const url = baseUrl.endsWith(YAS_SMS_SEND_PATH)
       ? baseUrl
       : `${baseUrl.replace(/\/$/, "")}${YAS_SMS_SEND_PATH}`;
-    const sender = process.env.YAS_SMS_SENDER?.trim() || "Milles Services";
+    const sender = process.env.YAS_SMS_SENDER?.trim() || "Mservices";
     const timeoutMs = this.readTimeoutMs();
 
     try {
