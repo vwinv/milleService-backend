@@ -417,12 +417,18 @@ export class PrestationsService {
     const nomClient = `${particulier.prenom} ${particulier.nom}`.trim();
     const serviceLibelle =
       prestation.prestataireService?.service?.libelle ?? "prestation";
-    await this.notifications.sendToUser(prestation.prestataire.user.id, {
-      title: "Demande annulée",
-      body: `${nomClient || "Le client"} a annulé la demande (${serviceLibelle}).`,
-      type: "prestation_cancelled",
-      data: { prestationId: updated.id },
-    });
+    await Promise.all([
+      this.notifications.sendToUser(prestation.prestataire.user.id, {
+        title: "Demande annulée",
+        body: `${nomClient || "Le client"} a annulé la demande (${serviceLibelle}).`,
+        type: "prestation_cancelled",
+        data: { prestationId: updated.id },
+      }),
+      this.sms.send(
+        prestation.prestataire.telephone,
+        `Mille Services: ${nomClient || "Le client"} a annule la demande ${serviceLibelle}.`,
+      ),
+    ]);
 
     return this.formatPrestation(updated);
   }
@@ -442,7 +448,7 @@ export class PrestationsService {
     const prestation = await this.prisma.prestation.findFirst({
       where: { id: prestationId, prestataireId: prestataire.id },
       include: {
-        particulier: { select: { userId: true } },
+        particulier: { select: { userId: true, telephone: true } },
         prestataireService: { include: { service: true } },
       },
     });
@@ -479,12 +485,18 @@ export class PrestationsService {
 
     const serviceLibelle =
       prestation.prestataireService?.service?.libelle ?? "prestation";
-    await this.notifications.sendToUser(prestation.particulier.userId, {
-      title: "Demande annulée",
-      body: `${prestataire.nom || "Le prestataire"} a annulé la demande (${serviceLibelle}).`,
-      type: "prestation_cancelled",
-      data: { prestationId: updated.id },
-    });
+    await Promise.all([
+      this.notifications.sendToUser(prestation.particulier.userId, {
+        title: "Demande annulée",
+        body: `${prestataire.nom || "Le prestataire"} a annulé la demande (${serviceLibelle}).`,
+        type: "prestation_cancelled",
+        data: { prestationId: updated.id },
+      }),
+      this.sms.send(
+        prestation.particulier.telephone,
+        `Mille Services: ${prestataire.nom || "Le prestataire"} a annule votre demande ${serviceLibelle}.`,
+      ),
+    ]);
 
     return this.formatPrestation(updated);
   }
