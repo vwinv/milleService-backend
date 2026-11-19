@@ -65,14 +65,16 @@ export class YasSmsService {
 
   private normalizeSenegalPhone(value: string | null | undefined): string | null {
     const digits = (value ?? "").replace(/\D/g, "");
-    const normalized =
+    const internationalDigits =
       digits.length === 9
         ? `221${digits}`
         : digits.startsWith("00221")
           ? digits.slice(2)
           : digits;
 
-    return /^221\d{9}$/.test(normalized) ? normalized : null;
+    return /^221\d{9}$/.test(internationalDigits)
+      ? `+${internationalDigits}`
+      : null;
   }
 
   private readTimeoutMs(): number {
