@@ -9,13 +9,15 @@ export class YasSmsService {
   private readonly logger = new Logger(YasSmsService.name);
 
   async send(to: string | null | undefined, text: string): Promise<boolean> {
-    const authorization = process.env.YAS_SMS_AUTHORIZATION?.trim();
-    if (!authorization) {
+    const configuredAuthorization =
+      process.env.YAS_SMS_AUTHORIZATION?.trim();
+    if (!configuredAuthorization) {
       this.logger.warn(
         "SMS Yas non envoyé : variable YAS_SMS_AUTHORIZATION absente.",
       );
       return false;
     }
+    const authorization = this.authorizationHeader(configuredAuthorization);
 
     const recipient = this.normalizeSenegalPhone(to);
     if (!recipient) {
@@ -86,6 +88,10 @@ export class YasSmsService {
     return Number.isFinite(configured) && configured > 0
       ? configured
       : DEFAULT_TIMEOUT_MS;
+  }
+
+  private authorizationHeader(value: string): string {
+    return /^(App|Basic|Bearer)\s+/i.test(value) ? value : `App ${value}`;
   }
 
   private truncate(value: string, maxLength: number): string {
